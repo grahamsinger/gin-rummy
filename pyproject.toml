@@ -1,0 +1,20 @@
+[project]
+name = "gin-rummy"
+version = "0.1.0"
+description = "A Gin Rummy card game"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+gin-rummy = "gin_rummy.cli:main"
+gin-simulate = "gin_rummy.simulator:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ty"]
