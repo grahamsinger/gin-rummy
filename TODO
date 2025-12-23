@@ -8,8 +8,10 @@
 
 ## AI Opponent (COMPLETED - Basic)
 - [x] Basic AI with meld-aware strategy
+- [x] ContextAwareAI that tracks discards, outs, and opponent patterns
+- [ ] Tune ContextAwareAI parameters (currently 40.5% win rate vs BasicAI)
+  - See docs/context-aware-ai.md for recommended starting values
 - [ ] AI difficulty levels (easy/medium/hard)
-- [ ] Smarter AI that tracks discards and infers opponent's hand
 
 ## Game Tracking (COMPLETED - SQLite)
 - [x] SQLite database for game/hand/turn history
@@ -35,6 +37,15 @@
 - [x] Suit-row layout with cards positioned by rank
 - [x] Brackets around melded cards
 - [x] Superscript selection numbers
+
+## Configuration Refactor
+- [ ] Split config.toml into separate files by concern:
+  - `config/game.toml` - game rules (knock threshold, bonuses)
+  - `config/ai.toml` - BasicAI settings
+  - `config/context-ai.toml` - ContextAwareAI parameters
+  - `config/display.toml` - UI/display settings
+  - `config/database.toml` - database/logging settings
+- Benefits: easier to track what changed, less accidental edits, cleaner diffs
 
 ## Future Ideas
 - [ ] Multiplayer over network
