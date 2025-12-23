@@ -1,12 +1,16 @@
 """Terminal interface for Gin Rummy."""
 
+from __future__ import annotations
+
 import os
 import sys
 import time
 from enum import Enum, auto
+from pathlib import Path
 
 from gin_rummy.ai import BasicAI, DrawChoice
 from gin_rummy.config import get_config, load_config
+from gin_rummy.database import GameTracker
 from gin_rummy.game import Game, GamePhase, InvalidActionError
 from gin_rummy.hand import Hand
 from gin_rummy.melds import MeldType
@@ -176,7 +180,11 @@ def play_ai_first_discard(game: Game, ai: BasicAI) -> None:
     time.sleep(delay)
 
 
-def play_human_turn(game: Game, human_player_idx: int) -> TurnResult:
+def play_human_turn(
+    game: Game,
+    human_player_idx: int,
+    tracker: GameTracker | None = None
+) -> TurnResult:
     """Play a human player's turn.
 
     Returns:
@@ -188,11 +196,18 @@ def play_human_turn(game: Game, human_player_idx: int) -> TurnResult:
     current = game.current_player
     print(f"{current.name}'s turn")
 
+    # Capture state before turn
+    cards_before = [str(c) for c in current.hand]
+    deadwood_before = current.hand.deadwood_total
+
     # Drawing phase
     print("\nDraw from:")
     print("  [1] Deck")
     if game.top_of_discard:
         print(f"  [2] Discard pile ({game.top_of_discard})")
+
+    drew_from = "deck"
+    card = None
 
     while True:
         choice = input("\nYour choice: ").strip()
@@ -203,6 +218,7 @@ def play_human_turn(game: Game, human_player_idx: int) -> TurnResult:
         if choice == "1":
             try:
                 card = game.draw_from_deck()
+                drew_from = "deck"
                 print(f"\nDrew {card} from deck")
                 break
             except InvalidActionError as e:
@@ -210,6 +226,7 @@ def play_human_turn(game: Game, human_player_idx: int) -> TurnResult:
                 return TurnResult.DRAW
         elif choice == "2" and game.top_of_discard:
             card = game.draw_from_discard()
+            drew_from = "discard"
             print(f"\nPicked up {card} from discard")
             break
         else:
@@ -233,6 +250,22 @@ def play_human_turn(game: Game, human_player_idx: int) -> TurnResult:
             sys.exit(0)
 
         if choice == "k" and game.can_knock:
+            # Record turn before knock
+            if tracker and card:
+                cards_after = [str(c) for c in current.hand]
+                deadwood_after = current.hand.deadwood_total
+                tracker.record_turn(
+                    player_name=current.name,
+                    drew_from=drew_from,
+                    card_drawn=str(card),
+                    card_discarded=None,
+                    did_knock=True,
+                    cards_before=cards_before,
+                    cards_after=cards_after,
+                    deadwood_before=deadwood_before,
+                    deadwood_after=deadwood_after
+                )
+
             result = game.knock()
             display_round_result(game)
             return TurnResult.KNOCKED
@@ -244,6 +277,23 @@ def play_human_turn(game: Game, human_player_idx: int) -> TurnResult:
                 discard_card = display_cards[idx - 1]
                 game.discard(discard_card)
                 print(f"\nDiscarded {discard_card}")
+
+                # Record turn
+                if tracker and card:
+                    cards_after = [str(c) for c in current.hand]
+                    deadwood_after = current.hand.deadwood_total
+                    tracker.record_turn(
+                        player_name=current.name,
+                        drew_from=drew_from,
+                        card_drawn=str(card),
+                        card_discarded=str(discard_card),
+                        did_knock=False,
+                        cards_before=cards_before,
+                        cards_after=cards_after,
+                        deadwood_before=deadwood_before,
+                        deadwood_after=deadwood_after
+                    )
+
                 return TurnResult.CONTINUE
             print(f"Please enter a number between 1 and {len(display_cards)}")
         except ValueError:
@@ -253,19 +303,30 @@ def play_human_turn(game: Game, human_player_idx: int) -> TurnResult:
                 print("Please enter a valid card number")
 
 
-def play_ai_turn(game: Game, ai: BasicAI, human_player_idx: int) -> TurnResult:
+def play_ai_turn(
+    game: Game,
+    ai: BasicAI,
+    human_player_idx: int,
+    tracker: GameTracker | None = None
+) -> TurnResult:
     """Play an AI turn.
 
     Returns:
         TurnResult indicating whether round continues, ended by knock, or draw.
     """
-    delay = get_config().display.ai_turn_delay
+    config = get_config()
+    delay = config.display.ai_turn_delay
     current = game.current_player
     print(f"\n{current.name}'s turn...")
     time.sleep(delay)
 
+    # Capture state before turn
+    cards_before = [str(c) for c in current.hand]
+    deadwood_before = current.hand.deadwood_total
+
     # AI decides where to draw
     draw_choice = ai.decide_draw(current.hand, game.top_of_discard)
+    drew_from = "discard" if draw_choice == DrawChoice.DISCARD else "deck"
 
     if draw_choice == DrawChoice.DISCARD and game.top_of_discard:
         card = game.draw_from_discard()
@@ -288,12 +349,76 @@ def play_ai_turn(game: Game, ai: BasicAI, human_player_idx: int) -> TurnResult:
     if should_knock and game.can_knock:
         print(f"{current.name} knocks!")
         time.sleep(delay)
+
+        # Capture state after (before knock removes from game state)
+        cards_after = [str(c) for c in current.hand if c != discard]
+        deadwood_after = current.hand.deadwood_total
+
+        # Record turn if tracking
+        if tracker:
+            turn_id = tracker.record_turn(
+                player_name=current.name,
+                drew_from=drew_from,
+                card_drawn=str(card),
+                card_discarded=str(discard),
+                did_knock=True,
+                cards_before=cards_before,
+                cards_after=cards_after,
+                deadwood_before=deadwood_before,
+                deadwood_after=deadwood_after
+            )
+            if config.database.track_ai_decisions:
+                tracker.record_ai_decision(
+                    turn_id=turn_id,
+                    decision_type="draw",
+                    choice=drew_from,
+                    reasoning=f"Drew {card} from {drew_from}"
+                )
+                tracker.record_ai_decision(
+                    turn_id=turn_id,
+                    decision_type="knock",
+                    choice="yes",
+                    reasoning=f"Knocked with {deadwood_after} deadwood"
+                )
+
         result = game.knock()
         display_round_result(game)
         return TurnResult.KNOCKED
     else:
         game.discard(discard)
         print(f"{current.name} discarded {discard}")
+
+        # Capture state after
+        cards_after = [str(c) for c in current.hand]
+        deadwood_after = current.hand.deadwood_total
+
+        # Record turn if tracking
+        if tracker:
+            turn_id = tracker.record_turn(
+                player_name=current.name,
+                drew_from=drew_from,
+                card_drawn=str(card),
+                card_discarded=str(discard),
+                did_knock=False,
+                cards_before=cards_before,
+                cards_after=cards_after,
+                deadwood_before=deadwood_before,
+                deadwood_after=deadwood_after
+            )
+            if config.database.track_ai_decisions:
+                tracker.record_ai_decision(
+                    turn_id=turn_id,
+                    decision_type="draw",
+                    choice=drew_from,
+                    reasoning=f"Drew {card} from {drew_from}"
+                )
+                tracker.record_ai_decision(
+                    turn_id=turn_id,
+                    decision_type="discard",
+                    choice=str(discard),
+                    reasoning=f"Discarded {discard}, deadwood {deadwood_before} -> {deadwood_after}"
+                )
+
         time.sleep(delay)
         return TurnResult.CONTINUE
 
@@ -325,9 +450,18 @@ def display_round_result(game: Game) -> None:
           f"{game.players[1].name}: {game.players[1].score}")
 
 
-def play_round_vs_ai(game: Game, ai: BasicAI, human_player_idx: int) -> None:
+def play_round_vs_ai(
+    game: Game,
+    ai: BasicAI,
+    human_player_idx: int,
+    tracker: GameTracker | None = None
+) -> None:
     """Play a complete round against AI."""
     game.deal()
+
+    # Start hand tracking
+    if tracker:
+        tracker.start_hand(dealer_name=game.dealer.name)
 
     # Determine who does first discard (non-dealer)
     non_dealer_idx = 1 - game.dealer_idx
@@ -348,16 +482,45 @@ def play_round_vs_ai(game: Game, ai: BasicAI, human_player_idx: int) -> None:
     turn_result = TurnResult.CONTINUE
     while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
         if game.current_player_idx == human_player_idx:
-            turn_result = play_human_turn(game, human_player_idx)
+            turn_result = play_human_turn(game, human_player_idx, tracker)
             if turn_result != TurnResult.CONTINUE:
                 break
         else:
             clear_screen()
             display_game_state(game, human_player_idx)
-            turn_result = play_ai_turn(game, ai, human_player_idx)
+            turn_result = play_ai_turn(game, ai, human_player_idx, tracker)
             if turn_result != TurnResult.CONTINUE:
                 break
             input("\nPress Enter to continue...")
+
+    # End hand tracking
+    if tracker:
+        if turn_result == TurnResult.DRAW:
+            tracker.end_hand(winner_name=None, points=0, is_draw=True)
+        elif turn_result == TurnResult.KNOCKED:
+            # Determine winner from scores (the one who just gained points)
+            p0_score_before = game.players[0].score
+            p1_score_before = game.players[1].score
+            # Winner is whoever has more points now (knock already applied)
+            if game.players[0].score > game.players[1].score:
+                winner = game.players[0]
+                points = game.players[0].score - p0_score_before
+            else:
+                winner = game.players[1]
+                points = game.players[1].score - p1_score_before
+            # Check for gin/undercut based on deadwood
+            p0_dw = game.players[0].hand.deadwood_total
+            p1_dw = game.players[1].hand.deadwood_total
+            is_gin = min(p0_dw, p1_dw) == 0
+            # Undercut if defender won
+            knocker_idx = 1 - game.current_player_idx  # current switched after knock
+            is_undercut = winner != game.players[knocker_idx]
+            tracker.end_hand(
+                winner_name=winner.name,
+                points=points,
+                is_gin=is_gin,
+                is_undercut=is_undercut
+            )
 
     if turn_result == TurnResult.DRAW:
         print("\nRound ended in a DRAW (deck exhausted)")
@@ -365,9 +528,13 @@ def play_round_vs_ai(game: Game, ai: BasicAI, human_player_idx: int) -> None:
     input("\nPress Enter to continue...")
 
 
-def play_round_pvp(game: Game) -> None:
+def play_round_pvp(game: Game, tracker: GameTracker | None = None) -> None:
     """Play a complete round player vs player."""
     game.deal()
+
+    # Start hand tracking
+    if tracker:
+        tracker.start_hand(dealer_name=game.dealer.name)
 
     # First discard
     clear_screen()
@@ -383,11 +550,36 @@ def play_round_pvp(game: Game) -> None:
     # Main game loop
     turn_result = TurnResult.CONTINUE
     while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
-        turn_result = play_human_turn(game, game.current_player_idx)
+        turn_result = play_human_turn(game, game.current_player_idx, tracker)
         if turn_result != TurnResult.CONTINUE:
             break
         if game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
             input("\nPress Enter for next player's turn...")
+
+    # End hand tracking
+    if tracker:
+        if turn_result == TurnResult.DRAW:
+            tracker.end_hand(winner_name=None, points=0, is_draw=True)
+        elif turn_result == TurnResult.KNOCKED:
+            if game.players[0].score > game.players[1].score:
+                winner = game.players[0]
+            else:
+                winner = game.players[1]
+            p0_dw = game.players[0].hand.deadwood_total
+            p1_dw = game.players[1].hand.deadwood_total
+            is_gin = min(p0_dw, p1_dw) == 0
+            knocker_idx = 1 - game.current_player_idx
+            is_undercut = winner != game.players[knocker_idx]
+            # Calculate points from difference
+            points = abs(p0_dw - p1_dw)
+            if is_gin or is_undercut:
+                points += 25
+            tracker.end_hand(
+                winner_name=winner.name,
+                points=points,
+                is_gin=is_gin,
+                is_undercut=is_undercut
+            )
 
     if turn_result == TurnResult.DRAW:
         print("\nRound ended in a DRAW (deck exhausted)")
@@ -441,12 +633,18 @@ def main() -> None:
 
     game = Game(p1_name, p2_name)
 
+    # Initialize game tracker if database tracking is enabled
+    tracker: GameTracker | None = None
+    if config.database.enabled:
+        tracker = GameTracker(db_path=Path(config.database.path))
+        tracker.start_game(p1_name, p2_name)
+
     while True:
         if vs_ai:
             assert ai is not None and human_player_idx is not None
-            play_round_vs_ai(game, ai, human_player_idx)
+            play_round_vs_ai(game, ai, human_player_idx, tracker)
         else:
-            play_round_pvp(game)
+            play_round_pvp(game, tracker)
 
         # Ask to play another round
         choice = input("\nPlay another round? (y/n): ").strip().lower()
@@ -454,6 +652,16 @@ def main() -> None:
             break
 
         game.new_round()
+
+    # End game tracking
+    if tracker:
+        winner = max(game.players, key=lambda p: p.score)
+        winner_name = winner.name if game.players[0].score != game.players[1].score else None
+        tracker.end_game(
+            winner_name=winner_name,
+            score_p1=game.players[0].score,
+            score_p2=game.players[1].score
+        )
 
     print("\n" + "=" * 50)
     print("           FINAL SCORES")

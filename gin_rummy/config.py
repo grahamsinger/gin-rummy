@@ -48,6 +48,15 @@ class DisplayConfig:
 
 
 @dataclass
+class DatabaseConfig:
+    """Database configuration for game history tracking."""
+
+    enabled: bool = True  # Whether to track game history
+    path: str = "game_history.db"  # Path to SQLite database file
+    track_ai_decisions: bool = True  # Track detailed AI decision reasoning
+
+
+@dataclass
 class Config:
     """Main configuration container."""
 
@@ -55,6 +64,7 @@ class Config:
     game_rules: GameRulesConfig = field(default_factory=GameRulesConfig)
     ai: AIConfig = field(default_factory=AIConfig)
     display: DisplayConfig = field(default_factory=DisplayConfig)
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> Self:
@@ -99,12 +109,14 @@ class Config:
         game_rules_data = data.get("game_rules", {})
         ai_data = data.get("ai", {})
         display_data = data.get("display", {})
+        database_data = data.get("database", {})
 
         return cls(
             logging=LoggingConfig(**logging_data),
             game_rules=GameRulesConfig(**game_rules_data),
             ai=AIConfig(**ai_data),
             display=DisplayConfig(**display_data),
+            database=DatabaseConfig(**database_data),
         )
 
     def setup_logging(self) -> None:

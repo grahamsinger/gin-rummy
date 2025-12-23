@@ -72,3 +72,19 @@ ai_turn_delay = 0.5
 # Intended to show AI's internal thought process directly in game output.
 # For now, use ai_level = "DEBUG" in [logging] section to see AI reasoning.
 show_ai_thinking = false
+
+[database]
+# Whether to track game history in a SQLite database.
+# When enabled, all games, hands, turns, and AI decisions are recorded.
+# Useful for debugging, analyzing AI performance, and reviewing past games.
+enabled = true
+
+# Path to the SQLite database file.
+# Can be absolute or relative to the current working directory.
+# The file will be created automatically if it doesn't exist.
+path = "game_history.db"
+
+# Whether to record detailed AI decision reasoning.
+# When true, stores why the AI made each draw/discard/knock decision.
+# Increases database size but provides valuable debugging information.
+track_ai_decisions = true
