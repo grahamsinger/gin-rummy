@@ -9,18 +9,34 @@
 ## AI Opponent (COMPLETED - Basic)
 - [x] Basic AI with meld-aware strategy
 - [ ] AI difficulty levels (easy/medium/hard)
-- [ ] Smarter AI that tracks discards
+- [ ] Smarter AI that tracks discards and infers opponent's hand
+
+## Game Tracking (COMPLETED - SQLite)
+- [x] SQLite database for game/hand/turn history
+- [x] Track statistics across sessions (wins, gins, undercuts)
+- [x] AI decision logging for analysis
+- [ ] Game history/replay viewer
+- [ ] Statistics dashboard/summary command
+
+## Training/Assist Mode (COMPLETED)
+- [x] Show cards remaining in deck
+- [x] Track cards opponent picked up from discard pile
+- [x] Track all "dead" cards (discarded throughout hand)
+- [x] Toggle between showing counts vs actual card values
+- [x] Config setting + runtime keyboard shortcut ('a')
 
 ## Laying Off
 - [ ] Allow defender to lay off cards on knocker's melds after knock
 - [ ] Update scoring to account for laid off cards
 
-## Game Tracking
-- [ ] Track statistics across sessions (wins, gins, undercuts)
-- [ ] Persistent scores to file
-- [ ] Game history/replay
-
 ## UI Improvements
 - [x] Show melds and deadwood in hand display
 - [ ] Color output for suits (red hearts/diamonds)
 - [ ] Better card art/ASCII representation
+
+## Future Ideas
+- [ ] Multiplayer over network
+- [ ] Web UI version
+- [ ] Oklahoma Gin variant (variable knock threshold)
+- [ ] Tournament mode with multiple rounds/scoring
+- [ ] Undo last move (within same turn)

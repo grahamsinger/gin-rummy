@@ -30,6 +30,66 @@ def clear_screen() -> None:
         os.system("cls" if os.name == "nt" else "clear")
 
 
+# Runtime state for assist mode toggle (overrides config)
+_assist_show_values: bool | None = None
+
+
+def toggle_assist_values() -> bool:
+    """Toggle assist mode value display. Returns new state."""
+    global _assist_show_values
+    config = get_config()
+    if _assist_show_values is None:
+        _assist_show_values = not config.assist.show_values
+    else:
+        _assist_show_values = not _assist_show_values
+    return _assist_show_values
+
+
+def get_assist_show_values() -> bool:
+    """Get current assist show_values state (runtime override or config)."""
+    if _assist_show_values is not None:
+        return _assist_show_values
+    return get_config().assist.show_values
+
+
+def display_assist_info(game: Game, human_player_idx: int) -> None:
+    """Display assist information (opponent pickups and dead cards).
+
+    Args:
+        game: The game instance.
+        human_player_idx: Index of the human player (0 or 1).
+    """
+    config = get_config()
+    if not config.assist.enabled:
+        return
+
+    opponent = game.players[1 - human_player_idx]
+    show_values = get_assist_show_values()
+
+    opponent_pickups = game.get_player_pickups(opponent.name)
+    dead_cards = game.discard_history
+
+    print("--- Assist ---")
+
+    # Opponent pickups
+    if show_values and opponent_pickups:
+        cards_str = ", ".join(str(c) for c in opponent_pickups)
+        print(f"Opponent picked up: {cards_str}")
+    else:
+        count = len(opponent_pickups)
+        print(f"Opponent picked up: {count} card{'s' if count != 1 else ''}")
+
+    # Dead cards (all discards this hand)
+    if show_values and dead_cards:
+        cards_str = ", ".join(str(c) for c in dead_cards)
+        print(f"Dead cards: {cards_str}")
+    else:
+        count = len(dead_cards)
+        print(f"Dead cards: {count}")
+
+    print("(Press 'a' to toggle card values)")
+
+
 def display_hand_with_melds(hand: Hand, show_numbers: bool = True, for_discard: bool = False) -> list:
     """Display a hand with melds visually grouped.
 
@@ -125,6 +185,9 @@ def display_game_state(game: Game, human_player_idx: int, show_opponent: bool = 
     else:
         print("Discard pile: (empty)")
 
+    # Assist mode info
+    display_assist_info(game, human_player_idx)
+
     # Human player's hand with meld analysis
     human.hand.sort()
     print(f"\n{human.name}'s hand:")
@@ -210,10 +273,22 @@ def play_human_turn(
     card = None
 
     while True:
-        choice = input("\nYour choice: ").strip()
+        choice = input("\nYour choice: ").strip().lower()
         if choice == "q":
             print("Thanks for playing!")
             sys.exit(0)
+
+        if choice == "a":
+            new_state = toggle_assist_values()
+            print(f"\nAssist card values: {'ON' if new_state else 'OFF'}")
+            clear_screen()
+            display_game_state(game, human_player_idx)
+            print(f"{current.name}'s turn")
+            print("\nDraw from:")
+            print("  [1] Deck")
+            if game.top_of_discard:
+                print(f"  [2] Discard pile ({game.top_of_discard})")
+            continue
 
         if choice == "1":
             try:
@@ -248,6 +323,11 @@ def play_human_turn(
         if choice == "q":
             print("Thanks for playing!")
             sys.exit(0)
+
+        if choice == "a":
+            new_state = toggle_assist_values()
+            print(f"\nAssist card values: {'ON' if new_state else 'OFF'}")
+            continue
 
         if choice == "k" and game.can_knock:
             # Record turn before knock

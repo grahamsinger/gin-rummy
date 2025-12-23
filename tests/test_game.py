@@ -147,9 +147,9 @@ class TestDiscarding:
 
     def test_cannot_discard_card_not_in_hand(self):
         game = self.setup_discarding_phase()
-        fake_card = Card(Rank.TWO, Suit.CLUBS)
-        if fake_card in game.current_player.hand:
-            fake_card = Card(Rank.THREE, Suit.DIAMONDS)
+        hand_cards = set(game.current_player.hand)
+        all_cards = [Card(rank, suit) for suit in Suit for rank in Rank]
+        fake_card = next(c for c in all_cards if c not in hand_cards)
 
         with pytest.raises(InvalidActionError):
             game.discard(fake_card)
@@ -315,3 +315,87 @@ class TestProperties:
         assert current != opp
         assert current in game.players
         assert opp in game.players
+
+
+class TestAssistTracking:
+    """Tests for assist mode card tracking features."""
+
+    def test_discard_history_tracks_first_discard(self):
+        game = Game("Alice", "Bob")
+        game.deal()
+        card = game.current_player.hand[0]
+        game.discard_to_start(card)
+
+        assert card in game.discard_history
+        assert len(game.discard_history) == 1
+
+    def test_discard_history_tracks_regular_discards(self):
+        game = Game("Alice", "Bob")
+        game.deal()
+        first_card = game.current_player.hand[0]
+        game.discard_to_start(first_card)
+
+        game.draw_from_deck()
+        second_card = game.current_player.hand[0]
+        game.discard(second_card)
+
+        assert first_card in game.discard_history
+        assert second_card in game.discard_history
+        assert len(game.discard_history) == 2
+
+    def test_discard_history_resets_on_new_deal(self):
+        game = Game("Alice", "Bob")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+
+        assert len(game.discard_history) == 1
+
+        game.new_round()
+        game.deal()
+
+        assert len(game.discard_history) == 0
+
+    def test_player_pickups_empty_initially(self):
+        game = Game("Alice", "Bob")
+        game.deal()
+
+        assert len(game.get_player_pickups("Alice")) == 0
+        assert len(game.get_player_pickups("Bob")) == 0
+
+    def test_player_pickups_tracks_discard_draw(self):
+        game = Game("Alice", "Bob")
+        game.deal()
+        discard_card = game.current_player.hand[0]
+        game.discard_to_start(discard_card)
+
+        # Now dealer draws from discard
+        current_name = game.current_player.name
+        picked_up = game.draw_from_discard()
+
+        assert picked_up == discard_card
+        assert picked_up in game.get_player_pickups(current_name)
+        assert len(game.get_player_pickups(current_name)) == 1
+
+    def test_player_pickups_resets_on_new_deal(self):
+        game = Game("Alice", "Bob")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+        game.draw_from_discard()
+
+        current_name = game.current_player.name
+        assert len(game.get_player_pickups(current_name)) == 1
+
+        game.new_round()
+        game.deal()
+
+        assert len(game.get_player_pickups(current_name)) == 0
+
+    def test_deck_draw_not_tracked_as_pickup(self):
+        game = Game("Alice", "Bob")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+
+        current_name = game.current_player.name
+        game.draw_from_deck()
+
+        assert len(game.get_player_pickups(current_name)) == 0

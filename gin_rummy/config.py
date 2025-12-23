@@ -57,6 +57,14 @@ class DatabaseConfig:
 
 
 @dataclass
+class AssistConfig:
+    """Training assist mode configuration."""
+
+    enabled: bool = True  # Show assist information during play
+    show_values: bool = False  # Show actual card values (vs just counts)
+
+
+@dataclass
 class Config:
     """Main configuration container."""
 
@@ -65,6 +73,7 @@ class Config:
     ai: AIConfig = field(default_factory=AIConfig)
     display: DisplayConfig = field(default_factory=DisplayConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    assist: AssistConfig = field(default_factory=AssistConfig)
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> Self:
@@ -110,6 +119,7 @@ class Config:
         ai_data = data.get("ai", {})
         display_data = data.get("display", {})
         database_data = data.get("database", {})
+        assist_data = data.get("assist", {})
 
         return cls(
             logging=LoggingConfig(**logging_data),
@@ -117,6 +127,7 @@ class Config:
             ai=AIConfig(**ai_data),
             display=DisplayConfig(**display_data),
             database=DatabaseConfig(**database_data),
+            assist=AssistConfig(**assist_data),
         )
 
     def setup_logging(self) -> None:

@@ -66,6 +66,13 @@ class Game:
         self.dealer_idx = 0
         self._card_drawn_this_turn: Card | None = None
 
+        # Assist mode tracking
+        self._discard_pickups: dict[str, list[Card]] = {
+            player1_name: [],
+            player2_name: [],
+        }
+        self._discard_history: list[Card] = []
+
     @property
     def current_player(self) -> Player:
         """Return the player whose turn it is."""
@@ -92,6 +99,15 @@ class Game:
         return self.discard_pile[-1] if self.discard_pile else None
 
     @property
+    def discard_history(self) -> list[Card]:
+        """Return all cards discarded this hand (for assist mode)."""
+        return self._discard_history.copy()
+
+    def get_player_pickups(self, player_name: str) -> list[Card]:
+        """Return cards a player picked from discard pile this hand."""
+        return self._discard_pickups.get(player_name, []).copy()
+
+    @property
     def can_knock(self) -> bool:
         """Return True if current player can knock (deadwood <= threshold)."""
         return self.current_player.hand.deadwood_total <= self.knock_threshold
@@ -111,6 +127,11 @@ class Game:
         self.deck = Deck()
         self.deck.shuffle()
         self.discard_pile = []
+
+        # Reset assist tracking
+        for player in self.players:
+            self._discard_pickups[player.name] = []
+        self._discard_history = []
 
         for player in self.players:
             player.reset_hand()
@@ -144,6 +165,7 @@ class Game:
 
         self.current_player.hand.remove(card)
         self.discard_pile.append(card)
+        self._discard_history.append(card)
 
         # Switch to dealer's turn - non-dealer doesn't go again consecutively
         self.current_player_idx = self.dealer_idx
@@ -192,6 +214,7 @@ class Game:
         card = self.discard_pile.pop()
         self.current_player.hand.add(card)
         self._card_drawn_this_turn = card
+        self._discard_pickups[self.current_player.name].append(card)
         self.phase = GamePhase.DISCARDING
         return card
 
@@ -219,6 +242,7 @@ class Game:
 
         self.current_player.hand.remove(card)
         self.discard_pile.append(card)
+        self._discard_history.append(card)
         self._card_drawn_this_turn = None
 
         # Switch to opponent's turn
