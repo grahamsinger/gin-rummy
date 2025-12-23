@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from gin_rummy.card import Card
+from gin_rummy.config import get_config
 from gin_rummy.deck import Deck
 from gin_rummy.player import Player
 
@@ -40,10 +41,6 @@ class RoundResult:
 class Game:
     """Gin Rummy game state and logic."""
 
-    KNOCK_THRESHOLD = 10
-    GIN_UNDERCUT_BONUS = 25
-    MIN_DECK_CARDS = 2  # Round ends in draw when deck reaches this
-
     def __init__(self, player1_name: str, player2_name: str) -> None:
         """Create a new game with two players.
 
@@ -51,6 +48,13 @@ class Game:
             player1_name: Name of first player.
             player2_name: Name of second player.
         """
+        # Load game rules from config
+        config = get_config()
+        self.knock_threshold = config.game_rules.knock_threshold
+        self.gin_bonus = config.game_rules.gin_bonus
+        self.undercut_bonus = config.game_rules.undercut_bonus
+        self.min_deck_cards = config.game_rules.min_deck_cards
+
         self.players: tuple[Player, Player] = (
             Player(player1_name),
             Player(player2_name),
@@ -89,8 +93,8 @@ class Game:
 
     @property
     def can_knock(self) -> bool:
-        """Return True if current player can knock (deadwood <= 10)."""
-        return self.current_player.hand.deadwood_total <= self.KNOCK_THRESHOLD
+        """Return True if current player can knock (deadwood <= threshold)."""
+        return self.current_player.hand.deadwood_total <= self.knock_threshold
 
     def deal(self) -> None:
         """Deal cards to start a round.
@@ -140,8 +144,10 @@ class Game:
 
         self.current_player.hand.remove(card)
         self.discard_pile.append(card)
+
+        # Switch to dealer's turn - non-dealer doesn't go again consecutively
+        self.current_player_idx = self.dealer_idx
         self.phase = GamePhase.DRAWING
-        # Non-dealer continues with first real turn
 
     def draw_from_deck(self) -> Card:
         """Current player draws from deck.
@@ -156,7 +162,7 @@ class Game:
             raise InvalidActionError("Can only draw in DRAWING phase")
 
         # Check if deck is at minimum (round ends in draw)
-        if len(self.deck) <= self.MIN_DECK_CARDS:
+        if len(self.deck) <= self.min_deck_cards:
             self.phase = GamePhase.ROUND_OVER
             raise InvalidActionError(
                 f"Deck has only {len(self.deck)} cards - round ends in draw"
@@ -234,10 +240,10 @@ class Game:
         knocker = self.current_player
         defender = self.opponent
 
-        if knocker.hand.deadwood_total > self.KNOCK_THRESHOLD:
+        if knocker.hand.deadwood_total > self.knock_threshold:
             raise InvalidActionError(
                 f"Cannot knock with {knocker.hand.deadwood_total} deadwood "
-                f"(must be {self.KNOCK_THRESHOLD} or less)"
+                f"(must be {self.knock_threshold} or less)"
             )
 
         knocker_deadwood = knocker.hand.deadwood_total
@@ -250,13 +256,13 @@ class Game:
         is_undercut = not is_gin and defender_deadwood <= knocker_deadwood
 
         if is_gin:
-            # Gin: knocker wins 25 + defender's deadwood
-            points = self.GIN_UNDERCUT_BONUS + defender_deadwood
+            # Gin: knocker wins bonus + defender's deadwood
+            points = self.gin_bonus + defender_deadwood
             winner = knocker
             loser = defender
         elif is_undercut:
-            # Undercut: defender wins 25 + difference
-            points = self.GIN_UNDERCUT_BONUS + (knocker_deadwood - defender_deadwood)
+            # Undercut: defender wins bonus + difference
+            points = self.undercut_bonus + (knocker_deadwood - defender_deadwood)
             winner = defender
             loser = knocker
         else:

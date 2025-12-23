@@ -3,16 +3,27 @@
 import os
 import sys
 import time
+from enum import Enum, auto
 
+from gin_rummy.ai import BasicAI, DrawChoice
+from gin_rummy.config import get_config, load_config
 from gin_rummy.game import Game, GamePhase, InvalidActionError
 from gin_rummy.hand import Hand
 from gin_rummy.melds import MeldType
-from gin_rummy.ai import BasicAI, DrawChoice
+
+
+class TurnResult(Enum):
+    """Result of a turn."""
+
+    CONTINUE = auto()  # Round continues
+    KNOCKED = auto()  # Player knocked, round over
+    DRAW = auto()  # Deck exhausted, round is a draw
 
 
 def clear_screen() -> None:
-    """Clear the terminal screen."""
-    os.system("cls" if os.name == "nt" else "clear")
+    """Clear the terminal screen if enabled in config."""
+    if get_config().display.clear_screen:
+        os.system("cls" if os.name == "nt" else "clear")
 
 
 def display_hand_with_melds(hand: Hand, show_numbers: bool = True, for_discard: bool = False) -> list:
@@ -155,20 +166,21 @@ def play_human_first_discard(game: Game, human_player_idx: int) -> None:
 
 def play_ai_first_discard(game: Game, ai: BasicAI) -> None:
     """Handle AI's opening discard."""
+    delay = get_config().display.ai_turn_delay
     print(f"\n{game.current_player.name} is choosing a card to discard...")
-    time.sleep(1)
+    time.sleep(delay * 2)  # Slightly longer for first discard
 
     discard = ai.decide_discard(game.current_player.hand)
     game.discard_to_start(discard)
     print(f"{game.current_player.name} discarded {discard}")
-    time.sleep(0.5)
+    time.sleep(delay)
 
 
-def play_human_turn(game: Game, human_player_idx: int) -> bool:
+def play_human_turn(game: Game, human_player_idx: int) -> TurnResult:
     """Play a human player's turn.
 
     Returns:
-        True if the round should continue, False if it ended.
+        TurnResult indicating whether round continues, ended by knock, or draw.
     """
     clear_screen()
     display_game_state(game, human_player_idx)
@@ -195,7 +207,7 @@ def play_human_turn(game: Game, human_player_idx: int) -> bool:
                 break
             except InvalidActionError as e:
                 print(f"\n{e}")
-                return False
+                return TurnResult.DRAW
         elif choice == "2" and game.top_of_discard:
             card = game.draw_from_discard()
             print(f"\nPicked up {card} from discard")
@@ -223,7 +235,7 @@ def play_human_turn(game: Game, human_player_idx: int) -> bool:
         if choice == "k" and game.can_knock:
             result = game.knock()
             display_round_result(game)
-            return False
+            return TurnResult.KNOCKED
 
         # Try to parse as card number
         try:
@@ -232,7 +244,7 @@ def play_human_turn(game: Game, human_player_idx: int) -> bool:
                 discard_card = display_cards[idx - 1]
                 game.discard(discard_card)
                 print(f"\nDiscarded {discard_card}")
-                return True
+                return TurnResult.CONTINUE
             print(f"Please enter a number between 1 and {len(display_cards)}")
         except ValueError:
             if game.can_knock:
@@ -241,15 +253,16 @@ def play_human_turn(game: Game, human_player_idx: int) -> bool:
                 print("Please enter a valid card number")
 
 
-def play_ai_turn(game: Game, ai: BasicAI, human_player_idx: int) -> bool:
+def play_ai_turn(game: Game, ai: BasicAI, human_player_idx: int) -> TurnResult:
     """Play an AI turn.
 
     Returns:
-        True if the round should continue, False if it ended.
+        TurnResult indicating whether round continues, ended by knock, or draw.
     """
+    delay = get_config().display.ai_turn_delay
     current = game.current_player
     print(f"\n{current.name}'s turn...")
-    time.sleep(0.5)
+    time.sleep(delay)
 
     # AI decides where to draw
     draw_choice = ai.decide_draw(current.hand, game.top_of_discard)
@@ -263,9 +276,9 @@ def play_ai_turn(game: Game, ai: BasicAI, human_player_idx: int) -> bool:
             print(f"{current.name} drew from deck")
         except InvalidActionError:
             # Deck exhausted
-            return False
+            return TurnResult.DRAW
 
-    time.sleep(0.5)
+    time.sleep(delay)
 
     # AI decides what to discard and whether to knock
     discard, should_knock = ai.make_turn_decision(
@@ -274,15 +287,15 @@ def play_ai_turn(game: Game, ai: BasicAI, human_player_idx: int) -> bool:
 
     if should_knock and game.can_knock:
         print(f"{current.name} knocks!")
-        time.sleep(0.5)
+        time.sleep(delay)
         result = game.knock()
         display_round_result(game)
-        return False
+        return TurnResult.KNOCKED
     else:
         game.discard(discard)
         print(f"{current.name} discarded {discard}")
-        time.sleep(0.5)
-        return True
+        time.sleep(delay)
+        return TurnResult.CONTINUE
 
 
 def display_round_result(game: Game) -> None:
@@ -332,18 +345,21 @@ def play_round_vs_ai(game: Game, ai: BasicAI, human_player_idx: int) -> None:
     input("\nPress Enter to continue...")
 
     # Main game loop
+    turn_result = TurnResult.CONTINUE
     while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
         if game.current_player_idx == human_player_idx:
-            if not play_human_turn(game, human_player_idx):
+            turn_result = play_human_turn(game, human_player_idx)
+            if turn_result != TurnResult.CONTINUE:
                 break
         else:
             clear_screen()
             display_game_state(game, human_player_idx)
-            if not play_ai_turn(game, ai, human_player_idx):
+            turn_result = play_ai_turn(game, ai, human_player_idx)
+            if turn_result != TurnResult.CONTINUE:
                 break
             input("\nPress Enter to continue...")
 
-    if game.phase == GamePhase.ROUND_OVER:
+    if turn_result == TurnResult.DRAW:
         print("\nRound ended in a DRAW (deck exhausted)")
 
     input("\nPress Enter to continue...")
@@ -365,25 +381,36 @@ def play_round_pvp(game: Game) -> None:
     input("\nPress Enter for next player's turn...")
 
     # Main game loop
+    turn_result = TurnResult.CONTINUE
     while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
-        if not play_human_turn(game, game.current_player_idx):
+        turn_result = play_human_turn(game, game.current_player_idx)
+        if turn_result != TurnResult.CONTINUE:
             break
         if game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
             input("\nPress Enter for next player's turn...")
+
+    if turn_result == TurnResult.DRAW:
+        print("\nRound ended in a DRAW (deck exhausted)")
 
     input("\nPress Enter to continue...")
 
 
 def main() -> None:
     """Main entry point for the CLI game."""
+    # Load config and set up logging
+    config = load_config()
+    config.setup_logging()
+
+    rules = config.game_rules
+
     clear_screen()
     print("=" * 50)
     print("         WELCOME TO GIN RUMMY")
     print("=" * 50)
     print("\nRules:")
-    print("- Knock with 10 or less deadwood")
-    print("- Gin (0 deadwood) = 25 bonus + opponent's deadwood")
-    print("- Undercut = 25 bonus + difference")
+    print(f"- Knock with {rules.knock_threshold} or less deadwood")
+    print(f"- Gin (0 deadwood) = {rules.gin_bonus} bonus + opponent's deadwood")
+    print(f"- Undercut = {rules.undercut_bonus} bonus + difference")
     print("- Type 'q' at any prompt to quit")
 
     # Game mode selection

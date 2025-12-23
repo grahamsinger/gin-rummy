@@ -1,0 +1,74 @@
+# Gin Rummy Configuration
+#
+# This file is loaded automatically from these locations (in order):
+#   1. ./config.toml (current working directory)
+#   2. <package_dir>/config.toml (next to gin_rummy/)
+#   3. ~/.config/gin_rummy/config.toml (user config directory)
+#
+# To customize: copy this file to one of the above locations and modify.
+
+[logging]
+# General logging level for the application.
+# Options: DEBUG (most verbose), INFO, WARNING, ERROR (least verbose)
+# At WARNING level, only warnings and errors are shown (quiet gameplay).
+level = "WARNING"
+
+# Python logging format string for log messages.
+# %(name)s = logger name, %(levelname)s = level, %(message)s = the message
+# See: https://docs.python.org/3/library/logging.html#logrecord-attributes
+format = "%(name)s - %(levelname)s - %(message)s"
+
+# Logging level specifically for AI decision messages.
+# Set to "INFO" to see what decisions the AI makes (draw, discard, knock).
+# Set to "DEBUG" to see detailed reasoning (deadwood calculations, all options considered).
+# This is independent of the general 'level' setting above.
+ai_level = "INFO"
+
+[game_rules]
+# Maximum deadwood value allowed to knock.
+# Standard gin rummy rules use 10. Lower values make knocking harder.
+knock_threshold = 10
+
+# Bonus points awarded for going gin (knocking with 0 deadwood).
+# The winner gets this bonus plus the opponent's total deadwood.
+gin_bonus = 25
+
+# Bonus points awarded when the defender undercuts the knocker.
+# An undercut occurs when the defender's deadwood is equal to or less than the knocker's.
+# The defender gets this bonus plus the difference in deadwood.
+undercut_bonus = 25
+
+# When the deck has this many cards or fewer remaining, the round ends in a draw.
+# Neither player scores. Standard rules typically use 2.
+min_deck_cards = 2
+
+[ai]
+# Strategy the AI uses to decide whether to knock.
+# Options:
+#   "always" - Knock whenever deadwood <= knock_threshold (aggressive)
+#   "conservative" - Only knock when deadwood <= conservative_knock_threshold (cautious)
+knock_strategy = "always"
+
+# When knock_strategy is "conservative", the AI will only knock if deadwood
+# is at or below this value. Ignored when knock_strategy is "always".
+# Lower values = AI waits for a better hand before knocking.
+conservative_knock_threshold = 5
+
+# Minimum deadwood reduction required for AI to take a card from the discard pile.
+# If taking the discard would reduce deadwood by less than this amount, AI draws from deck.
+# Set to 1 to take any card that helps. Set higher to be more selective.
+min_deadwood_improvement = 1
+
+[display]
+# Whether to clear the terminal screen between turns.
+# Set to false to keep full game history visible (useful for debugging).
+clear_screen = true
+
+# Delay in seconds between AI actions (drawing, discarding, etc.).
+# Makes AI turns easier to follow. Set to 0 for instant AI play.
+ai_turn_delay = 0.5
+
+# NOT YET IMPLEMENTED - RESERVED FOR FUTURE USE.
+# Intended to show AI's internal thought process directly in game output.
+# For now, use ai_level = "DEBUG" in [logging] section to see AI reasoning.
+show_ai_thinking = false

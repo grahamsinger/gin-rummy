@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.config import get_config
 from gin_rummy.hand import Hand
 from gin_rummy.melds import analyze_hand, find_all_melds
 
@@ -27,13 +28,20 @@ class AIDecision:
 
 
 class BasicAI:
-    """Basic AI opponent with simple heuristics.
+    """Basic AI opponent with configurable heuristics.
 
-    Strategy:
-    - Draw from discard if the card improves hand (reduces deadwood)
+    Strategy (configurable via config.toml):
+    - Draw from discard if the card improves hand by min_deadwood_improvement
     - Discard highest deadwood card not contributing to melds
-    - Knock whenever possible (deadwood <= 10)
+    - Knock based on knock_strategy ("always" or "conservative")
     """
+
+    def __init__(self) -> None:
+        """Initialize AI with settings from config."""
+        config = get_config()
+        self.knock_strategy = config.ai.knock_strategy
+        self.conservative_knock_threshold = config.ai.conservative_knock_threshold
+        self.min_deadwood_improvement = config.ai.min_deadwood_improvement
 
     def decide_draw(self, hand: Hand, discard_top: Card | None) -> DrawChoice:
         """Decide whether to draw from deck or discard pile.
@@ -99,8 +107,9 @@ class BasicAI:
                 best_new_deadwood = analysis.deadwood_value
                 best_discard_for_new = discard_candidate
 
-        # Take the card if it reduces our best possible deadwood
-        if best_new_deadwood < current_deadwood:
+        # Take the card if it reduces our best possible deadwood by enough
+        improvement = current_deadwood - best_new_deadwood
+        if improvement >= self.min_deadwood_improvement:
             reason = (
                 f"reduces deadwood from {current_deadwood} to {int(best_new_deadwood)} "
                 f"by discarding {best_discard_for_new}"
@@ -108,8 +117,7 @@ class BasicAI:
             return True, reason
         else:
             reason = (
-                f"best achievable deadwood {int(best_new_deadwood)} >= "
-                f"current {current_deadwood}"
+                f"improvement {int(improvement)} < required {self.min_deadwood_improvement}"
             )
             return False, reason
 
@@ -161,7 +169,7 @@ class BasicAI:
         return best_discard
 
     def should_knock(self, hand: Hand) -> bool:
-        """Decide whether to knock.
+        """Decide whether to knock based on configured strategy.
 
         Args:
             hand: Current hand (should have 10 cards).
@@ -176,18 +184,40 @@ class BasicAI:
         if is_gin:
             logger.info("Knock decision: YES - GIN! (deadwood=0)")
             return True
-        elif can_knock:
-            logger.info(
-                "Knock decision: YES (deadwood=%d <= 10, basic strategy: always knock when able)",
-                deadwood,
-            )
-            return True
-        else:
+        elif not can_knock:
             logger.debug(
                 "Knock decision: NO (deadwood=%d > 10, cannot knock)",
                 deadwood,
             )
             return False
+        elif self.knock_strategy == "always":
+            logger.info(
+                "Knock decision: YES (deadwood=%d, strategy=always)",
+                deadwood,
+            )
+            return True
+        elif self.knock_strategy == "conservative":
+            if deadwood <= self.conservative_knock_threshold:
+                logger.info(
+                    "Knock decision: YES (deadwood=%d <= %d, strategy=conservative)",
+                    deadwood,
+                    self.conservative_knock_threshold,
+                )
+                return True
+            else:
+                logger.info(
+                    "Knock decision: NO (deadwood=%d > %d, strategy=conservative)",
+                    deadwood,
+                    self.conservative_knock_threshold,
+                )
+                return False
+        else:
+            # Unknown strategy, default to always knock
+            logger.warning(
+                "Unknown knock strategy '%s', defaulting to always knock",
+                self.knock_strategy,
+            )
+            return True
 
     def make_turn_decision(
         self,
