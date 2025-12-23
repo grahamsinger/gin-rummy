@@ -410,6 +410,91 @@ class TestDynamicThresholdCalculator:
         assert 0 <= threshold <= 5
 
 
+class TestOutsCalculatorRealHands:
+    """Tests for OutsCalculator with real game hands."""
+
+    def test_hand_with_multiple_pairs(self):
+        """Hand with multiple pairs should identify all set-completing outs.
+
+        Hand:
+          ♠: 3♠, 8♠
+          ♥: 2♥
+          ♦: 2♦, 3♦, 6♦, K♦
+          ♣: 6♣, 8♣, K♣
+
+        Expected meld-completing outs:
+          - 2♠, 2♣ (complete set of 2s)
+          - 3♥, 3♣ (complete set of 3s)
+          - 6♠, 6♥ (complete set of 6s)
+          - 8♦, 8♥ (complete set of 8s)
+          - K♠, K♥ (complete set of Ks)
+        """
+        hand = Hand([
+            Card(Rank.THREE, Suit.SPADES),
+            Card(Rank.EIGHT, Suit.SPADES),
+            Card(Rank.TWO, Suit.HEARTS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.SIX, Suit.DIAMONDS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.EIGHT, Suit.CLUBS),
+            Card(Rank.KING, Suit.CLUBS),
+        ])
+
+        calc = OutsCalculator()
+        analysis = calc.calculate_outs(hand, dead_cards=set())
+
+        meld_completing_cards = {o.card for o in analysis.meld_completing_outs}
+
+        # Check for 2s (we have 2♥, 2♦)
+        assert Card(Rank.TWO, Suit.SPADES) in meld_completing_cards, "2♠ should complete set of 2s"
+        assert Card(Rank.TWO, Suit.CLUBS) in meld_completing_cards, "2♣ should complete set of 2s"
+
+        # Check for 3s (we have 3♠, 3♦)
+        assert Card(Rank.THREE, Suit.HEARTS) in meld_completing_cards, "3♥ should complete set of 3s"
+        assert Card(Rank.THREE, Suit.CLUBS) in meld_completing_cards, "3♣ should complete set of 3s"
+
+        # Check for 6s (we have 6♦, 6♣)
+        assert Card(Rank.SIX, Suit.SPADES) in meld_completing_cards, "6♠ should complete set of 6s"
+        assert Card(Rank.SIX, Suit.HEARTS) in meld_completing_cards, "6♥ should complete set of 6s"
+
+        # Check for 8s (we have 8♠, 8♣)
+        assert Card(Rank.EIGHT, Suit.DIAMONDS) in meld_completing_cards, "8♦ should complete set of 8s"
+        assert Card(Rank.EIGHT, Suit.HEARTS) in meld_completing_cards, "8♥ should complete set of 8s"
+
+        # Check for Ks (we have K♦, K♣)
+        assert Card(Rank.KING, Suit.SPADES) in meld_completing_cards, "K♠ should complete set of Ks"
+        assert Card(Rank.KING, Suit.HEARTS) in meld_completing_cards, "K♥ should complete set of Ks"
+
+    def test_hand_with_run_potential(self):
+        """Hand with 2-card run should identify run-completing outs.
+
+        Hand with 2♦, 3♦ should find 4♦ and A♦ as run-completing outs.
+        """
+        hand = Hand([
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.SPADES),
+            Card(Rank.EIGHT, Suit.SPADES),
+            Card(Rank.TEN, Suit.HEARTS),
+            Card(Rank.JACK, Suit.HEARTS),
+            Card(Rank.QUEEN, Suit.CLUBS),
+            Card(Rank.KING, Suit.CLUBS),
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.FIVE, Suit.HEARTS),
+        ])
+
+        calc = OutsCalculator()
+        analysis = calc.calculate_outs(hand, dead_cards=set())
+
+        meld_completing_cards = {o.card for o in analysis.meld_completing_outs}
+
+        # 2♦-3♦ needs A♦ or 4♦ to complete
+        assert Card(Rank.ACE, Suit.DIAMONDS) in meld_completing_cards, "A♦ should complete 2-3 run"
+        assert Card(Rank.FOUR, Suit.DIAMONDS) in meld_completing_cards, "4♦ should complete 2-3 run"
+
+
 class TestGameContext:
     """Tests for GameContext dataclass."""
 
