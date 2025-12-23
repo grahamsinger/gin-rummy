@@ -29,10 +29,12 @@
 - [ ] Allow defender to lay off cards on knocker's melds after knock
 - [ ] Update scoring to account for laid off cards
 
-## UI Improvements
+## UI Improvements (COMPLETED)
 - [x] Show melds and deadwood in hand display
-- [ ] Color output for suits (red hearts/diamonds)
-- [ ] Better card art/ASCII representation
+- [x] Color output for suits (red hearts/diamonds)
+- [x] Suit-row layout with cards positioned by rank
+- [x] Brackets around melded cards
+- [x] Superscript selection numbers
 
 ## Future Ideas
 - [ ] Multiplayer over network
