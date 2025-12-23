@@ -18,6 +18,7 @@
   - `MY_HAND`: Cards in my hand
   - `OPPONENT_HAND_KNOWN`: Cards opponent picked from discard (and hasn't re-discarded)
   - `DISCARD_TOP`: Top of discard pile (available to take)
+    should this be named "DISCARD_FACE_DOWN" instead??
   - `DISCARD_BURIED`: Previously discarded, now buried
   - `UNKNOWN`: In deck or opponent's initial hand (can't distinguish)
 - [ ] Fix bug: `dead_cards` should include opponent pickups
