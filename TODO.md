@@ -13,6 +13,24 @@
   - See docs/context-aware-ai.md for recommended starting values
 - [ ] AI difficulty levels (easy/medium/hard)
 
+## Card Helpfulness Ranking
+- [ ] Rank all non-dead cards by how helpful they would be
+  - Primary metric: deadwood reduction when added to hand
+  - For each unknown card, calculate: current_deadwood - deadwood_with_card
+  - Higher reduction = more helpful
+- [ ] Track "helpful cards remaining" count
+  - How many live (non-dead) cards would improve the hand
+  - Weighted by degree of helpfulness
+- [ ] Integrate into outs analysis
+  - Current outs focus on meld-completing; this is broader (any improvement)
+  - Could replace or complement existing partial_outs
+- [ ] Add to analyze_hand.py tool output
+  - Show ranked list of helpful cards with deadwood reduction values
+  - Show summary: "X helpful cards remaining (Y known dead)"
+- [ ] Use in AI decision-making
+  - Better context for draw decisions (how many good cards are left?)
+  - Late game: few helpful cards = more desperate = lower threshold
+
 ## Game Tracking (COMPLETED - SQLite)
 - [x] SQLite database for game/hand/turn history
 - [x] Track statistics across sessions (wins, gins, undercuts)
