@@ -685,7 +685,7 @@ def play_round_vs_ai(
             turn_result = play_ai_turn(game, ai, human_player_idx, tracker)
             if turn_result != TurnResult.CONTINUE:
                 break
-            input("\nPress Enter to continue...")
+            # Continue to human's turn without prompting
 
     # End hand tracking
     if tracker:
