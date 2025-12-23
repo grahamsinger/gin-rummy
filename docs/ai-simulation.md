@@ -128,22 +128,29 @@ Subclass `BasicAI` and override methods to customize behavior.
 
 ### Configuration Properties
 
-Set these in `__init__` to adjust default behavior without overriding methods:
+Set these in `__init__` to adjust the default method implementations *without* overriding them:
 
-| Property | Default | Description |
-|----------|---------|-------------|
-| `knock_strategy` | `"always"` | `"always"` or `"conservative"` |
-| `conservative_knock_threshold` | `5` | Max deadwood to knock when conservative |
-| `min_deadwood_improvement` | `1` | Min improvement needed to take from discard |
+| Property | Default | Used By | Description |
+|----------|---------|---------|-------------|
+| `knock_strategy` | `"always"` | `should_knock()` | See options below |
+| `conservative_knock_threshold` | `5` | `should_knock()` | Max deadwood when using `"conservative"` strategy |
+| `min_deadwood_improvement` | `1` | `decide_draw()` | Min improvement needed to take from discard |
+
+**`knock_strategy` options:**
+- `"always"` - Knock whenever deadwood ≤ 10 (legal threshold)
+- `"conservative"` - Only knock when deadwood ≤ `conservative_knock_threshold`
 
 ```python
 class VeryConservative(BasicAI):
+    """Uses the default should_knock() but with tighter thresholds."""
     def __init__(self):
         super().__init__()
         self.knock_strategy = "conservative"
         self.conservative_knock_threshold = 3
         self.min_deadwood_improvement = 2
 ```
+
+> **Note:** If you override `should_knock()`, your custom logic *replaces* the strategy-based logic entirely - the `knock_strategy` and `conservative_knock_threshold` properties are ignored.
 
 ---
 
@@ -219,16 +226,30 @@ def should_knock(self, hand: Hand) -> bool
 
 **Returns:** `True` to knock, `False` to continue
 
-**Example:**
+**Default behavior:** Uses `knock_strategy` property (see [Configuration Properties](#configuration-properties)):
+- `"always"` → knock when deadwood ≤ 10
+- `"conservative"` → knock when deadwood ≤ `conservative_knock_threshold`
+
+**Override examples:**
 ```python
 class NeverKnock(BasicAI):
     """Only goes gin, never knocks."""
     def should_knock(self, hand):
-        return hand.deadwood_total == 0
+        return hand.deadwood_total == 0  # Ignores knock_strategy
 
 class KnockAt5(BasicAI):
     def should_knock(self, hand):
-        return hand.deadwood_total <= 5
+        return hand.deadwood_total <= 5  # Ignores knock_strategy
+```
+
+**Or use config properties without overriding:**
+```python
+class KnockAt5(BasicAI):
+    """Same behavior as above, but using config properties."""
+    def __init__(self):
+        super().__init__()
+        self.knock_strategy = "conservative"
+        self.conservative_knock_threshold = 5
 ```
 
 ---
