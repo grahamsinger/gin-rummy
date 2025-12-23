@@ -107,6 +107,44 @@ class Game:
         """Return cards a player picked from discard pile this hand."""
         return self._discard_pickups.get(player_name, []).copy()
 
+    def get_game_context(self, player_idx: int) -> "GameContext":
+        """Build game context for AI decision-making.
+
+        Creates a snapshot of the current game state from the perspective
+        of the specified player.
+
+        Args:
+            player_idx: 0 or 1, which player's perspective.
+
+        Returns:
+            GameContext with all relevant state for AI decisions.
+        """
+        from gin_rummy.context import GameContext
+
+        player = self.players[player_idx]
+        opponent = self.players[1 - player_idx]
+
+        # Calculate deck position (31 cards remain after deal)
+        # After deal: 21 in hands + 0-1 in discard + rest in deck
+        max_deck_size = 31  # 52 - 21 (dealt to hands)
+        deck_position_pct = 1 - (len(self.deck) / max_deck_size) if max_deck_size > 0 else 0
+
+        # Get target score from config
+        config = get_config()
+        target_score = 100  # Default, could be made configurable
+
+        return GameContext(
+            deck_remaining=len(self.deck),
+            deck_position_pct=deck_position_pct,
+            discard_history=self._discard_history.copy(),
+            opponent_pickups=self._discard_pickups.get(opponent.name, []).copy(),
+            my_pickups=self._discard_pickups.get(player.name, []).copy(),
+            dead_cards=set(self._discard_history),
+            my_score=player.score,
+            opponent_score=opponent.score,
+            target_score=target_score,
+        )
+
     @property
     def can_knock(self) -> bool:
         """Return True if current player can knock (deadwood <= threshold)."""

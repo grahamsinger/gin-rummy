@@ -66,6 +66,38 @@ class AssistConfig:
 
 
 @dataclass
+class ContextAwareAIConfig:
+    """Configuration for ContextAwareAI behavior."""
+
+    # Base threshold before modifiers
+    base_draw_threshold: int = 1
+
+    # Outs calculation weights
+    meld_completing_weight: float = 10.0
+    run_extending_weight: float = 5.0
+    set_building_weight: float = 4.0
+    partial_meld_early_bonus: float = 2.0
+
+    # Game phase boundaries (fraction of deck remaining)
+    early_game_threshold: float = 0.7  # >70% deck = early game
+    late_game_threshold: float = 0.3  # <30% deck = late game
+
+    # Dynamic threshold modifiers
+    max_deck_modifier: float = 2.0  # Max reduction from deck position
+    max_outs_modifier: float = 2.0  # Max increase from having many outs
+    trailing_aggressive_threshold: int = 50  # Points behind to get aggressive
+    leading_conservative_threshold: int = 30  # Points ahead to get conservative
+
+    # Bonus adjustments
+    key_out_bonus: int = 3  # Bonus for meld-completing outs
+    denial_bonus: int = 2  # Bonus for denying opponent
+    denial_probability_threshold: float = 0.7  # Opponent want probability to trigger
+
+    # Opponent modeling
+    track_opponent_patterns: bool = True
+
+
+@dataclass
 class Config:
     """Main configuration container."""
 
@@ -75,6 +107,7 @@ class Config:
     display: DisplayConfig = field(default_factory=DisplayConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     assist: AssistConfig = field(default_factory=AssistConfig)
+    context_aware_ai: ContextAwareAIConfig = field(default_factory=ContextAwareAIConfig)
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> Self:
@@ -121,6 +154,7 @@ class Config:
         display_data = data.get("display", {})
         database_data = data.get("database", {})
         assist_data = data.get("assist", {})
+        context_aware_ai_data = data.get("context_aware_ai", {})
 
         return cls(
             logging=LoggingConfig(**logging_data),
@@ -129,6 +163,7 @@ class Config:
             display=DisplayConfig(**display_data),
             database=DatabaseConfig(**database_data),
             assist=AssistConfig(**assist_data),
+            context_aware_ai=ContextAwareAIConfig(**context_aware_ai_data),
         )
 
     def setup_logging(self) -> None:

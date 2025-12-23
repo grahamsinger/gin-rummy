@@ -5,7 +5,7 @@ import logging
 import random
 from dataclasses import dataclass, field
 
-from gin_rummy.ai import BasicAI, DrawChoice
+from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 
 
@@ -184,11 +184,21 @@ class Simulator:
         """Run a single round and return the result."""
         game.deal()
 
+        # Reset ContextAwareAI tracking for new hand
+        for ai in (self.ai1, self.ai2):
+            if isinstance(ai, ContextAwareAI):
+                ai.reset_for_new_hand()
+
         # First discard by non-dealer
         non_dealer_idx = 1 - game.dealer_idx
         ai = self.ai1 if non_dealer_idx == 0 else self.ai2
         discard = ai.decide_discard(game.current_player.hand)
         game.discard_to_start(discard)
+
+        # Record first discard for opponent tracking
+        other_ai = self.ai2 if non_dealer_idx == 0 else self.ai1
+        if isinstance(other_ai, ContextAwareAI):
+            other_ai.record_opponent_discard(discard)
 
         # Main game loop
         while game.phase == GamePhase.DRAWING:
@@ -202,15 +212,31 @@ class Simulator:
         """Play a single turn. Returns RoundResult if round ended."""
         current_idx = game.current_player_idx
         ai = self.ai1 if current_idx == 0 else self.ai2
+        other_ai = self.ai2 if current_idx == 0 else self.ai1
         player_metrics = self.metrics.get_player_metrics(current_idx)
         current = game.current_player
 
-        # Draw phase
-        draw_choice = ai.decide_draw(current.hand, game.top_of_discard)
+        # Build context for ContextAwareAI
+        context = None
+        if isinstance(ai, ContextAwareAI):
+            context = game.get_game_context(current_idx)
+
+        # Draw phase - pass context if available
+        if isinstance(ai, ContextAwareAI):
+            draw_choice = ai.decide_draw(current.hand, game.top_of_discard, context)
+        else:
+            draw_choice = ai.decide_draw(current.hand, game.top_of_discard)
+
+        # Track pickup for opponent's model
+        discard_top_before = game.top_of_discard
 
         if draw_choice == DrawChoice.DISCARD and game.top_of_discard:
             card = game.draw_from_discard()
             player_metrics.draws_from_discard += 1
+
+            # Record pickup for opponent's tracking
+            if isinstance(other_ai, ContextAwareAI) and discard_top_before:
+                other_ai.record_opponent_pickup(discard_top_before)
         else:
             try:
                 card = game.draw_from_deck()
@@ -238,6 +264,11 @@ class Simulator:
             return result
         else:
             game.discard(discard)
+
+            # Record discard for opponent's tracking
+            if isinstance(other_ai, ContextAwareAI):
+                other_ai.record_opponent_discard(discard)
+
             return None
 
     def _record_round_result(self, game: Game, result: RoundResult) -> None:

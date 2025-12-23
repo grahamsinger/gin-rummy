@@ -1,0 +1,456 @@
+"""Tests for context-aware AI components."""
+
+import pytest
+from collections import Counter
+
+from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.hand import Hand
+from gin_rummy.context import (
+    OutType,
+    OutInfo,
+    OutsAnalysis,
+    OutsCalculator,
+    GameContext,
+    OpponentModel,
+    DynamicThresholdCalculator,
+)
+
+
+class TestOutsAnalysis:
+    """Tests for OutsAnalysis dataclass."""
+
+    def test_empty_analysis(self):
+        """Empty analysis should have zero counts."""
+        analysis = OutsAnalysis()
+        assert analysis.live_out_count == 0
+        assert analysis.dead_out_count == 0
+        assert analysis.weighted_value == 0.0
+        assert len(analysis.all_outs) == 0
+
+    def test_live_out_count(self):
+        """Should count only non-dead outs."""
+        analysis = OutsAnalysis(
+            meld_completing_outs=[
+                OutInfo(Card(Rank.ACE, Suit.SPADES), OutType.MELD_COMPLETING, 10.0, "test", is_dead=False),
+                OutInfo(Card(Rank.TWO, Suit.SPADES), OutType.MELD_COMPLETING, 10.0, "test", is_dead=True),
+            ],
+            partial_outs=[
+                OutInfo(Card(Rank.THREE, Suit.SPADES), OutType.SET_BUILDING, 5.0, "test", is_dead=False),
+            ],
+        )
+        assert analysis.live_out_count == 2
+        assert analysis.dead_out_count == 1
+
+    def test_weighted_value_excludes_dead(self):
+        """Weighted value should only count live outs."""
+        analysis = OutsAnalysis(
+            meld_completing_outs=[
+                OutInfo(Card(Rank.ACE, Suit.SPADES), OutType.MELD_COMPLETING, 10.0, "test", is_dead=False),
+                OutInfo(Card(Rank.TWO, Suit.SPADES), OutType.MELD_COMPLETING, 10.0, "test", is_dead=True),
+            ],
+        )
+        assert analysis.weighted_value == 10.0  # Only the live out
+
+
+class TestOutsCalculator:
+    """Tests for OutsCalculator."""
+
+    def test_finds_meld_completing_out_for_pair(self):
+        """A pair should have 2 meld-completing outs (the other two of that rank)."""
+        # Hand with a pair of aces
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.THREE, Suit.CLUBS),
+            Card(Rank.FIVE, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.SPADES),
+            Card(Rank.NINE, Suit.HEARTS),
+            Card(Rank.JACK, Suit.CLUBS),
+            Card(Rank.QUEEN, Suit.DIAMONDS),
+            Card(Rank.KING, Suit.SPADES),
+            Card(Rank.TEN, Suit.HEARTS),
+        ])
+
+        calc = OutsCalculator()
+        analysis = calc.calculate_outs(hand, dead_cards=set())
+
+        # Should find A♦ and A♣ as meld-completing outs
+        meld_completing_cards = {o.card for o in analysis.meld_completing_outs}
+        assert Card(Rank.ACE, Suit.DIAMONDS) in meld_completing_cards
+        assert Card(Rank.ACE, Suit.CLUBS) in meld_completing_cards
+
+    def test_finds_meld_completing_out_for_run(self):
+        """A 2-card run should have meld-completing outs at both ends."""
+        # Hand with 7♥ 8♥ (needs 6♥ or 9♥ to complete)
+        hand = Hand([
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.EIGHT, Suit.HEARTS),
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.THREE, Suit.CLUBS),
+            Card(Rank.FIVE, Suit.DIAMONDS),
+            Card(Rank.JACK, Suit.SPADES),
+            Card(Rank.QUEEN, Suit.CLUBS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.TWO, Suit.SPADES),
+            Card(Rank.FOUR, Suit.HEARTS),
+        ])
+
+        calc = OutsCalculator()
+        analysis = calc.calculate_outs(hand, dead_cards=set())
+
+        # Should find 6♥ and 9♥ as meld-completing outs
+        meld_completing_cards = {o.card for o in analysis.meld_completing_outs}
+        assert Card(Rank.SIX, Suit.HEARTS) in meld_completing_cards
+        assert Card(Rank.NINE, Suit.HEARTS) in meld_completing_cards
+
+    def test_marks_dead_outs(self):
+        """Outs that are in dead_cards should be marked as dead."""
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.THREE, Suit.CLUBS),
+            Card(Rank.FIVE, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.SPADES),
+            Card(Rank.NINE, Suit.HEARTS),
+            Card(Rank.JACK, Suit.CLUBS),
+            Card(Rank.QUEEN, Suit.DIAMONDS),
+            Card(Rank.KING, Suit.SPADES),
+            Card(Rank.TEN, Suit.HEARTS),
+        ])
+
+        # Mark A♦ as dead (in discard pile)
+        dead_cards = {Card(Rank.ACE, Suit.DIAMONDS)}
+
+        calc = OutsCalculator()
+        analysis = calc.calculate_outs(hand, dead_cards=dead_cards)
+
+        # Find the A♦ out - it should be marked dead
+        ace_diamond_out = next(
+            (o for o in analysis.meld_completing_outs if o.card == Card(Rank.ACE, Suit.DIAMONDS)),
+            None
+        )
+        assert ace_diamond_out is not None
+        assert ace_diamond_out.is_dead is True
+
+        # A♣ should not be dead
+        ace_club_out = next(
+            (o for o in analysis.meld_completing_outs if o.card == Card(Rank.ACE, Suit.CLUBS)),
+            None
+        )
+        assert ace_club_out is not None
+        assert ace_club_out.is_dead is False
+
+    def test_partial_outs_for_pair(self):
+        """Should find set-building outs for pairs."""
+        hand = Hand([
+            Card(Rank.FIVE, Suit.SPADES),
+            Card(Rank.FIVE, Suit.HEARTS),  # Pair of 5s
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.SPADES),
+            Card(Rank.NINE, Suit.HEARTS),
+            Card(Rank.JACK, Suit.CLUBS),
+            Card(Rank.QUEEN, Suit.DIAMONDS),
+            Card(Rank.KING, Suit.SPADES),
+            Card(Rank.TEN, Suit.HEARTS),
+        ])
+
+        calc = OutsCalculator()
+        analysis = calc.calculate_outs(hand, dead_cards=set(), deck_position_pct=0.1)  # Early game
+
+        # Should find 5♦ and 5♣ as set-building outs
+        partial_cards = {o.card for o in analysis.partial_outs if o.out_type == OutType.SET_BUILDING}
+        assert Card(Rank.FIVE, Suit.DIAMONDS) in partial_cards
+        assert Card(Rank.FIVE, Suit.CLUBS) in partial_cards
+
+    def test_late_game_reduces_partial_outs(self):
+        """Late game should reduce or eliminate partial outs."""
+        hand = Hand([
+            Card(Rank.FIVE, Suit.SPADES),
+            Card(Rank.FIVE, Suit.HEARTS),  # Pair of 5s
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.SPADES),
+            Card(Rank.NINE, Suit.HEARTS),
+            Card(Rank.JACK, Suit.CLUBS),
+            Card(Rank.QUEEN, Suit.DIAMONDS),
+            Card(Rank.KING, Suit.SPADES),
+            Card(Rank.TEN, Suit.HEARTS),
+        ])
+
+        calc = OutsCalculator()
+
+        # Early game
+        early_analysis = calc.calculate_outs(hand, dead_cards=set(), deck_position_pct=0.1)
+        early_partial_value = sum(o.weight for o in early_analysis.partial_outs)
+
+        # Late game
+        late_analysis = calc.calculate_outs(hand, dead_cards=set(), deck_position_pct=0.9)
+        late_partial_value = sum(o.weight for o in late_analysis.partial_outs)
+
+        # Late game partial outs should be worth less (or zero)
+        assert late_partial_value < early_partial_value
+
+
+class TestOpponentModel:
+    """Tests for OpponentModel."""
+
+    def test_tracks_discards(self):
+        """Should track discards by rank and suit."""
+        model = OpponentModel()
+        model.record_discard(Card(Rank.KING, Suit.HEARTS))
+        model.record_discard(Card(Rank.KING, Suit.SPADES))
+        model.record_discard(Card(Rank.QUEEN, Suit.HEARTS))
+
+        assert model.discarded_ranks[Rank.KING] == 2
+        assert model.discarded_ranks[Rank.QUEEN] == 1
+        assert model.discarded_suits[Suit.HEARTS] == 2
+        assert model.discarded_suits[Suit.SPADES] == 1
+        assert model.total_discards == 3
+
+    def test_tracks_pickups(self):
+        """Should track pickups by rank and suit."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.CLUBS))
+        model.record_pickup(Card(Rank.EIGHT, Suit.CLUBS))
+
+        assert model.picked_up_ranks[Rank.SEVEN] == 1
+        assert model.picked_up_ranks[Rank.EIGHT] == 1
+        assert model.picked_up_suits[Suit.CLUBS] == 2
+        assert model.total_pickups == 2
+
+    def test_predict_will_discard_high_for_discarded_ranks(self):
+        """Cards of frequently discarded ranks should have higher discard probability."""
+        model = OpponentModel()
+        # Opponent discards lots of kings
+        for _ in range(5):
+            model.record_discard(Card(Rank.KING, Suit.HEARTS))
+
+        # Should predict higher probability of discarding another king
+        king_prob = model.predict_will_discard(Card(Rank.KING, Suit.SPADES))
+        ace_prob = model.predict_will_discard(Card(Rank.ACE, Suit.SPADES))
+
+        assert king_prob > ace_prob
+
+    def test_predict_will_take_high_for_picked_ranks(self):
+        """Cards of frequently picked ranks should have higher take probability."""
+        model = OpponentModel()
+        # Opponent picks up sevens
+        model.record_pickup(Card(Rank.SEVEN, Suit.CLUBS))
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+
+        # Should predict higher probability of taking another seven
+        seven_prob = model.predict_will_take(Card(Rank.SEVEN, Suit.SPADES))
+        king_prob = model.predict_will_take(Card(Rank.KING, Suit.SPADES))
+
+        assert seven_prob > king_prob
+
+    def test_reset_clears_all_data(self):
+        """Reset should clear all tracking data."""
+        model = OpponentModel()
+        model.record_discard(Card(Rank.KING, Suit.HEARTS))
+        model.record_pickup(Card(Rank.SEVEN, Suit.CLUBS))
+
+        model.reset()
+
+        assert model.total_discards == 0
+        assert model.total_pickups == 0
+        assert len(model.discarded_ranks) == 0
+        assert len(model.picked_up_ranks) == 0
+
+
+class TestDynamicThresholdCalculator:
+    """Tests for DynamicThresholdCalculator."""
+
+    def test_base_threshold_with_neutral_context(self):
+        """Should return close to base threshold with neutral context."""
+        calc = DynamicThresholdCalculator()
+        context = GameContext(
+            deck_remaining=20,
+            deck_position_pct=0.35,  # Mid game
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=50,
+            opponent_score=50,  # Even score
+        )
+        context.my_outs = OutsAnalysis()  # No outs
+
+        threshold = calc.calculate_threshold(context)
+        # Should be close to base (1), maybe slightly modified
+        assert 0 <= threshold <= 3
+
+    def test_late_game_lowers_threshold(self):
+        """Late game should lower threshold (more aggressive)."""
+        calc = DynamicThresholdCalculator()
+
+        early_context = GameContext(
+            deck_remaining=30,
+            deck_position_pct=0.1,  # Early
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=50,
+            opponent_score=50,
+        )
+        early_context.my_outs = OutsAnalysis()
+
+        late_context = GameContext(
+            deck_remaining=5,
+            deck_position_pct=0.85,  # Late
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=50,
+            opponent_score=50,
+        )
+        late_context.my_outs = OutsAnalysis()
+
+        early_threshold = calc.calculate_threshold(early_context)
+        late_threshold = calc.calculate_threshold(late_context)
+
+        assert late_threshold <= early_threshold
+
+    def test_many_outs_raises_threshold(self):
+        """Having many outs should raise threshold (can afford to wait)."""
+        calc = DynamicThresholdCalculator()
+
+        # Create analysis with many outs
+        many_outs = OutsAnalysis(
+            meld_completing_outs=[
+                OutInfo(Card(Rank.ACE, Suit.SPADES), OutType.MELD_COMPLETING, 10.0, "test")
+                for _ in range(15)
+            ]
+        )
+        few_outs = OutsAnalysis()
+
+        context_many = GameContext(
+            deck_remaining=20,
+            deck_position_pct=0.35,
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=50,
+            opponent_score=50,
+            my_outs=many_outs,
+        )
+
+        context_few = GameContext(
+            deck_remaining=20,
+            deck_position_pct=0.35,
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=50,
+            opponent_score=50,
+            my_outs=few_outs,
+        )
+
+        threshold_many = calc.calculate_threshold(context_many)
+        threshold_few = calc.calculate_threshold(context_few)
+
+        assert threshold_many >= threshold_few
+
+    def test_trailing_score_lowers_threshold(self):
+        """Trailing badly should lower threshold (more aggressive)."""
+        calc = DynamicThresholdCalculator()
+
+        trailing_context = GameContext(
+            deck_remaining=20,
+            deck_position_pct=0.35,
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=20,
+            opponent_score=80,  # Trailing by 60
+        )
+        trailing_context.my_outs = OutsAnalysis()
+
+        leading_context = GameContext(
+            deck_remaining=20,
+            deck_position_pct=0.35,
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=80,
+            opponent_score=20,  # Leading by 60
+        )
+        leading_context.my_outs = OutsAnalysis()
+
+        trailing_threshold = calc.calculate_threshold(trailing_context)
+        leading_threshold = calc.calculate_threshold(leading_context)
+
+        assert trailing_threshold < leading_threshold
+
+    def test_threshold_clamped_to_range(self):
+        """Threshold should always be between 0 and 5."""
+        calc = DynamicThresholdCalculator()
+
+        # Extreme context that might push threshold out of range
+        extreme_context = GameContext(
+            deck_remaining=2,
+            deck_position_pct=0.95,  # Very late
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=10,
+            opponent_score=90,  # Trailing badly
+        )
+        extreme_context.my_outs = OutsAnalysis()
+
+        threshold = calc.calculate_threshold(extreme_context)
+        assert 0 <= threshold <= 5
+
+
+class TestGameContext:
+    """Tests for GameContext dataclass."""
+
+    def test_score_differential(self):
+        """Score differential should be my_score - opponent_score."""
+        context = GameContext(
+            deck_remaining=20,
+            deck_position_pct=0.35,
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=70,
+            opponent_score=40,
+        )
+        assert context.score_differential == 30  # Leading
+
+        context2 = GameContext(
+            deck_remaining=20,
+            deck_position_pct=0.35,
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=30,
+            opponent_score=80,
+        )
+        assert context2.score_differential == -50  # Trailing
+
+    def test_points_to_win(self):
+        """Points to win should be target - my_score, minimum 0."""
+        context = GameContext(
+            deck_remaining=20,
+            deck_position_pct=0.35,
+            discard_history=[],
+            opponent_pickups=[],
+            my_pickups=[],
+            dead_cards=set(),
+            my_score=75,
+            opponent_score=40,
+            target_score=100,
+        )
+        assert context.points_to_win == 25
+        assert context.opponent_points_to_win == 60

@@ -1,13 +1,19 @@
 """AI opponent for Gin Rummy."""
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 from gin_rummy.card import Card, Suit, Rank
 from gin_rummy.config import get_config
 from gin_rummy.hand import Hand
 from gin_rummy.melds import analyze_hand, find_all_melds
+
+if TYPE_CHECKING:
+    from gin_rummy.context import GameContext
 
 
 logger = logging.getLogger(__name__)
@@ -254,3 +260,179 @@ class BasicAI:
         )
 
         return discard, should_knock
+
+
+class ContextAwareAI(BasicAI):
+    """AI that adjusts strategy based on game context.
+
+    Extends BasicAI with:
+    - Dynamic draw threshold based on deck position, outs, and score
+    - Opponent pattern tracking to predict discards/takes
+    - Meld-completing out detection for smarter draw decisions
+    - Denial play (taking cards opponent wants)
+
+    All parameters are configurable via config.toml [context_aware_ai] section.
+    """
+
+    def __init__(self) -> None:
+        """Initialize with context-aware components."""
+        super().__init__()
+
+        # Import here to avoid circular imports
+        from gin_rummy.context import (
+            OutsCalculator,
+            OpponentModel,
+            DynamicThresholdCalculator,
+        )
+
+        config = get_config()
+        self.context_config = config.context_aware_ai
+
+        self.outs_calculator = OutsCalculator(self.context_config)
+        self.opponent_model = OpponentModel()
+        self.threshold_calculator = DynamicThresholdCalculator(self.context_config)
+
+        # Current game context (updated each turn)
+        self._current_context: GameContext | None = None
+
+    def update_context(self, context: GameContext) -> None:
+        """Update the current game context.
+
+        Should be called at the start of each turn with fresh context.
+
+        Args:
+            context: Current game state snapshot.
+        """
+        self._current_context = context
+
+        # Calculate outs for this hand
+        if context.my_outs is None:
+            # Need to get hand from somewhere - context should have it
+            # For now, outs will be calculated in decide_draw
+            pass
+
+    def record_opponent_discard(self, card: Card) -> None:
+        """Record that opponent discarded a card.
+
+        Args:
+            card: The card opponent discarded.
+        """
+        if self.context_config.track_opponent_patterns:
+            self.opponent_model.record_discard(card)
+
+    def record_opponent_pickup(self, card: Card) -> None:
+        """Record that opponent picked up from discard.
+
+        Args:
+            card: The card opponent picked up.
+        """
+        if self.context_config.track_opponent_patterns:
+            self.opponent_model.record_pickup(card)
+
+    def reset_for_new_hand(self) -> None:
+        """Reset tracking for a new hand."""
+        self.opponent_model.reset()
+        self._current_context = None
+
+    def decide_draw(
+        self,
+        hand: Hand,
+        discard_top: Card | None,
+        context: GameContext | None = None,
+    ) -> DrawChoice:
+        """Context-aware draw decision.
+
+        If context is provided, uses dynamic threshold and outs analysis.
+        Otherwise falls back to BasicAI behavior.
+
+        Args:
+            hand: Current hand.
+            discard_top: Top card of discard pile, or None if empty.
+            context: Optional game context for smarter decisions.
+
+        Returns:
+            DrawChoice indicating where to draw from.
+        """
+        # Use provided context or fall back to stored context
+        ctx = context or self._current_context
+
+        # Fall back to BasicAI if no context
+        if ctx is None:
+            logger.debug("ContextAwareAI: No context, falling back to BasicAI")
+            return super().decide_draw(hand, discard_top)
+
+        if discard_top is None:
+            logger.info("Draw decision: DECK (discard pile empty)")
+            return DrawChoice.DECK
+
+        # Calculate outs for this hand
+        outs_analysis = self.outs_calculator.calculate_outs(
+            hand,
+            dead_cards=ctx.dead_cards,
+            deck_position_pct=ctx.deck_position_pct,
+        )
+        ctx.my_outs = outs_analysis
+
+        # Calculate dynamic threshold
+        threshold = self.threshold_calculator.calculate_threshold(ctx)
+
+        # Calculate base improvement (same as BasicAI)
+        current_deadwood = hand.deadwood_total
+        helps, reason = self._card_helps_hand(hand, discard_top)
+
+        # Calculate improvement value
+        improvement = 0.0
+        if helps:
+            # Extract improvement from reason string or recalculate
+            test_cards = list(hand) + [discard_top]
+            best_new_deadwood = float('inf')
+            for i, candidate in enumerate(test_cards):
+                remaining = test_cards[:i] + test_cards[i + 1 :]
+                analysis = analyze_hand(remaining)
+                if analysis.deadwood_value < best_new_deadwood:
+                    best_new_deadwood = analysis.deadwood_value
+            improvement = current_deadwood - best_new_deadwood
+
+        # Key out bonus: meld-completing cards get bonus
+        is_key_out = discard_top in outs_analysis.live_meld_completing_cards
+        if is_key_out:
+            improvement += self.context_config.key_out_bonus
+            logger.debug(
+                "Key out bonus: +%d for meld-completing card %s",
+                self.context_config.key_out_bonus,
+                discard_top,
+            )
+
+        # Denial bonus: take if opponent wants it badly
+        opponent_want_prob = self.opponent_model.predict_will_take(discard_top)
+        if opponent_want_prob >= self.context_config.denial_probability_threshold:
+            improvement += self.context_config.denial_bonus
+            logger.debug(
+                "Denial bonus: +%d (opponent want prob=%.2f)",
+                self.context_config.denial_bonus,
+                opponent_want_prob,
+            )
+
+        # Make decision
+        if improvement >= threshold:
+            logger.info(
+                "Draw decision: DISCARD - taking %s (improvement=%.1f >= threshold=%d, "
+                "key_out=%s, outs=%d live)",
+                discard_top,
+                improvement,
+                threshold,
+                is_key_out,
+                outs_analysis.live_out_count,
+            )
+            return DrawChoice.DISCARD
+        else:
+            logger.info(
+                "Draw decision: DECK - %s (improvement=%.1f < threshold=%d, "
+                "deck_pos=%.0f%%, outs=%d live)",
+                discard_top,
+                improvement,
+                threshold,
+                ctx.deck_position_pct * 100,
+                outs_analysis.live_out_count,
+            )
+            return DrawChoice.DECK

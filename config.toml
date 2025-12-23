@@ -106,3 +106,59 @@ enabled = true
 # When true: "Opponent picked up: 5♥, J♦"
 # Can be toggled during gameplay by pressing 'a'.
 show_values = false
+
+[context_aware_ai]
+# Configuration for ContextAwareAI - a smarter AI that adjusts strategy based on game state.
+# All parameters are tunable for simulation-based optimization.
+
+# Base draw threshold before modifiers are applied.
+# This is the minimum deadwood improvement needed to take from discard pile.
+base_draw_threshold = 1
+
+# Outs calculation weights - higher values make those outs more attractive.
+# Meld-completing outs: cards that complete a set or run (most valuable).
+meld_completing_weight = 10.0
+
+# Run-extending outs: cards that extend an existing 2-card run sequence.
+run_extending_weight = 5.0
+
+# Set-building outs: cards that create or extend pairs toward sets.
+set_building_weight = 4.0
+
+# Early game bonus for partial outs (run extending, set building).
+# In early game, building toward melds is more valuable.
+partial_meld_early_bonus = 2.0
+
+# Game phase boundaries (fraction of deck remaining).
+# Early game: partial outs get bonus weight.
+early_game_threshold = 0.7
+
+# Late game: only meld-completing outs matter much.
+late_game_threshold = 0.3
+
+# Dynamic threshold modifiers - how much context affects the threshold.
+# Max reduction to threshold from deck running low (more desperate = lower threshold).
+max_deck_modifier = 2.0
+
+# Max increase to threshold from having many outs (can wait = higher threshold).
+max_outs_modifier = 2.0
+
+# Score differential thresholds for adjusting aggression.
+# When trailing by this many points or more, play more aggressively.
+trailing_aggressive_threshold = 50
+
+# When leading by this many points or more, play more conservatively.
+leading_conservative_threshold = 30
+
+# Bonus adjustments for special situations.
+# Extra "improvement" points for taking a meld-completing out.
+key_out_bonus = 3
+
+# Extra "improvement" points for denying opponent a card they likely want.
+denial_bonus = 2
+
+# Opponent must want card with this probability to trigger denial bonus.
+denial_probability_threshold = 0.7
+
+# Whether to track opponent discard/pickup patterns for predictions.
+track_opponent_patterns = true
