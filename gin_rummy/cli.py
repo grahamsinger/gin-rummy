@@ -8,7 +8,7 @@ import time
 from enum import Enum, auto
 from pathlib import Path
 
-from gin_rummy.ai import BasicAI, DrawChoice
+from gin_rummy.ai import BasicAI, DrawChoice, ContextAwareAI
 from gin_rummy.card import Card, Suit, Rank
 from gin_rummy.config import get_config, load_config
 from gin_rummy.database import GameTracker
@@ -205,8 +205,8 @@ def display_hand_by_suit(hand: Hand, show_numbers: bool = True) -> list[Card]:
     card_to_num: dict[Card, int] = {card: i + 1 for i, card in enumerate(selection_order)}
 
     # Column width for each rank position (A, 2, 3, ..., K)
-    # Each card needs ~4 chars (rank + suit + superscript + space), but 10 needs 5
-    col_width = 5
+    # Reduced for more compact display
+    col_width = 3
 
     # Display each suit row
     for suit in suit_order:
@@ -279,13 +279,19 @@ def display_hand_by_suit(hand: Hand, show_numbers: bool = True) -> list[Card]:
     return selection_order
 
 
-def display_game_state(game: Game, human_player_idx: int, show_opponent: bool = False) -> None:
+def display_game_state(
+    game: Game,
+    human_player_idx: int,
+    show_opponent: bool = False,
+    turn_player_name: str | None = None
+) -> None:
     """Display the current game state from human player's perspective.
 
     Args:
         game: The game instance.
         human_player_idx: Index of the human player (0 or 1).
         show_opponent: If True, show opponent's cards (for debugging).
+        turn_player_name: If provided, show whose turn it is at the top.
     """
     human = game.players[human_player_idx]
     opponent = game.players[1 - human_player_idx]
@@ -293,6 +299,10 @@ def display_game_state(game: Game, human_player_idx: int, show_opponent: bool = 
     print("\n" + "=" * 50)
     print("              GIN RUMMY")
     print("=" * 50)
+
+    # Turn indicator
+    if turn_player_name:
+        print(f"\n>>> {turn_player_name}'s turn <<<")
 
     # Scores
     print(f"\nScores: {human.name}: {human.score}  |  "
@@ -349,8 +359,9 @@ def get_card_choice(hand: Hand, prompt: str) -> int:
 
 def play_human_first_discard(game: Game, human_player_idx: int) -> None:
     """Handle human player's opening discard."""
-    display_game_state(game, human_player_idx)
-    print(f"{game.current_player.name}, discard one card to start the game.")
+    current = game.current_player
+    display_game_state(game, human_player_idx, turn_player_name=current.name)
+    print(f"Discard one card to start the game.")
     idx = get_card_choice(game.current_player.hand, "Card to discard (1-11): ")
     card = game.current_player.hand[idx]
     game.discard_to_start(card)
@@ -380,11 +391,9 @@ def play_human_turn(
     Returns:
         TurnResult indicating whether round continues, ended by knock, or draw.
     """
-    clear_screen()
-    display_game_state(game, human_player_idx)
-
     current = game.current_player
-    print(f"{current.name}'s turn")
+    clear_screen()
+    display_game_state(game, human_player_idx, turn_player_name=current.name)
 
     # Capture state before turn
     cards_before = [str(c) for c in current.hand]
@@ -409,8 +418,7 @@ def play_human_turn(
             new_state = toggle_assist_values()
             print(f"\nAssist card values: {'ON' if new_state else 'OFF'}")
             clear_screen()
-            display_game_state(game, human_player_idx)
-            print(f"{current.name}'s turn")
+            display_game_state(game, human_player_idx, turn_player_name=current.name)
             print("\nDraw from:")
             print("  [1] Deck")
             if game.top_of_discard:
@@ -523,15 +531,23 @@ def play_ai_turn(
     config = get_config()
     delay = config.display.ai_turn_delay
     current = game.current_player
-    print(f"\n{current.name}'s turn...")
     time.sleep(delay)
 
     # Capture state before turn
     cards_before = [str(c) for c in current.hand]
     deadwood_before = current.hand.deadwood_total
 
+    # Build context for ContextAwareAI
+    context = None
+    current_idx = game.current_player_idx
+    if isinstance(ai, ContextAwareAI):
+        context = game.get_game_context(current_idx)
+
     # AI decides where to draw
-    draw_choice = ai.decide_draw(current.hand, game.top_of_discard)
+    if isinstance(ai, ContextAwareAI):
+        draw_choice = ai.decide_draw(current.hand, game.top_of_discard, context)
+    else:
+        draw_choice = ai.decide_draw(current.hand, game.top_of_discard)
     drew_from = "discard" if draw_choice == DrawChoice.DISCARD else "deck"
 
     if draw_choice == DrawChoice.DISCARD and game.top_of_discard:
@@ -667,10 +683,9 @@ def play_round_vs_ai(
         play_human_first_discard(game, human_player_idx)
     else:
         # AI does first discard
-        display_game_state(game, human_player_idx)
+        ai_name = game.current_player.name
+        display_game_state(game, human_player_idx, turn_player_name=ai_name)
         play_ai_first_discard(game, ai)
-
-    input("\nPress Enter to continue...")
 
     # Main game loop
     turn_result = TurnResult.CONTINUE
@@ -681,7 +696,8 @@ def play_round_vs_ai(
                 break
         else:
             clear_screen()
-            display_game_state(game, human_player_idx)
+            ai_name = game.current_player.name
+            display_game_state(game, human_player_idx, turn_player_name=ai_name)
             turn_result = play_ai_turn(game, ai, human_player_idx, tracker)
             if turn_result != TurnResult.CONTINUE:
                 break
@@ -819,6 +835,7 @@ def main() -> None:
     if vs_ai:
         p2_name = "Computer"
         ai = BasicAI()
+        ai = ContextAwareAI()
         human_player_idx = 0
     else:
         p2_name = input("Player 2 name: ").strip() or "Player 2"
