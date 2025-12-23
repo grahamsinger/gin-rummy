@@ -147,6 +147,7 @@ class GameTracker:
                 (datetime.now().isoformat(), player1_name, player2_name)
             )
             conn.commit()
+            assert cursor.lastrowid is not None
             self._game_id = cursor.lastrowid
             self._hand_number = 0
             return self._game_id
@@ -169,15 +170,17 @@ class GameTracker:
         """Record start of a new hand. Returns hand_id."""
         if self._game_id is None:
             raise ValueError("Must start a game before starting a hand")
-        self._hand_number += 1
-        self._turn_number = 0
+        next_hand_number = self._hand_number + 1
         with get_connection(self.db_path) as conn:
             cursor = conn.execute(
                 """INSERT INTO hands (game_id, hand_number, dealer_name, started_at)
                    VALUES (?, ?, ?, ?)""",
-                (self._game_id, self._hand_number, dealer_name, datetime.now().isoformat())
+                (self._game_id, next_hand_number, dealer_name, datetime.now().isoformat())
             )
             conn.commit()
+            assert cursor.lastrowid is not None
+            self._hand_number = next_hand_number
+            self._turn_number = 0
             self._hand_id = cursor.lastrowid
             return self._hand_id
 
@@ -220,7 +223,7 @@ class GameTracker:
         """Record a turn. Returns turn_id."""
         if self._hand_id is None:
             raise ValueError("Must start a hand before recording turns")
-        self._turn_number += 1
+        next_turn_number = self._turn_number + 1
         with get_connection(self.db_path) as conn:
             cursor = conn.execute(
                 """INSERT INTO turns
@@ -229,13 +232,15 @@ class GameTracker:
                     deadwood_before, deadwood_after)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    self._hand_id, self._turn_number, player_name, drew_from,
+                    self._hand_id, next_turn_number, player_name, drew_from,
                     card_drawn, card_discarded, int(did_knock),
                     json.dumps(cards_before), json.dumps(cards_after),
                     deadwood_before, deadwood_after
                 )
             )
             conn.commit()
+            assert cursor.lastrowid is not None
+            self._turn_number = next_turn_number
             return cursor.lastrowid
 
     def record_ai_decision(
@@ -258,6 +263,7 @@ class GameTracker:
                 )
             )
             conn.commit()
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
 

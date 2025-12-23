@@ -69,15 +69,8 @@ class TestFirstDiscard:
         game.deal()
         # Find a card not in non-dealer's hand
         hand_cards = set(game.current_player.hand)
-        for suit in Suit:
-            for rank in Rank:
-                card = Card(rank, suit)
-                if card not in hand_cards:
-                    fake_card = card
-                    break
-            else:
-                continue
-            break
+        all_cards = [Card(rank, suit) for suit in Suit for rank in Rank]
+        fake_card = next(c for c in all_cards if c not in hand_cards)
 
         with pytest.raises(InvalidActionError):
             game.discard_to_start(fake_card)
