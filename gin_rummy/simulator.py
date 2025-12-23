@@ -62,6 +62,8 @@ class SimulatorMetrics:
 
     player1_name: str = "Player 1"
     player2_name: str = "Player 2"
+    player1_ai_class: str = "BasicAI"
+    player2_ai_class: str = "BasicAI"
     player1: PlayerMetrics = field(default_factory=PlayerMetrics)
     player2: PlayerMetrics = field(default_factory=PlayerMetrics)
     games_played: int = 0
@@ -74,28 +76,33 @@ class SimulatorMetrics:
 
     def summary(self) -> str:
         """Return a formatted summary of the metrics."""
+        # Build column headers with AI class names
+        p1_header = f"{self.player1_name} ({self.player1_ai_class})"
+        p2_header = f"{self.player2_name} ({self.player2_ai_class})"
+        col_width = max(len(p1_header), len(p2_header), 12)
+
         lines = [
-            "=" * 60,
+            "=" * (32 + col_width * 2 + 2),
             "SIMULATION RESULTS",
-            "=" * 60,
+            "=" * (32 + col_width * 2 + 2),
             f"Games played: {self.games_played}",
             f"Total rounds: {self.rounds_played}",
             f"Draws (deck exhausted): {self.draws}",
             "",
-            f"{'Metric':<30} {self.player1_name:>12} {self.player2_name:>12}",
-            "-" * 60,
-            f"{'Games won':<30} {self.player1.games_won:>12} {self.player2.games_won:>12}",
-            f"{'Rounds won':<30} {self.player1.rounds_won:>12} {self.player2.rounds_won:>12}",
-            f"{'Total points':<30} {self.player1.total_points:>12} {self.player2.total_points:>12}",
-            f"{'Gins':<30} {self.player1.gins:>12} {self.player2.gins:>12}",
-            f"{'Knocks':<30} {self.player1.knocks:>12} {self.player2.knocks:>12}",
-            f"{'Avg knock deadwood':<30} {self.player1.avg_knock_deadwood:>12.1f} {self.player2.avg_knock_deadwood:>12.1f}",
-            f"{'Undercuts made':<30} {self.player1.undercuts_made:>12} {self.player2.undercuts_made:>12}",
-            f"{'Undercuts received':<30} {self.player1.undercuts_received:>12} {self.player2.undercuts_received:>12}",
-            f"{'Draws from deck':<30} {self.player1.draws_from_deck:>12} {self.player2.draws_from_deck:>12}",
-            f"{'Draws from discard':<30} {self.player1.draws_from_discard:>12} {self.player2.draws_from_discard:>12}",
-            f"{'Discard draw rate':<30} {self.player1.discard_draw_rate:>11.1%} {self.player2.discard_draw_rate:>11.1%}",
-            "=" * 60,
+            f"{'Metric':<30} {p1_header:>{col_width}} {p2_header:>{col_width}}",
+            "-" * (32 + col_width * 2 + 2),
+            f"{'Games won':<30} {self.player1.games_won:>{col_width}} {self.player2.games_won:>{col_width}}",
+            f"{'Rounds won':<30} {self.player1.rounds_won:>{col_width}} {self.player2.rounds_won:>{col_width}}",
+            f"{'Total points':<30} {self.player1.total_points:>{col_width}} {self.player2.total_points:>{col_width}}",
+            f"{'Gins':<30} {self.player1.gins:>{col_width}} {self.player2.gins:>{col_width}}",
+            f"{'Knocks':<30} {self.player1.knocks:>{col_width}} {self.player2.knocks:>{col_width}}",
+            f"{'Avg knock deadwood':<30} {self.player1.avg_knock_deadwood:>{col_width}.1f} {self.player2.avg_knock_deadwood:>{col_width}.1f}",
+            f"{'Undercuts made':<30} {self.player1.undercuts_made:>{col_width}} {self.player2.undercuts_made:>{col_width}}",
+            f"{'Undercuts received':<30} {self.player1.undercuts_received:>{col_width}} {self.player2.undercuts_received:>{col_width}}",
+            f"{'Draws from deck':<30} {self.player1.draws_from_deck:>{col_width}} {self.player2.draws_from_deck:>{col_width}}",
+            f"{'Draws from discard':<30} {self.player1.draws_from_discard:>{col_width}} {self.player2.draws_from_discard:>{col_width}}",
+            f"{'Discard draw rate':<30} {self.player1.discard_draw_rate:>{col_width - 1}.1%} {self.player2.discard_draw_rate:>{col_width - 1}.1%}",
+            "=" * (32 + col_width * 2 + 2),
         ]
         return "\n".join(lines)
 
@@ -129,6 +136,8 @@ class Simulator:
         self.metrics = SimulatorMetrics(
             player1_name="AI 1",
             player2_name="AI 2",
+            player1_ai_class=type(self.ai1).__name__,
+            player2_ai_class=type(self.ai2).__name__,
         )
 
         for game_num in range(self.config.num_games):

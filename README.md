@@ -98,111 +98,37 @@ uv run gin-simulate
 # Run 50 games with a fixed seed (reproducible)
 uv run gin-simulate -n 50 -s 42
 
-# Custom target score (default: 100)
-uv run gin-simulate -t 200
-
 # With AI decision logging
-uv run gin-simulate -v      # INFO: shows decisions
-uv run gin-simulate -vv     # DEBUG: shows all options considered
+uv run gin-simulate -v
 
 # See all options
 uv run gin-simulate --help
 ```
 
-Example output:
+Example output (shows AI class names for easy comparison):
 
 ```
-============================================================
+==============================================================
 SIMULATION RESULTS
-============================================================
+==============================================================
 Games played: 100
 Total rounds: 1203
 Draws (deck exhausted): 3
 
-Metric                                 AI 1         AI 2
-------------------------------------------------------------
-Games won                                52           48
-Rounds won                              598          602
-Total points                           8234         8456
-Gins                                      4            2
-Knocks                                  602          598
-Avg knock deadwood                      3.4          3.2
-Undercuts made                           98          102
-Undercuts received                      102           98
-Draws from deck                        7012         7198
-Draws from discard                     2456         2234
-Discard draw rate                    25.9%       23.7%
-============================================================
+Metric                         AI 1 (BasicAI) AI 2 (BasicAI)
+--------------------------------------------------------------
+Games won                                  52             48
+Rounds won                                598            602
+Total points                             8234           8456
+Gins                                        4              2
+Knocks                                    602            598
+Avg knock deadwood                        3.4            3.2
+Undercuts made                             98            102
+...
+==============================================================
 ```
 
-## AI Development
-
-### Logging AI Decisions
-
-The AI logs its reasoning at different verbosity levels:
-
-```bash
-# In tests
-uv run pytest tests/test_ai.py --log-cli-level=INFO
-
-# In simulator
-uv run gin-simulate -n 5 -v
-```
-
-Example log output:
-
-```
-gin_rummy.ai - INFO - Draw decision: DISCARD - taking 7♣ (reduces deadwood from 25 to 18 by discarding K♣)
-gin_rummy.ai - INFO - Discard decision: K♣ (leaves deadwood=18, best of 11 options)
-gin_rummy.ai - INFO - Knock decision: YES (deadwood=6 <= 10, basic strategy: always knock when able)
-```
-
-### Programmatic Simulation
-
-```python
-from gin_rummy.simulator import run_simulation, Simulator, SimulatorConfig
-from gin_rummy.ai import BasicAI
-
-# Quick simulation
-metrics = run_simulation(num_games=100, seed=42)
-print(metrics.summary())
-
-# With custom AIs
-class AggressiveAI(BasicAI):
-    """Knocks as soon as possible."""
-    pass
-
-class CautiousAI(BasicAI):
-    """Waits for lower deadwood before knocking."""
-    def should_knock(self, hand):
-        return hand.deadwood_total <= 5  # More conservative
-
-ai1 = AggressiveAI()
-ai2 = CautiousAI()
-
-config = SimulatorConfig(num_games=100, target_score=100, seed=42)
-simulator = Simulator(ai1=ai1, ai2=ai2, config=config)
-metrics = simulator.run()
-
-print(f"Aggressive wins: {metrics.player1.games_won}")
-print(f"Cautious wins: {metrics.player2.games_won}")
-```
-
-### Metrics Available
-
-| Metric | Description |
-|--------|-------------|
-| `games_won` | Total games won |
-| `rounds_won` | Total rounds won |
-| `total_points` | Cumulative points scored |
-| `gins` | Number of gins (0 deadwood) |
-| `knocks` | Total knocks |
-| `avg_knock_deadwood` | Average deadwood when knocking |
-| `undercuts_made` | Times opponent was undercut |
-| `undercuts_received` | Times undercut by opponent |
-| `draws_from_deck` | Cards drawn from deck |
-| `draws_from_discard` | Cards drawn from discard |
-| `discard_draw_rate` | % of draws from discard pile |
+For custom AI development, programmatic usage, and detailed metrics, see [docs/ai-simulation.md](docs/ai-simulation.md).
 
 ## Type Checking
 
