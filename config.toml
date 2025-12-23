@@ -18,11 +18,16 @@ level = "WARNING"
 # See: https://docs.python.org/3/library/logging.html#logrecord-attributes
 format = "%(name)s - %(levelname)s - %(message)s"
 
-# Logging level specifically for AI decision messages.
-# Set to "INFO" to see what decisions the AI makes (draw, discard, knock).
-# Set to "DEBUG" to see detailed reasoning (deadwood calculations, all options considered).
-# This is independent of the general 'level' setting above.
-ai_level = "INFO"
+# Logging level specifically for AI decision messages (when show_ai_thinking is false).
+# Set to "WARNING" to hide AI decisions (recommended for fair play).
+# Set to "INFO" to see AI decisions on console.
+# Note: show_ai_thinking in [display] overrides this to INFO when enabled.
+ai_level = "WARNING"
+
+# Optional file path for detailed logging.
+# When set, all logs (including DEBUG level AI decisions) are written to this file.
+# Useful for post-game analysis without spoiling gameplay.
+# log_file = "game.log"
 
 [game_rules]
 # Maximum deadwood value allowed to knock.
@@ -68,9 +73,9 @@ clear_screen = true
 # Makes AI turns easier to follow. Set to 0 for instant AI play.
 ai_turn_delay = 0.5
 
-# NOT YET IMPLEMENTED - RESERVED FOR FUTURE USE.
-# Intended to show AI's internal thought process directly in game output.
-# For now, use ai_level = "DEBUG" in [logging] section to see AI reasoning.
+# Show AI's decision reasoning in game output (draw choice, discard choice, knock decision).
+# WARNING: This reveals opponent's deadwood and strategy - not recommended for fair play.
+# When true, overrides ai_level to show INFO messages on console.
 show_ai_thinking = false
 
 [database]
@@ -88,3 +93,16 @@ path = "game_history.db"
 # When true, stores why the AI made each draw/discard/knock decision.
 # Increases database size but provides valuable debugging information.
 track_ai_decisions = true
+
+[assist]
+# Training assist mode - shows helpful information during gameplay.
+
+# Whether to display assist information (opponent pickups, dead cards).
+# Set to false to play without any hints.
+enabled = true
+
+# Whether to show actual card values or just counts.
+# When false: "Opponent picked up: 2 cards"
+# When true: "Opponent picked up: 5♥, J♦"
+# Can be toggled during gameplay by pressing 'a'.
+show_values = false

@@ -13,7 +13,8 @@ class LoggingConfig:
 
     level: str = "INFO"
     format: str = "%(name)s - %(levelname)s - %(message)s"
-    ai_level: str = "INFO"  # Separate level for AI decision logging
+    ai_level: str = "WARNING"  # Separate level for AI decision logging (WARNING hides decisions)
+    log_file: str | None = None  # Optional file path for detailed logs
 
 
 @dataclass
@@ -138,11 +139,23 @@ class Config:
             format=self.logging.format,
         )
 
-        # Set AI logger level separately
+        # Set AI logger level - use show_ai_thinking to override
         ai_logger = logging.getLogger("gin_rummy.ai")
-        ai_logger.setLevel(
-            getattr(logging, self.logging.ai_level.upper(), logging.INFO)
-        )
+        if self.display.show_ai_thinking:
+            ai_logger.setLevel(logging.INFO)
+        else:
+            ai_logger.setLevel(
+                getattr(logging, self.logging.ai_level.upper(), logging.WARNING)
+            )
+
+        # Optional file logging for detailed analysis
+        if self.logging.log_file:
+            file_handler = logging.FileHandler(self.logging.log_file)
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(logging.Formatter(self.logging.format))
+            logging.getLogger().addHandler(file_handler)
+            # AI logger always logs to file at DEBUG level
+            ai_logger.addHandler(file_handler)
 
 
 # Global config instance - loaded lazily

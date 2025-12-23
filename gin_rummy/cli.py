@@ -234,12 +234,13 @@ def play_human_first_discard(game: Game, human_player_idx: int) -> None:
 def play_ai_first_discard(game: Game, ai: BasicAI) -> None:
     """Handle AI's opening discard."""
     delay = get_config().display.ai_turn_delay
-    print(f"\n{game.current_player.name} is choosing a card to discard...")
+    ai_name = game.current_player.name
+    print(f"\n{ai_name} is choosing a card to discard...")
     time.sleep(delay * 2)  # Slightly longer for first discard
 
     discard = ai.decide_discard(game.current_player.hand)
     game.discard_to_start(discard)
-    print(f"{game.current_player.name} discarded {discard}")
+    print(f"{ai_name} discarded {discard}")
     time.sleep(delay)
 
 
