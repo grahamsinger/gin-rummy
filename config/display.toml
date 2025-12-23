@@ -1,0 +1,30 @@
+# Display and UI Configuration
+#
+# Settings for the terminal user interface.
+
+[display]
+# Whether to clear the terminal screen between turns.
+# Set to false to keep full game history visible (useful for debugging).
+clear_screen = true
+
+# Delay in seconds between AI actions (drawing, discarding, etc.).
+# Makes AI turns easier to follow. Set to 0 for instant AI play.
+ai_turn_delay = 0.5
+
+# Show AI's decision reasoning in game output (draw choice, discard choice, knock decision).
+# WARNING: This reveals opponent's deadwood and strategy - not recommended for fair play.
+# When true, overrides ai_level to show INFO messages on console.
+show_ai_thinking = false
+
+[assist]
+# Training assist mode - shows helpful information during gameplay.
+
+# Whether to display assist information (opponent pickups, dead cards).
+# Set to false to play without any hints.
+enabled = true
+
+# Whether to show actual card values or just counts.
+# When false: "Opponent picked up: 2 cards"
+# When true: "Opponent picked up: 5H, JD"
+# Can be toggled during gameplay by pressing 'a'.
+show_values = false

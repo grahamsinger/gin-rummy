@@ -1,0 +1,21 @@
+# Game Rules Configuration
+#
+# Core game rules that define how Gin Rummy is played.
+
+[game_rules]
+# Maximum deadwood value allowed to knock.
+# Standard gin rummy rules use 10. Lower values make knocking harder.
+knock_threshold = 10
+
+# Bonus points awarded for going gin (knocking with 0 deadwood).
+# The winner gets this bonus plus the opponent's total deadwood.
+gin_bonus = 25
+
+# Bonus points awarded when the defender undercuts the knocker.
+# An undercut occurs when the defender's deadwood is equal to or less than the knocker's.
+# The defender gets this bonus plus the difference in deadwood.
+undercut_bonus = 25
+
+# When the deck has this many cards or fewer remaining, the round ends in a draw.
+# Neither player scores. Standard rules typically use 2.
+min_deck_cards = 2

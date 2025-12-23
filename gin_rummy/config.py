@@ -111,43 +111,82 @@ class Config:
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> Self:
-        """Load configuration from a TOML file.
+        """Load configuration from TOML file(s).
+
+        Supports two modes:
+        1. Split config: config/ directory with separate .toml files by concern
+        2. Single config: config.toml with all settings (backwards compatible)
 
         Args:
-            path: Path to config file. If None, looks for config.toml in
-                  current directory, then in package directory.
+            path: Path to config file or directory. If None, looks for config/
+                  directory first, then config.toml in standard locations.
 
         Returns:
-            Config instance with values from file (or defaults if not found).
+            Config instance with values from file(s) (or defaults if not found).
         """
         if path is not None:
             config_path = Path(path)
-            if config_path.exists():
+            if config_path.is_dir():
+                return cls._from_config_dir(config_path)
+            elif config_path.exists():
                 return cls._from_toml(config_path)
             else:
-                logging.warning(f"Config file not found: {path}, using defaults")
+                logging.warning(f"Config path not found: {path}, using defaults")
                 return cls()
 
-        # Look for config.toml in standard locations
-        search_paths = [
+        # Look for config/ directory first (split config)
+        config_dir_paths = [
+            Path.cwd() / "config",
+            Path(__file__).parent.parent / "config",
+            Path.home() / ".config" / "gin_rummy" / "config",
+        ]
+
+        for config_dir in config_dir_paths:
+            if config_dir.is_dir() and any(config_dir.glob("*.toml")):
+                return cls._from_config_dir(config_dir)
+
+        # Fall back to single config.toml (backwards compatible)
+        config_file_paths = [
             Path.cwd() / "config.toml",
             Path(__file__).parent.parent / "config.toml",
             Path.home() / ".config" / "gin_rummy" / "config.toml",
         ]
 
-        for config_path in search_paths:
+        for config_path in config_file_paths:
             if config_path.exists():
                 return cls._from_toml(config_path)
 
-        # No config file found, use defaults
+        # No config found, use defaults
         return cls()
+
+    @classmethod
+    def _from_config_dir(cls, config_dir: Path) -> Self:
+        """Load and merge config from a directory of TOML files."""
+        merged_data: dict = {}
+
+        # Load all .toml files in the directory
+        for toml_file in sorted(config_dir.glob("*.toml")):
+            with open(toml_file, "rb") as f:
+                file_data = tomllib.load(f)
+                # Merge into combined data
+                for key, value in file_data.items():
+                    if key in merged_data and isinstance(merged_data[key], dict):
+                        merged_data[key].update(value)
+                    else:
+                        merged_data[key] = value
+
+        return cls._from_data(merged_data)
 
     @classmethod
     def _from_toml(cls, path: Path) -> Self:
         """Parse config from a TOML file."""
         with open(path, "rb") as f:
             data = tomllib.load(f)
+        return cls._from_data(data)
 
+    @classmethod
+    def _from_data(cls, data: dict) -> Self:
+        """Create Config from a dictionary of parsed TOML data."""
         logging_data = data.get("logging", {})
         game_rules_data = data.get("game_rules", {})
         ai_data = data.get("ai", {})

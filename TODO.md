@@ -38,34 +38,26 @@
 - [x] Brackets around melded cards
 - [x] Superscript selection numbers
 
-## Code Refactor: Unify Simulator and CLI Game Logic
-- [ ] Extract shared AI turn logic into reusable module
-  - Currently duplicated in `cli.py:play_ai_turn()` and `simulator.py:_play_turn()`
-  - Both must: build context for ContextAwareAI, call decide_draw, handle draw,
-    call make_turn_decision, handle discard/knock, track opponent patterns
-  - Any bug fix or feature (like context passing) must be applied to both
-- [ ] Create `gin_rummy/game_runner.py` or similar with shared functions:
-  - `execute_ai_turn(game, ai, player_idx)` - handles full AI turn with context
-  - `record_opponent_action(ai, action_type, card)` - track patterns
-  - `build_ai_context(game, ai, player_idx)` - get context if ContextAwareAI
-- [ ] Refactor CLI to use shared module
-  - `play_ai_turn()` becomes thin wrapper adding UI (prints, delays)
-- [ ] Refactor Simulator to use shared module
-  - `_play_turn()` becomes thin wrapper adding metrics tracking
-- [ ] Benefits:
-  - Single source of truth for game mechanics
-  - Bug fixes apply everywhere automatically
-  - Easier to add new AI types
-  - CLI and simulator guaranteed to behave identically
+## Code Refactor: Unify Simulator and CLI Game Logic (COMPLETED)
+- [x] Extract shared AI turn logic into reusable module
+  - Created `gin_rummy/game_runner.py` with `execute_ai_turn()` as single source of truth
+- [x] Create shared functions:
+  - `execute_ai_turn(game, ai, other_ai, callbacks)` - handles full AI turn with context
+  - `record_opponent_pickup/discard()` - track opponent patterns
+  - `get_ai_context()` - build context for ContextAwareAI
+- [x] Refactor CLI to use shared module
+  - `CLITurnCallbacks` handles UI output and database tracking
+- [x] Refactor Simulator to use shared module
+  - `SimulatorTurnCallbacks` handles metrics tracking
 
-## Configuration Refactor
-- [ ] Split config.toml into separate files by concern:
+## Configuration Refactor (COMPLETED)
+- [x] Split config.toml into separate files by concern:
   - `config/game.toml` - game rules (knock threshold, bonuses)
   - `config/ai.toml` - BasicAI settings
   - `config/context-ai.toml` - ContextAwareAI parameters
-  - `config/display.toml` - UI/display settings
-  - `config/database.toml` - database/logging settings
-- Benefits: easier to track what changed, less accidental edits, cleaner diffs
+  - `config/display.toml` - UI/display + assist settings
+  - `config/database.toml` - database + logging settings
+- [x] Updated config.py to load from config/ directory (with single file fallback)
 
 ## Future Ideas
 - [ ] Multiplayer over network

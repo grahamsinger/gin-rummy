@@ -1,0 +1,41 @@
+# Database and Logging Configuration
+#
+# Settings for game history tracking and log output.
+
+[database]
+# Whether to track game history in a SQLite database.
+# When enabled, all games, hands, turns, and AI decisions are recorded.
+# Useful for debugging, analyzing AI performance, and reviewing past games.
+enabled = true
+
+# Path to the SQLite database file.
+# Can be absolute or relative to the current working directory.
+# The file will be created automatically if it doesn't exist.
+path = "game_history.db"
+
+# Whether to record detailed AI decision reasoning.
+# When true, stores why the AI made each draw/discard/knock decision.
+# Increases database size but provides valuable debugging information.
+track_ai_decisions = true
+
+[logging]
+# General logging level for the application.
+# Options: DEBUG (most verbose), INFO, WARNING, ERROR (least verbose)
+# At WARNING level, only warnings and errors are shown (quiet gameplay).
+level = "WARNING"
+
+# Python logging format string for log messages.
+# %(name)s = logger name, %(levelname)s = level, %(message)s = the message
+# See: https://docs.python.org/3/library/logging.html#logrecord-attributes
+format = "%(name)s - %(levelname)s - %(message)s"
+
+# Logging level specifically for AI decision messages (when show_ai_thinking is false).
+# Set to "WARNING" to hide AI decisions (recommended for fair play).
+# Set to "INFO" to see AI decisions on console.
+# Note: show_ai_thinking in display.toml overrides this to INFO when enabled.
+ai_level = "WARNING"
+
+# Optional file path for detailed logging.
+# When set, all logs (including DEBUG level AI decisions) are written to this file.
+# Useful for post-game analysis without spoiling gameplay.
+# log_file = "game.log"
