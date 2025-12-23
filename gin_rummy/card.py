@@ -24,6 +24,11 @@ class Suit(Enum):
         }
         return symbols[self]
 
+    @property
+    def is_red(self) -> bool:
+        """Return True if this is a red suit (hearts or diamonds)."""
+        return self in (Suit.HEARTS, Suit.DIAMONDS)
+
 
 @total_ordering
 class Rank(Enum):
@@ -83,6 +88,13 @@ class Card:
     def __str__(self) -> str:
         """Return string representation like 'A♠', '10♥', 'K♣'."""
         return f"{self.rank.short_name}{self.suit.symbol}"
+
+    def colored_str(self, red: str = "\033[91m", reset: str = "\033[0m") -> str:
+        """Return colored string representation (red for hearts/diamonds)."""
+        s = str(self)
+        if self.suit.is_red:
+            return f"{red}{s}{reset}"
+        return s
 
     def __repr__(self) -> str:
         return f"Card({self.rank.name}, {self.suit.name})"

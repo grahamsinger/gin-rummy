@@ -9,11 +9,25 @@ from enum import Enum, auto
 from pathlib import Path
 
 from gin_rummy.ai import BasicAI, DrawChoice
+from gin_rummy.card import Card, Suit, Rank
 from gin_rummy.config import get_config, load_config
 from gin_rummy.database import GameTracker
 from gin_rummy.game import Game, GamePhase, InvalidActionError
 from gin_rummy.hand import Hand
-from gin_rummy.melds import MeldType
+from gin_rummy.melds import MeldType, HandAnalysis
+
+
+# ANSI color codes for terminal output
+RED = "\033[91m"      # Bright red for hearts/diamonds
+RESET = "\033[0m"     # Reset to default
+
+# Unicode superscript digits for card selection numbers
+SUPERSCRIPTS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+
+
+def superscript(n: int) -> str:
+    """Convert a number to Unicode superscript characters."""
+    return "".join(SUPERSCRIPTS[int(d)] for d in str(n))
 
 
 class TurnResult(Enum):
@@ -152,6 +166,119 @@ def display_hand_with_melds(hand: Hand, show_numbers: bool = True, for_discard: 
     return display_cards
 
 
+def display_hand_by_suit(hand: Hand, show_numbers: bool = True) -> list[Card]:
+    """Display a hand grouped by suit with melds in brackets.
+
+    Cards are positioned by rank (A-K) so runs are visually aligned.
+    Melded cards are wrapped in brackets. Red suits are colored.
+
+    Args:
+        hand: The hand to display.
+        show_numbers: If True, show superscript selection numbers.
+
+    Returns:
+        List of cards in selection order (for mapping numbers to cards).
+    """
+    analysis = hand.analyze()
+
+    # Build set of melded cards for quick lookup
+    melded_cards: set[Card] = set()
+    for meld in analysis.melds:
+        melded_cards.update(meld.cards)
+
+    # Group cards by suit
+    cards_by_suit: dict[Suit, list[Card]] = {suit: [] for suit in Suit}
+    for card in hand:
+        cards_by_suit[card.suit].append(card)
+
+    # Sort each suit by rank
+    for suit in cards_by_suit:
+        cards_by_suit[suit].sort(key=lambda c: c.rank.value)
+
+    # Build selection order list (spades, hearts, diamonds, clubs - by rank within each)
+    suit_order = [Suit.SPADES, Suit.HEARTS, Suit.DIAMONDS, Suit.CLUBS]
+    selection_order: list[Card] = []
+    for suit in suit_order:
+        selection_order.extend(cards_by_suit[suit])
+
+    # Create card to selection number mapping
+    card_to_num: dict[Card, int] = {card: i + 1 for i, card in enumerate(selection_order)}
+
+    # Column width for each rank position (A, 2, 3, ..., K)
+    # Each card needs ~4 chars (rank + suit + superscript + space), but 10 needs 5
+    col_width = 5
+
+    # Display each suit row
+    for suit in suit_order:
+        suit_cards = cards_by_suit[suit]
+        if not suit_cards:
+            continue
+
+        # Build the row string with cards at their rank positions
+        # Track which positions have cards and which are in melds
+        row_parts: list[str] = []
+        row_parts.append(f"{suit.symbol}: ")
+
+        # Find meld groups (consecutive melded cards)
+        meld_groups: list[list[Card]] = []
+        current_group: list[Card] = []
+        for card in suit_cards:
+            if card in melded_cards:
+                current_group.append(card)
+            else:
+                if current_group:
+                    meld_groups.append(current_group)
+                    current_group = []
+        if current_group:
+            meld_groups.append(current_group)
+
+        # Build positions array (13 positions for A-K)
+        positions: list[str] = [""] * 13
+        in_meld_group: list[bool] = [False] * 13
+
+        for card in suit_cards:
+            pos = card.rank.value - 1  # 0-indexed
+            num_str = superscript(card_to_num[card]) if show_numbers else ""
+            card_str = card.colored_str(RED, RESET) + num_str
+            positions[pos] = card_str
+            in_meld_group[pos] = card in melded_cards
+
+        # Build row with brackets around meld groups
+        row = f"{suit.symbol}: "
+        i = 0
+        while i < 13:
+            if positions[i]:
+                # Check if this starts a meld group
+                if in_meld_group[i]:
+                    # Find end of meld group
+                    group_start = i
+                    while i < 13 and in_meld_group[i] and positions[i]:
+                        i += 1
+                    group_end = i
+
+                    # Add opening bracket
+                    row += "["
+                    for j in range(group_start, group_end):
+                        row += positions[j]
+                        if j < group_end - 1:
+                            row += " "
+                    row += "] "
+                else:
+                    row += positions[i] + " "
+                    i += 1
+            else:
+                # Empty position - add spacing based on rank
+                row += " " * col_width
+                i += 1
+
+        print(f"  {row.rstrip()}")
+
+    # Print deadwood total
+    print(f"\n  Deadwood: {analysis.deadwood_value}")
+
+    return selection_order
+
+
 def display_game_state(game: Game, human_player_idx: int, show_opponent: bool = False) -> None:
     """Display the current game state from human player's perspective.
 
@@ -189,9 +316,8 @@ def display_game_state(game: Game, human_player_idx: int, show_opponent: bool = 
     display_assist_info(game, human_player_idx)
 
     # Human player's hand with meld analysis
-    human.hand.sort()
     print(f"\n{human.name}'s hand:")
-    display_hand_with_melds(human.hand)
+    display_hand_by_suit(human.hand, show_numbers=False)
 
     print()
 
@@ -308,10 +434,9 @@ def play_human_turn(
         else:
             print("Invalid choice")
 
-    # Update display after drawing - show cards ordered for discard
-    current.hand.sort()
+    # Update display after drawing - show cards for discard selection
     print(f"\nYour hand:")
-    display_cards = display_hand_with_melds(current.hand, for_discard=True)
+    display_cards = display_hand_by_suit(current.hand, show_numbers=True)
 
     # Discard phase (with optional knock)
     if game.can_knock:
@@ -512,20 +637,8 @@ def display_round_result(game: Game) -> None:
 
     # Show both hands with melds
     for player in game.players:
-        player.hand.sort()
         print(f"\n{player.name}'s hand:")
-        display_hand_with_melds(player.hand, show_numbers=False)
-
-    print()
-
-    # Get result info from game state
-    # Note: result is stored when knock() is called
-    # For now, recalculate from hands
-    p0_deadwood = game.players[0].hand.deadwood_total
-    p1_deadwood = game.players[1].hand.deadwood_total
-
-    print(f"{game.players[0].name}: {p0_deadwood} deadwood")
-    print(f"{game.players[1].name}: {p1_deadwood} deadwood")
+        display_hand_by_suit(player.hand, show_numbers=False)
 
     print(f"\nScores: {game.players[0].name}: {game.players[0].score}  |  "
           f"{game.players[1].name}: {game.players[1].score}")
