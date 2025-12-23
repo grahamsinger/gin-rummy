@@ -13,8 +13,15 @@ from gin_rummy.card import Card, Suit, Rank
 from gin_rummy.config import get_config, load_config
 from gin_rummy.database import GameTracker
 from gin_rummy.game import Game, GamePhase, InvalidActionError
+from gin_rummy.game_runner import (
+    TurnResult,
+    TurnActions,
+    TurnCallbacks,
+    execute_ai_turn,
+)
 from gin_rummy.hand import Hand
 from gin_rummy.melds import MeldType, HandAnalysis
+from gin_rummy.player import Player
 
 
 # ANSI color codes for terminal output
@@ -28,14 +35,6 @@ SUPERSCRIPTS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
 def superscript(n: int) -> str:
     """Convert a number to Unicode superscript characters."""
     return "".join(SUPERSCRIPTS[int(d)] for d in str(n))
-
-
-class TurnResult(Enum):
-    """Result of a turn."""
-
-    CONTINUE = auto()  # Round continues
-    KNOCKED = auto()  # Player knocked, round over
-    DRAW = auto()  # Deck exhausted, round is a draw
 
 
 def clear_screen() -> None:
@@ -517,13 +516,105 @@ def play_human_turn(
                 print("Please enter a valid card number")
 
 
+class CLITurnCallbacks:
+    """Callbacks for AI turn side effects in CLI mode.
+
+    Handles UI output (print statements, delays) and database tracking.
+    """
+
+    def __init__(
+        self,
+        game: Game,
+        tracker: GameTracker | None,
+        delay: float,
+        cards_before: list[str],
+    ) -> None:
+        self.game = game
+        self.tracker = tracker
+        self.delay = delay
+        self.cards_before = cards_before
+        self.config = get_config()
+
+    def on_draw(self, player: Player, source: DrawChoice, card: Card) -> None:
+        """Print draw message and add delay."""
+        if source == DrawChoice.DISCARD:
+            print(f"{player.name} picked up {card} from discard pile")
+        else:
+            print(f"{player.name} drew from deck")
+        time.sleep(self.delay)
+
+    def on_discard(self, player: Player, card: Card) -> None:
+        """Print discard message and add delay."""
+        print(f"{player.name} discarded {card}")
+        time.sleep(self.delay)
+
+    def on_knock(self, player: Player, discard: Card, deadwood: int) -> None:
+        """Print knock message, display round result, and add delay."""
+        print(f"{player.name} knocks!")
+        time.sleep(self.delay)
+        display_round_result(self.game)
+
+    def on_turn_complete(self, player: Player, actions: TurnActions) -> None:
+        """Record turn to database tracker if enabled."""
+        if not self.tracker:
+            return
+
+        drew_from = "discard" if actions.draw_source == DrawChoice.DISCARD else "deck"
+
+        # Get cards after turn
+        if actions.did_knock:
+            cards_after = [str(c) for c in player.hand if c != actions.discarded_card]
+        else:
+            cards_after = [str(c) for c in player.hand]
+
+        turn_id = self.tracker.record_turn(
+            player_name=player.name,
+            drew_from=drew_from,
+            card_drawn=str(actions.drawn_card),
+            card_discarded=str(actions.discarded_card),
+            did_knock=actions.did_knock,
+            cards_before=self.cards_before,
+            cards_after=cards_after,
+            deadwood_before=actions.deadwood_before,
+            deadwood_after=actions.deadwood_after,
+        )
+
+        if self.config.database.track_ai_decisions:
+            self.tracker.record_ai_decision(
+                turn_id=turn_id,
+                decision_type="draw",
+                choice=drew_from,
+                reasoning=f"Drew {actions.drawn_card} from {drew_from}",
+            )
+            if actions.did_knock:
+                self.tracker.record_ai_decision(
+                    turn_id=turn_id,
+                    decision_type="knock",
+                    choice="yes",
+                    reasoning=f"Knocked with {actions.deadwood_after} deadwood",
+                )
+            else:
+                self.tracker.record_ai_decision(
+                    turn_id=turn_id,
+                    decision_type="discard",
+                    choice=str(actions.discarded_card),
+                    reasoning=f"Discarded {actions.discarded_card}, deadwood {actions.deadwood_before} -> {actions.deadwood_after}",
+                )
+
+
 def play_ai_turn(
     game: Game,
     ai: BasicAI,
     human_player_idx: int,
-    tracker: GameTracker | None = None
+    tracker: GameTracker | None = None,
 ) -> TurnResult:
-    """Play an AI turn.
+    """Play an AI turn using shared game runner logic.
+
+    Args:
+        game: Current game state.
+        ai: The AI making decisions.
+        human_player_idx: Index of human player (unused, kept for API compatibility).
+        tracker: Optional database tracker for recording turns.
 
     Returns:
         TurnResult indicating whether round continues, ended by knock, or draw.
@@ -531,118 +622,20 @@ def play_ai_turn(
     config = get_config()
     delay = config.display.ai_turn_delay
     current = game.current_player
+
+    # Initial delay before AI acts
     time.sleep(delay)
 
-    # Capture state before turn
+    # Capture state before turn (needed for database tracking)
     cards_before = [str(c) for c in current.hand]
-    deadwood_before = current.hand.deadwood_total
 
-    # Build context for ContextAwareAI
-    context = None
-    current_idx = game.current_player_idx
-    if isinstance(ai, ContextAwareAI):
-        context = game.get_game_context(current_idx)
+    # Create callbacks for CLI-specific side effects
+    callbacks = CLITurnCallbacks(game, tracker, delay, cards_before)
 
-    # AI decides where to draw
-    if isinstance(ai, ContextAwareAI):
-        draw_choice = ai.decide_draw(current.hand, game.top_of_discard, context)
-    else:
-        draw_choice = ai.decide_draw(current.hand, game.top_of_discard)
-    drew_from = "discard" if draw_choice == DrawChoice.DISCARD else "deck"
+    # Execute the turn using shared game logic
+    result, _, _ = execute_ai_turn(game, ai, callbacks=callbacks)
 
-    if draw_choice == DrawChoice.DISCARD and game.top_of_discard:
-        card = game.draw_from_discard()
-        print(f"{current.name} picked up {card} from discard pile")
-    else:
-        try:
-            card = game.draw_from_deck()
-            print(f"{current.name} drew from deck")
-        except InvalidActionError:
-            # Deck exhausted
-            return TurnResult.DRAW
-
-    time.sleep(delay)
-
-    # AI decides what to discard and whether to knock
-    discard, should_knock = ai.make_turn_decision(
-        current.hand, game.top_of_discard, card
-    )
-
-    if should_knock and game.can_knock:
-        print(f"{current.name} knocks!")
-        time.sleep(delay)
-
-        # Capture state after (before knock removes from game state)
-        cards_after = [str(c) for c in current.hand if c != discard]
-        deadwood_after = current.hand.deadwood_total
-
-        # Record turn if tracking
-        if tracker:
-            turn_id = tracker.record_turn(
-                player_name=current.name,
-                drew_from=drew_from,
-                card_drawn=str(card),
-                card_discarded=str(discard),
-                did_knock=True,
-                cards_before=cards_before,
-                cards_after=cards_after,
-                deadwood_before=deadwood_before,
-                deadwood_after=deadwood_after
-            )
-            if config.database.track_ai_decisions:
-                tracker.record_ai_decision(
-                    turn_id=turn_id,
-                    decision_type="draw",
-                    choice=drew_from,
-                    reasoning=f"Drew {card} from {drew_from}"
-                )
-                tracker.record_ai_decision(
-                    turn_id=turn_id,
-                    decision_type="knock",
-                    choice="yes",
-                    reasoning=f"Knocked with {deadwood_after} deadwood"
-                )
-
-        result = game.knock()
-        display_round_result(game)
-        return TurnResult.KNOCKED
-    else:
-        game.discard(discard)
-        print(f"{current.name} discarded {discard}")
-
-        # Capture state after
-        cards_after = [str(c) for c in current.hand]
-        deadwood_after = current.hand.deadwood_total
-
-        # Record turn if tracking
-        if tracker:
-            turn_id = tracker.record_turn(
-                player_name=current.name,
-                drew_from=drew_from,
-                card_drawn=str(card),
-                card_discarded=str(discard),
-                did_knock=False,
-                cards_before=cards_before,
-                cards_after=cards_after,
-                deadwood_before=deadwood_before,
-                deadwood_after=deadwood_after
-            )
-            if config.database.track_ai_decisions:
-                tracker.record_ai_decision(
-                    turn_id=turn_id,
-                    decision_type="draw",
-                    choice=drew_from,
-                    reasoning=f"Drew {card} from {drew_from}"
-                )
-                tracker.record_ai_decision(
-                    turn_id=turn_id,
-                    decision_type="discard",
-                    choice=str(discard),
-                    reasoning=f"Discarded {discard}, deadwood {deadwood_before} -> {deadwood_after}"
-                )
-
-        time.sleep(delay)
-        return TurnResult.CONTINUE
+    return result
 
 
 def display_round_result(game: Game) -> None:

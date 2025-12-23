@@ -6,7 +6,15 @@ import random
 from dataclasses import dataclass, field
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
-from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
+from gin_rummy.card import Card
+from gin_rummy.game import Game, GamePhase, RoundResult
+from gin_rummy.game_runner import (
+    TurnResult,
+    TurnActions,
+    TurnCallbacks,
+    execute_ai_turn,
+)
+from gin_rummy.player import Player
 
 
 logger = logging.getLogger(__name__)
@@ -105,6 +113,36 @@ class SimulatorMetrics:
             "=" * (32 + col_width * 2 + 2),
         ]
         return "\n".join(lines)
+
+
+class SimulatorTurnCallbacks:
+    """Callbacks for AI turn side effects in Simulator mode.
+
+    Handles metrics tracking (draw counts, knock statistics).
+    """
+
+    def __init__(self, player_metrics: PlayerMetrics) -> None:
+        self.player_metrics = player_metrics
+
+    def on_draw(self, player: Player, source: DrawChoice, card: Card) -> None:
+        """Track draw source."""
+        if source == DrawChoice.DISCARD:
+            self.player_metrics.draws_from_discard += 1
+        else:
+            self.player_metrics.draws_from_deck += 1
+
+    def on_discard(self, player: Player, card: Card) -> None:
+        """No-op for discard in simulator."""
+        pass
+
+    def on_knock(self, player: Player, discard: Card, deadwood: int) -> None:
+        """Track knock statistics."""
+        self.player_metrics.knocks += 1
+        self.player_metrics.total_knock_deadwood += deadwood
+
+    def on_turn_complete(self, player: Player, actions: TurnActions) -> None:
+        """No-op - metrics already tracked in other callbacks."""
+        pass
 
 
 class Simulator:
@@ -209,66 +247,30 @@ class Simulator:
         return game.get_draw_result()
 
     def _play_turn(self, game: Game) -> RoundResult | None:
-        """Play a single turn. Returns RoundResult if round ended."""
+        """Play a single turn using shared game runner logic.
+
+        Returns RoundResult if round ended, None if round continues.
+        """
         current_idx = game.current_player_idx
         ai = self.ai1 if current_idx == 0 else self.ai2
         other_ai = self.ai2 if current_idx == 0 else self.ai1
         player_metrics = self.metrics.get_player_metrics(current_idx)
-        current = game.current_player
 
-        # Build context for ContextAwareAI
-        context = None
-        if isinstance(ai, ContextAwareAI):
-            context = game.get_game_context(current_idx)
+        # Create callbacks for metrics tracking
+        callbacks = SimulatorTurnCallbacks(player_metrics)
 
-        # Draw phase - pass context if available
-        if isinstance(ai, ContextAwareAI):
-            draw_choice = ai.decide_draw(current.hand, game.top_of_discard, context)
+        # Execute the turn using shared game logic
+        turn_result, _, round_result = execute_ai_turn(game, ai, other_ai, callbacks)
+
+        # Map TurnResult to RoundResult | None
+        if turn_result == TurnResult.KNOCKED:
+            # Round ended with knock - return the result from knock
+            return round_result
+        elif turn_result == TurnResult.DRAW:
+            # Deck exhausted
+            return game.get_draw_result()
         else:
-            draw_choice = ai.decide_draw(current.hand, game.top_of_discard)
-
-        # Track pickup for opponent's model
-        discard_top_before = game.top_of_discard
-
-        if draw_choice == DrawChoice.DISCARD and game.top_of_discard:
-            card = game.draw_from_discard()
-            player_metrics.draws_from_discard += 1
-
-            # Record pickup for opponent's tracking
-            if isinstance(other_ai, ContextAwareAI) and discard_top_before:
-                other_ai.record_opponent_pickup(discard_top_before)
-        else:
-            try:
-                card = game.draw_from_deck()
-                player_metrics.draws_from_deck += 1
-            except InvalidActionError:
-                # Deck exhausted
-                return game.get_draw_result()
-
-        # Discard/knock phase
-        discard, should_knock = ai.make_turn_decision(
-            current.hand, game.top_of_discard, card
-        )
-
-        if should_knock and game.can_knock:
-            # Calculate post-discard deadwood for metrics
-            from gin_rummy.melds import analyze_hand
-
-            test_cards = [c for c in current.hand if c != discard]
-            post_discard_deadwood = analyze_hand(test_cards).deadwood_value
-            player_metrics.total_knock_deadwood += post_discard_deadwood
-            player_metrics.knocks += 1
-
-            # knock() expects to be called during DISCARDING phase (before discard)
-            result = game.knock()
-            return result
-        else:
-            game.discard(discard)
-
-            # Record discard for opponent's tracking
-            if isinstance(other_ai, ContextAwareAI):
-                other_ai.record_opponent_discard(discard)
-
+            # Round continues
             return None
 
     def _record_round_result(self, game: Game, result: RoundResult) -> None:
