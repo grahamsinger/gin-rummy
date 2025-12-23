@@ -13,6 +13,25 @@
   - See docs/context-aware-ai.md for recommended starting values
 - [ ] AI difficulty levels (easy/medium/hard)
 
+## Unified Card Location Tracking
+- [ ] Create `KnownCards` data structure to track all cards from player's perspective
+  - `MY_HAND`: Cards in my hand
+  - `OPPONENT_HAND_KNOWN`: Cards opponent picked from discard (and hasn't re-discarded)
+  - `DISCARD_TOP`: Top of discard pile (available to take)
+  - `DISCARD_BURIED`: Previously discarded, now buried
+  - `UNKNOWN`: In deck or opponent's initial hand (can't distinguish)
+- [ ] Fix bug: `dead_cards` should include opponent pickups
+  - Currently: `dead_cards = set(discard_history)`
+  - Should be: `dead_cards = set(discard_history) | (opponent_pickups - re-discarded)`
+  - Cards opponent picked up are NOT available to draw!
+- [ ] Add helper method to derive location for any card
+  - `get_card_location(card) -> CardLocation`
+  - Useful for debugging and analysis
+- [ ] Update outs analysis to use corrected dead_cards
+- [ ] Add to analyze_hand.py output
+  - Show card location breakdown
+  - "Known opponent cards: X, Unknown cards: Y"
+
 ## Card Helpfulness Ranking
 - [ ] Rank all non-dead cards by how helpful they would be
   - Primary metric: deadwood reduction when added to hand
