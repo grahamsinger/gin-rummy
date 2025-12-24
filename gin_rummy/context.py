@@ -15,6 +15,16 @@ if TYPE_CHECKING:
     from gin_rummy.config import ContextAwareAIConfig
 
 
+class CardLocation(Enum):
+    """Where a card is located from a player's perspective."""
+
+    MY_HAND = auto()  # In my current hand
+    OPPONENT_HAND_KNOWN = auto()  # Opponent picked from discard, not re-discarded
+    DISCARD_TOP = auto()  # Top of discard pile (available to take)
+    DISCARD_BURIED = auto()  # Previously discarded, now buried under other cards
+    UNKNOWN = auto()  # In deck or opponent's initial hand (can't distinguish)
+
+
 class OutType(Enum):
     """Type of 'out' - how a card would help the hand."""
 
@@ -68,6 +78,40 @@ class OutsAnalysis:
 
 
 @dataclass
+class KnownCards:
+    """Unified card location tracking from one player's perspective.
+
+    Tracks where all cards are located based on observable game events.
+    This is the single source of truth for card availability.
+    """
+
+    my_hand: frozenset[Card]
+    opponent_hand_known: frozenset[Card]  # Picked from discard, not re-discarded
+    discard_top: Card | None  # Available to take
+    discard_buried: frozenset[Card]  # Previously discarded, now inaccessible
+
+    def get_location(self, card: Card) -> CardLocation:
+        """Determine where a card is located."""
+        if card in self.my_hand:
+            return CardLocation.MY_HAND
+        if card in self.opponent_hand_known:
+            return CardLocation.OPPONENT_HAND_KNOWN
+        if card == self.discard_top:
+            return CardLocation.DISCARD_TOP
+        if card in self.discard_buried:
+            return CardLocation.DISCARD_BURIED
+        return CardLocation.UNKNOWN
+
+    @property
+    def dead_cards(self) -> frozenset[Card]:
+        """Cards unavailable to draw: opponent's known hand + buried discards.
+
+        Note: Does NOT include discard_top (that's available) or my_hand.
+        """
+        return self.opponent_hand_known | self.discard_buried
+
+
+@dataclass
 class GameContext:
     """Snapshot of game state for AI decision-making."""
 
@@ -75,19 +119,30 @@ class GameContext:
     deck_remaining: int
     deck_position_pct: float  # 0.0 = full deck, 1.0 = nearly empty
 
-    # Known cards
-    discard_history: list[Card]
-    opponent_pickups: list[Card]
-    my_pickups: list[Card]
-    dead_cards: set[Card]  # All known unavailable cards
-
-    # Score context
+    # Score context (required fields)
     my_score: int
     opponent_score: int
+
+    # Unified card tracking
+    known_cards: KnownCards | None = None
+
+    # Legacy fields for backwards compatibility (OpponentModel uses these)
+    discard_history: list[Card] = field(default_factory=list)
+    opponent_pickups: list[Card] = field(default_factory=list)
+    my_pickups: list[Card] = field(default_factory=list)
+
     target_score: int = 100
 
     # Current hand analysis (set by AI after construction)
     my_outs: OutsAnalysis | None = None
+
+    @property
+    def dead_cards(self) -> set[Card]:
+        """All known unavailable cards. Uses KnownCards if available."""
+        if self.known_cards:
+            return set(self.known_cards.dead_cards)
+        # Fallback for backwards compatibility
+        return set(self.discard_history)
 
     @property
     def score_differential(self) -> int:

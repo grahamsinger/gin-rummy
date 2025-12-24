@@ -77,6 +77,10 @@ class Game:
             player1_name: [],
             player2_name: [],
         }
+        self._discard_rediscards: dict[str, list[Card]] = {
+            player1_name: [],
+            player2_name: [],
+        }
         self._discard_history: list[Card] = []
 
     @property
@@ -125,7 +129,7 @@ class Game:
         Returns:
             GameContext with all relevant state for AI decisions.
         """
-        from gin_rummy.context import GameContext
+        from gin_rummy.context import GameContext, KnownCards
 
         player = self.players[player_idx]
         opponent = self.players[1 - player_idx]
@@ -137,17 +141,33 @@ class Game:
 
         # Get target score from config
         config = get_config()
-        target_score = 100  # Default, could be made configurable
+        target_score = config.game_rules.target_score
+
+        # Build unified card location tracking
+        opponent_pickups = set(self._discard_pickups.get(opponent.name, []))
+        opponent_rediscards = set(self._discard_rediscards.get(opponent.name, []))
+        opponent_hand_known = opponent_pickups - opponent_rediscards
+
+        # Discard pile: top card is available, rest are buried
+        discard_top = self.discard_pile[-1] if self.discard_pile else None
+        discard_buried = frozenset(self._discard_history[:-1]) if len(self._discard_history) > 1 else frozenset()
+
+        known_cards = KnownCards(
+            my_hand=frozenset(player.hand),
+            opponent_hand_known=frozenset(opponent_hand_known),
+            discard_top=discard_top,
+            discard_buried=discard_buried,
+        )
 
         return GameContext(
             deck_remaining=len(self.deck),
             deck_position_pct=deck_position_pct,
+            my_score=player.score,
+            opponent_score=opponent.score,
+            known_cards=known_cards,
             discard_history=self._discard_history.copy(),
             opponent_pickups=self._discard_pickups.get(opponent.name, []).copy(),
             my_pickups=self._discard_pickups.get(player.name, []).copy(),
-            dead_cards=set(self._discard_history),
-            my_score=player.score,
-            opponent_score=opponent.score,
             target_score=target_score,
         )
 
@@ -175,6 +195,7 @@ class Game:
         # Reset assist tracking
         for player in self.players:
             self._discard_pickups[player.name] = []
+            self._discard_rediscards[player.name] = []
         self._discard_history = []
 
         for player in self.players:
@@ -283,6 +304,11 @@ class Game:
             # Only enforce if we drew from discard (discard pile would have been smaller)
             # Actually, we need to track WHERE we drew from
             pass  # For now, allow it - tracking draw source adds complexity
+
+        # Track if this card was previously picked up (now being re-discarded)
+        player_name = self.current_player.name
+        if card in self._discard_pickups[player_name]:
+            self._discard_rediscards[player_name].append(card)
 
         self.current_player.hand.remove(card)
         self.discard_pile.append(card)

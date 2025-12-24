@@ -66,7 +66,7 @@ def get_assist_show_values() -> bool:
 
 
 def display_assist_info(game: Game, human_player_idx: int) -> None:
-    """Display assist information (opponent pickups and dead cards).
+    """Display assist information (opponent known cards and dead cards).
 
     Args:
         game: The game instance.
@@ -76,29 +76,31 @@ def display_assist_info(game: Game, human_player_idx: int) -> None:
     if not config.assist.enabled:
         return
 
-    opponent = game.players[1 - human_player_idx]
     show_values = get_assist_show_values()
-
-    opponent_pickups = game.get_player_pickups(opponent.name)
-    dead_cards = game.discard_history
+    context = game.get_game_context(human_player_idx)
 
     print("--- Assist ---")
 
-    # Opponent pickups
-    if show_values and opponent_pickups:
-        cards_str = ", ".join(str(c) for c in opponent_pickups)
-        print(f"Opponent picked up: {cards_str}")
-    else:
-        count = len(opponent_pickups)
-        print(f"Opponent picked up: {count} card{'s' if count != 1 else ''}")
+    # Opponent's known cards (pickups minus re-discards)
+    if context.known_cards:
+        opponent_known = context.known_cards.opponent_hand_known
+        if show_values and opponent_known:
+            cards_str = ", ".join(str(c) for c in sorted(opponent_known, key=lambda c: (c.suit.value, c.rank.value)))
+            print(f"Opponent has: {cards_str}")
+        else:
+            count = len(opponent_known)
+            print(f"Opponent has: {count} known card{'s' if count != 1 else ''}")
 
-    # Dead cards (all discards this hand)
-    if show_values and dead_cards:
-        cards_str = ", ".join(str(c) for c in dead_cards)
-        print(f"Dead cards: {cards_str}")
+        # Dead cards (opponent's known cards + buried discards)
+        dead = context.dead_cards
+        if show_values and dead:
+            cards_str = ", ".join(str(c) for c in sorted(dead, key=lambda c: (c.suit.value, c.rank.value)))
+            print(f"Dead cards: {cards_str}")
+        else:
+            print(f"Dead cards: {len(dead)}")
     else:
-        count = len(dead_cards)
-        print(f"Dead cards: {count}")
+        # Fallback if known_cards not available
+        print(f"Dead cards: {len(context.discard_history)}")
 
     print("(Press 'a' to toggle card values)")
 

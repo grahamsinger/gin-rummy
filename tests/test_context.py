@@ -271,7 +271,6 @@ class TestDynamicThresholdCalculator:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=50,
             opponent_score=50,  # Even score
         )
@@ -291,7 +290,6 @@ class TestDynamicThresholdCalculator:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=50,
             opponent_score=50,
         )
@@ -303,7 +301,6 @@ class TestDynamicThresholdCalculator:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=50,
             opponent_score=50,
         )
@@ -333,7 +330,6 @@ class TestDynamicThresholdCalculator:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=50,
             opponent_score=50,
             my_outs=many_outs,
@@ -345,7 +341,6 @@ class TestDynamicThresholdCalculator:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=50,
             opponent_score=50,
             my_outs=few_outs,
@@ -366,7 +361,6 @@ class TestDynamicThresholdCalculator:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=20,
             opponent_score=80,  # Trailing by 60
         )
@@ -378,7 +372,6 @@ class TestDynamicThresholdCalculator:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=80,
             opponent_score=20,  # Leading by 60
         )
@@ -400,7 +393,6 @@ class TestDynamicThresholdCalculator:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=10,
             opponent_score=90,  # Trailing badly
         )
@@ -506,7 +498,6 @@ class TestGameContext:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=70,
             opponent_score=40,
         )
@@ -518,7 +509,6 @@ class TestGameContext:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=30,
             opponent_score=80,
         )
@@ -532,7 +522,6 @@ class TestGameContext:
             discard_history=[],
             opponent_pickups=[],
             my_pickups=[],
-            dead_cards=set(),
             my_score=75,
             opponent_score=40,
             target_score=100,
