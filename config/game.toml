@@ -19,3 +19,7 @@ undercut_bonus = 25
 # When the deck has this many cards or fewer remaining, the round ends in a draw.
 # Neither player scores. Standard rules typically use 2.
 min_deck_cards = 2
+
+# Score needed to win the game.
+# First player to reach this score wins. Standard rules use 100.
+target_score = 100

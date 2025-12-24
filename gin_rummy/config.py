@@ -25,6 +25,7 @@ class GameRulesConfig:
     gin_bonus: int = 25
     undercut_bonus: int = 25
     min_deck_cards: int = 2  # Round ends in draw when deck reaches this
+    target_score: int = 100  # Score needed to win the game
 
 
 @dataclass
