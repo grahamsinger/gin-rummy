@@ -55,9 +55,9 @@
 - [x] AI decision logging for analysis
 - [ ] Game history/replay viewer
 - [ ] Statistics dashboard/summary command
-- [ ] Fix: turns table card format inconsistent with ai_decisions table
-  - Cards in turns table stored in different format than ai_decisions
-  - Should unify card serialization format across tables
+- [x] Fix: turns table card format inconsistent with ai_decisions table
+  - Now uses consistent ASCII format (e.g., "AS", "10H") across all tables
+  - Added `card_to_db_str()` and `cards_to_db_list()` helpers in database.py
 
 ## Training/Assist Mode (COMPLETED)
 - [x] Show cards remaining in deck

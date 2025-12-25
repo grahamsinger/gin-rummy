@@ -1,14 +1,43 @@
 """SQLite database for tracking game history."""
 
+from __future__ import annotations
+
 import json
 import sqlite3
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Generator
+from typing import TYPE_CHECKING, Generator
 
 from gin_rummy.config import get_config
+
+if TYPE_CHECKING:
+    from gin_rummy.card import Card
+
+
+# Card serialization for database storage
+# Uses ASCII format: "AS" = Ace of Spades, "10H" = Ten of Hearts
+# This avoids Unicode escape issues in JSON and is more portable
+
+def card_to_db_str(card: Card) -> str:
+    """Serialize a Card to database format (ASCII, e.g., 'AS', '10H')."""
+    from gin_rummy.card import Rank, Suit
+
+    rank_map = {
+        Rank.ACE: "A", Rank.TWO: "2", Rank.THREE: "3", Rank.FOUR: "4",
+        Rank.FIVE: "5", Rank.SIX: "6", Rank.SEVEN: "7", Rank.EIGHT: "8",
+        Rank.NINE: "9", Rank.TEN: "10", Rank.JACK: "J", Rank.QUEEN: "Q",
+        Rank.KING: "K",
+    }
+    suit_map = {
+        Suit.SPADES: "S", Suit.HEARTS: "H", Suit.DIAMONDS: "D", Suit.CLUBS: "C",
+    }
+    return f"{rank_map[card.rank]}{suit_map[card.suit]}"
+
+
+def cards_to_db_list(cards: list[Card]) -> list[str]:
+    """Serialize a list of Cards to database format."""
+    return [card_to_db_str(c) for c in cards]
 
 
 # Schema version for migrations
