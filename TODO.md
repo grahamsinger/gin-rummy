@@ -1,35 +1,13 @@
 # Gin Rummy - Future Enhancements
 
-## Meld Detection (COMPLETED)
-- [x] Implement run detection (3+ consecutive cards of same suit)
-- [x] Implement set detection (3-4 cards of same rank)
-- [x] Calculate optimal deadwood (minimize unmelded card values)
-- [x] Handle overlapping meld possibilities (choose best combination)
+---
+## Active TODOs
+---
 
-## AI Opponent (COMPLETED - Basic)
-- [x] Basic AI with meld-aware strategy
-- [x] ContextAwareAI that tracks discards, outs, and opponent patterns
+## AI Tuning
 - [ ] Tune ContextAwareAI parameters (currently 40.5% win rate vs BasicAI)
   - See docs/context-aware-ai.md for recommended starting values
 - [ ] AI difficulty levels (easy/medium/hard)
-
-## Unified Card Location Tracking (COMPLETED)
-- [x] Create `KnownCards` data structure to track all cards from player's perspective
-  - `MY_HAND`: Cards in my hand
-  - `OPPONENT_HAND_KNOWN`: Cards opponent picked from discard (and hasn't re-discarded)
-  - `DISCARD_TOP`: Top of discard pile (available to take)
-  - `DISCARD_BURIED`: Previously discarded, now buried
-  - `UNKNOWN`: In deck or opponent's initial hand (can't distinguish)
-- [x] Fix bug: `dead_cards` should include opponent pickups
-  - Now correctly: `dead_cards = opponent_hand_known | discard_buried`
-  - Tracks re-discards so cards opponent returns are no longer "known in hand"
-- [x] Add helper method to derive location for any card
-  - `KnownCards.get_location(card) -> CardLocation`
-- [x] Update outs analysis to use corrected dead_cards
-  - GameContext.dead_cards now uses KnownCards.dead_cards property
-- [x] Add to analyze_hand.py output
-  - Show card location breakdown
-  - "Known opponent cards: X, Unknown cards: Y"
 
 ## Card Helpfulness Ranking
 - [ ] Rank all non-dead cards by how helpful they would be
@@ -49,15 +27,51 @@
   - Better context for draw decisions (how many good cards are left?)
   - Late game: few helpful cards = more desperate = lower threshold
 
-## Game Tracking (COMPLETED - SQLite)
+## Game Tracking
+- [ ] Game history/replay viewer
+- [ ] Statistics dashboard/summary command
+
+## Laying Off
+- [ ] Allow defender to lay off cards on knocker's melds after knock
+- [ ] Update scoring to account for laid off cards
+
+## UI Improvements
+- [ ] Highlight the card just drawn in the hand display
+  - Make it easier to identify which card was added to hand
+  - Options: bold, underline, background color, or marker (e.g., asterisk/arrow)
+
+## Future Ideas
+- [ ] Web UI version
+- [ ] Oklahoma Gin variant (variable knock threshold)
+- [ ] Tournament mode with multiple rounds/scoring
+- [ ] Undo last move (within same turn)
+
+---
+## Completed
+---
+
+## Meld Detection (COMPLETED)
+- [x] Implement run detection (3+ consecutive cards of same suit)
+- [x] Implement set detection (3-4 cards of same rank)
+- [x] Calculate optimal deadwood (minimize unmelded card values)
+- [x] Handle overlapping meld possibilities (choose best combination)
+
+## AI Opponent (COMPLETED - Basic)
+- [x] Basic AI with meld-aware strategy
+- [x] ContextAwareAI that tracks discards, outs, and opponent patterns
+
+## Unified Card Location Tracking (COMPLETED)
+- [x] Create `KnownCards` data structure to track all cards from player's perspective
+- [x] Fix bug: `dead_cards` should include opponent pickups
+- [x] Add helper method to derive location for any card
+- [x] Update outs analysis to use corrected dead_cards
+- [x] Add to analyze_hand.py output
+
+## Game Tracking - SQLite (COMPLETED)
 - [x] SQLite database for game/hand/turn history
 - [x] Track statistics across sessions (wins, gins, undercuts)
 - [x] AI decision logging for analysis
-- [ ] Game history/replay viewer
-- [ ] Statistics dashboard/summary command
-- [x] Fix: turns table card format inconsistent with ai_decisions table
-  - Now uses consistent ASCII format (e.g., "AS", "10H") across all tables
-  - Added `card_to_db_str()` and `cards_to_db_list()` helpers in database.py
+- [x] Fix: turns table card format (now uses consistent ASCII format)
 
 ## Training/Assist Mode (COMPLETED)
 - [x] Show cards remaining in deck
@@ -66,46 +80,22 @@
 - [x] Toggle between showing counts vs actual card values
 - [x] Config setting + runtime keyboard shortcut ('a')
 
-## Laying Off
-- [ ] Allow defender to lay off cards on knocker's melds after knock
-- [ ] Update scoring to account for laid off cards
-
-## UI Improvements
+## UI Improvements (COMPLETED)
 - [x] Show melds and deadwood in hand display
 - [x] Color output for suits (red hearts/diamonds)
 - [x] Suit-row layout with cards positioned by rank
 - [x] Brackets around melded cards
 - [x] Superscript selection numbers
-- [ ] Highlight the card just drawn in the hand display
-  - Make it easier to identify which card was added to hand
-  - Options: bold, underline, background color, or marker (e.g., asterisk/arrow)
 
-## Code Refactor: Unify Simulator and CLI Game Logic (COMPLETED)
-- [x] Extract shared AI turn logic into reusable module
-  - Created `gin_rummy/game_runner.py` with `execute_ai_turn()` as single source of truth
-- [x] Create shared functions:
-  - `execute_ai_turn(game, ai, other_ai, callbacks)` - handles full AI turn with context
-  - `record_opponent_pickup/discard()` - track opponent patterns
-  - `get_ai_context()` - build context for ContextAwareAI
-- [x] Refactor CLI to use shared module
-  - `CLITurnCallbacks` handles UI output and database tracking
-- [x] Refactor Simulator to use shared module
-  - `SimulatorTurnCallbacks` handles metrics tracking
-
-## Configuration Refactor (COMPLETED)
-- [x] Split config.toml into separate files by concern:
-  - `config/game.toml` - game rules (knock threshold, bonuses)
-  - `config/ai.toml` - BasicAI settings
-  - `config/context-ai.toml` - ContextAwareAI parameters
-  - `config/display.toml` - UI/display + assist settings
-  - `config/database.toml` - database + logging settings
-- [x] Updated config.py to load from config/ directory (with single file fallback)
-
-## Future Ideas
-- [x] Multiplayer over network (basic implementation)
+## Network Multiplayer (COMPLETED)
+- [x] Multiplayer over network
   - Server: `uv run gin-server`
   - Client: `uv run gin-client <ip-address>`
-- [ ] Web UI version
-- [ ] Oklahoma Gin variant (variable knock threshold)
-- [ ] Tournament mode with multiple rounds/scoring
-- [ ] Undo last move (within same turn)
+
+## Code Refactor (COMPLETED)
+- [x] Extract shared AI turn logic into reusable module (`gin_rummy/game_runner.py`)
+- [x] Refactor CLI and Simulator to use shared module
+
+## Configuration Refactor (COMPLETED)
+- [x] Split config.toml into separate files by concern
+- [x] Updated config.py to load from config/ directory
