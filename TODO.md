@@ -55,6 +55,9 @@
 - [x] AI decision logging for analysis
 - [ ] Game history/replay viewer
 - [ ] Statistics dashboard/summary command
+- [ ] Fix: turns table card format inconsistent with ai_decisions table
+  - Cards in turns table stored in different format than ai_decisions
+  - Should unify card serialization format across tables
 
 ## Training/Assist Mode (COMPLETED)
 - [x] Show cards remaining in deck
@@ -96,7 +99,9 @@
 - [x] Updated config.py to load from config/ directory (with single file fallback)
 
 ## Future Ideas
-- [ ] Multiplayer over network
+- [x] Multiplayer over network (basic implementation)
+  - Server: `uv run gin-server`
+  - Client: `uv run gin-client <ip-address>`
 - [ ] Web UI version
 - [ ] Oklahoma Gin variant (variable knock threshold)
 - [ ] Tournament mode with multiple rounds/scoring
