@@ -18,7 +18,7 @@ import sys
 
 from gin_rummy.card import Card, Suit, Rank
 from gin_rummy.hand import Hand
-from gin_rummy.context import OutsCalculator, OutType
+from gin_rummy.context import OutsCalculator, OutType, KnownCards, CardLocation
 from gin_rummy.melds import analyze_hand
 
 
@@ -63,6 +63,13 @@ def parse_hand(hand_str: str) -> Hand:
     return Hand(cards)
 
 
+def parse_cards(cards_str: str) -> set[Card]:
+    """Parse a space-separated string of cards into a set."""
+    if not cards_str.strip():
+        return set()
+    return {parse_card(s) for s in cards_str.split()}
+
+
 def display_hand_by_suit(hand: Hand) -> None:
     """Display hand organized by suit."""
     suits = {Suit.SPADES: [], Suit.HEARTS: [], Suit.DIAMONDS: [], Suit.CLUBS: []}
@@ -75,13 +82,67 @@ def display_hand_by_suit(hand: Hand) -> None:
         print(f"  {suit.symbol}: {' '.join(card_strs)}")
 
 
-def analyze_outs(hand: Hand, dead_cards_str: str = "") -> None:
+def display_card_locations(known_cards: KnownCards) -> None:
+    """Display a breakdown of card locations."""
+    # Count unknown cards (52 total - all known locations)
+    known_count = (
+        len(known_cards.my_hand)
+        + len(known_cards.opponent_hand_known)
+        + (1 if known_cards.discard_top else 0)
+        + len(known_cards.discard_buried)
+    )
+    unknown_count = 52 - known_count
+
+    print("\n" + "-" * 60)
+    print("CARD LOCATIONS")
+    print("-" * 60)
+    print(f"  My hand: {len(known_cards.my_hand)} cards")
+
+    if known_cards.opponent_hand_known:
+        opp_cards = sorted(known_cards.opponent_hand_known, key=lambda c: (c.rank.value, c.suit.value))
+        print(f"  Opponent known: {len(known_cards.opponent_hand_known)} cards - {[str(c) for c in opp_cards]}")
+    else:
+        print("  Opponent known: 0 cards")
+
+    if known_cards.discard_top:
+        print(f"  Discard top: {known_cards.discard_top}")
+    else:
+        print("  Discard top: (empty)")
+
+    if known_cards.discard_buried:
+        buried = sorted(known_cards.discard_buried, key=lambda c: (c.rank.value, c.suit.value))
+        print(f"  Discard buried: {len(known_cards.discard_buried)} cards - {[str(c) for c in buried]}")
+    else:
+        print("  Discard buried: 0 cards")
+
+    print(f"  Unknown: {unknown_count} cards (in deck or opponent's initial hand)")
+    print(f"  Dead cards: {len(known_cards.dead_cards)} (opponent known + buried)")
+
+
+def analyze_outs(
+    hand: Hand,
+    dead_cards_str: str = "",
+    opponent_known_str: str = "",
+    discard_top_str: str = "",
+) -> None:
     """Analyze and display outs for a hand."""
-    # Parse dead cards if provided
-    dead_cards: set[Card] = set()
-    if dead_cards_str:
-        for card_str in dead_cards_str.split():
-            dead_cards.add(parse_card(card_str))
+    # Parse card locations
+    buried_cards = parse_cards(dead_cards_str)
+    opponent_known = parse_cards(opponent_known_str)
+    discard_top: Card | None = None
+    if discard_top_str.strip():
+        discard_top = parse_card(discard_top_str.strip())
+
+    # Create KnownCards for unified tracking
+    known_cards = KnownCards(
+        my_hand=frozenset(hand),
+        opponent_hand_known=frozenset(opponent_known),
+        discard_top=discard_top,
+        discard_buried=frozenset(buried_cards),
+    )
+
+    # Use KnownCards.dead_cards for outs calculation
+    dead_cards = set(known_cards.dead_cards)
 
     calc = OutsCalculator()
     analysis = calc.calculate_outs(hand, dead_cards=dead_cards)
@@ -102,8 +163,8 @@ def analyze_outs(hand: Hand, dead_cards_str: str = "") -> None:
     print(f"Deadwood: {meld_analysis.deadwood_value}")
     print(f"Deadwood cards: {[str(c) for c in meld_analysis.deadwood_cards]}")
 
-    if dead_cards:
-        print(f"\nDead cards: {[str(c) for c in dead_cards]}")
+    # Show card location breakdown
+    display_card_locations(known_cards)
 
     print("\n" + "-" * 60)
     print("MELD-COMPLETING OUTS")
@@ -153,14 +214,24 @@ def main() -> None:
     parser.add_argument(
         "--dead", "-d",
         default="",
-        help="Dead cards (discarded/seen) as space-separated codes"
+        help="Buried discard pile cards as space-separated codes"
+    )
+    parser.add_argument(
+        "--opponent", "-o",
+        default="",
+        help="Cards known to be in opponent's hand (picked from discard)"
+    )
+    parser.add_argument(
+        "--discard-top", "-t",
+        default="",
+        help="Current top card of discard pile (available to take)"
     )
 
     args = parser.parse_args()
 
     try:
         hand = parse_hand(args.hand)
-        analyze_outs(hand, args.dead)
+        analyze_outs(hand, args.dead, args.opponent, args.discard_top)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

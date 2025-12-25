@@ -27,7 +27,7 @@
   - `KnownCards.get_location(card) -> CardLocation`
 - [x] Update outs analysis to use corrected dead_cards
   - GameContext.dead_cards now uses KnownCards.dead_cards property
-- [ ] Add to analyze_hand.py output
+- [x] Add to analyze_hand.py output
   - Show card location breakdown
   - "Known opponent cards: X, Unknown cards: Y"
 
