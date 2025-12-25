@@ -70,12 +70,15 @@
 - [ ] Allow defender to lay off cards on knocker's melds after knock
 - [ ] Update scoring to account for laid off cards
 
-## UI Improvements (COMPLETED)
+## UI Improvements
 - [x] Show melds and deadwood in hand display
 - [x] Color output for suits (red hearts/diamonds)
 - [x] Suit-row layout with cards positioned by rank
 - [x] Brackets around melded cards
 - [x] Superscript selection numbers
+- [ ] Highlight the card just drawn in the hand display
+  - Make it easier to identify which card was added to hand
+  - Options: bold, underline, background color, or marker (e.g., asterisk/arrow)
 
 ## Code Refactor: Unify Simulator and CLI Game Logic (COMPLETED)
 - [x] Extract shared AI turn logic into reusable module
