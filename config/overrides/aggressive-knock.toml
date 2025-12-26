@@ -1,0 +1,3 @@
+# Aggressive knock strategy - knock whenever possible
+[ai]
+knock_strategy = "always"

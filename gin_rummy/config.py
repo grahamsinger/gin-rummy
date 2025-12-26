@@ -235,6 +235,56 @@ class Config:
             # AI logger always logs to file at DEBUG level
             ai_logger.addHandler(file_handler)
 
+    @classmethod
+    def with_overrides(cls, override_path: Path | str) -> Self:
+        """Create config with values overridden from another file.
+
+        Loads the default config, then applies overrides from the
+        specified file. Only values present in the override file
+        are changed.
+
+        Args:
+            override_path: Path to TOML file with override values.
+
+        Returns:
+            Config with overrides applied.
+        """
+        from dataclasses import fields, replace
+
+        # Load base config
+        base = cls.load()
+
+        # Load overrides
+        override_path = Path(override_path)
+        if not override_path.exists():
+            raise FileNotFoundError(f"Override config not found: {override_path}")
+
+        with open(override_path, "rb") as f:
+            overrides = tomllib.load(f)
+
+        # Helper to merge dataclass with dict updates
+        def merge_dataclass(obj, updates):
+            if not updates:
+                return obj
+            valid_updates = {}
+            for f in fields(obj):
+                if f.name in updates:
+                    valid_updates[f.name] = updates[f.name]
+            return replace(obj, **valid_updates) if valid_updates else obj
+
+        # Apply overrides to each section
+        return cls(
+            logging=merge_dataclass(base.logging, overrides.get("logging", {})),
+            game_rules=merge_dataclass(base.game_rules, overrides.get("game_rules", {})),
+            ai=merge_dataclass(base.ai, overrides.get("ai", {})),
+            display=merge_dataclass(base.display, overrides.get("display", {})),
+            database=merge_dataclass(base.database, overrides.get("database", {})),
+            assist=merge_dataclass(base.assist, overrides.get("assist", {})),
+            context_aware_ai=merge_dataclass(
+                base.context_aware_ai, overrides.get("context_aware_ai", {})
+            ),
+        )
+
 
 # Global config instance - loaded lazily
 _config: Config | None = None

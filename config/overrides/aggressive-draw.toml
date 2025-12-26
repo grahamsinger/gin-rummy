@@ -1,0 +1,4 @@
+# Aggressive draw strategy - take cards more readily from discard pile
+[context_aware_ai]
+base_draw_threshold = 1
+key_out_bonus = 3

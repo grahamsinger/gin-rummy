@@ -1,0 +1,4 @@
+# Conservative knock strategy - wait for very low deadwood
+[ai]
+knock_strategy = "conservative"
+conservative_knock_threshold = 3

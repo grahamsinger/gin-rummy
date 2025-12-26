@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
 from gin_rummy.card import Card
+from gin_rummy.config import Config
 from gin_rummy.game import Game, GamePhase, RoundResult
 from gin_rummy.game_runner import (
     TurnResult,
@@ -322,6 +323,26 @@ def run_simulation(
     return simulator.run()
 
 
+def create_ai(ai_type: str, config_path: str | None) -> BasicAI:
+    """Create an AI with optional config override.
+
+    Args:
+        ai_type: Type of AI ("basic" or "context").
+        config_path: Optional path to config override file.
+
+    Returns:
+        BasicAI or ContextAwareAI instance.
+    """
+    config = None
+    if config_path:
+        config = Config.with_overrides(config_path)
+
+    if ai_type == "context":
+        return ContextAwareAI(config)
+    else:
+        return BasicAI(config)
+
+
 def main() -> None:
     """CLI entry point for the simulator."""
     parser = argparse.ArgumentParser(
@@ -358,6 +379,32 @@ def main() -> None:
         default=50,
         help="Maximum rounds per game (safety limit)",
     )
+    parser.add_argument(
+        "--ai1-type",
+        type=str,
+        choices=["basic", "context"],
+        default="context",
+        help="AI type for player 1",
+    )
+    parser.add_argument(
+        "--ai2-type",
+        type=str,
+        choices=["basic", "context"],
+        default="basic",
+        help="AI type for player 2",
+    )
+    parser.add_argument(
+        "--ai1-config",
+        type=str,
+        default=None,
+        help="Override config file for AI player 1",
+    )
+    parser.add_argument(
+        "--ai2-config",
+        type=str,
+        default=None,
+        help="Override config file for AI player 2",
+    )
 
     args = parser.parse_args()
 
@@ -374,6 +421,10 @@ def main() -> None:
         format="%(name)s - %(levelname)s - %(message)s",
     )
 
+    # Create AIs with optional config overrides
+    ai1 = create_ai(args.ai1_type, args.ai1_config)
+    ai2 = create_ai(args.ai2_type, args.ai2_config)
+
     config = SimulatorConfig(
         num_games=args.num_games,
         target_score=args.target_score,
@@ -381,7 +432,13 @@ def main() -> None:
         seed=args.seed,
     )
 
-    simulator = Simulator(config=config)
+    # Show config info if overrides were used
+    if args.ai1_config or args.ai2_config:
+        print(f"AI 1: {args.ai1_type} (config: {args.ai1_config or 'default'})")
+        print(f"AI 2: {args.ai2_type} (config: {args.ai2_config or 'default'})")
+        print()
+
+    simulator = Simulator(ai1=ai1, ai2=ai2, config=config)
     metrics = simulator.run()
     print(metrics.summary())
 

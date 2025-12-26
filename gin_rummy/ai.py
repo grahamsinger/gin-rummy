@@ -8,7 +8,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from gin_rummy.card import Card, Suit, Rank
-from gin_rummy.config import get_config
+from gin_rummy.config import get_config, Config
 from gin_rummy.hand import Hand
 from gin_rummy.melds import analyze_hand, find_all_melds
 
@@ -42,12 +42,16 @@ class BasicAI:
     - Knock based on knock_strategy ("always" or "conservative")
     """
 
-    def __init__(self) -> None:
-        """Initialize AI with settings from config."""
-        config = get_config()
-        self.knock_strategy = config.ai.knock_strategy
-        self.conservative_knock_threshold = config.ai.conservative_knock_threshold
-        self.min_deadwood_improvement = config.ai.min_deadwood_improvement
+    def __init__(self, config: Config | None = None) -> None:
+        """Initialize AI with settings from config.
+
+        Args:
+            config: Optional config override. If None, uses global config.
+        """
+        cfg = config or get_config()
+        self.knock_strategy = cfg.ai.knock_strategy
+        self.conservative_knock_threshold = cfg.ai.conservative_knock_threshold
+        self.min_deadwood_improvement = cfg.ai.min_deadwood_improvement
 
     def decide_draw(self, hand: Hand, discard_top: Card | None) -> DrawChoice:
         """Decide whether to draw from deck or discard pile.
@@ -274,9 +278,13 @@ class ContextAwareAI(BasicAI):
     All parameters are configurable via config.toml [context_aware_ai] section.
     """
 
-    def __init__(self) -> None:
-        """Initialize with context-aware components."""
-        super().__init__()
+    def __init__(self, config: Config | None = None) -> None:
+        """Initialize with context-aware components.
+
+        Args:
+            config: Optional config override. If None, uses global config.
+        """
+        super().__init__(config)
 
         # Import here to avoid circular imports
         from gin_rummy.context import (
@@ -285,8 +293,8 @@ class ContextAwareAI(BasicAI):
             DynamicThresholdCalculator,
         )
 
-        config = get_config()
-        self.context_config = config.context_aware_ai
+        cfg = config or get_config()
+        self.context_config = cfg.context_aware_ai
 
         self.outs_calculator = OutsCalculator(self.context_config)
         self.opponent_model = OpponentModel()

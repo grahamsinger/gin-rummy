@@ -1,0 +1,4 @@
+# Conservative draw strategy - be more selective about discard pickups
+[context_aware_ai]
+base_draw_threshold = 5
+key_out_bonus = 1

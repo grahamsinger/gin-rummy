@@ -1,0 +1,7 @@
+# Disable all bonuses - pure deadwood minimization
+[context_aware_ai]
+key_out_bonus = 0
+denial_bonus = 0
+safe_rank_discard_bonus = 0
+dangerous_rank_penalty = 0
+dangerous_suit_penalty = 0
