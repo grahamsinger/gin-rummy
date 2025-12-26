@@ -5,8 +5,14 @@
 ---
 
 ## AI Tuning
-- [ ] Tune ContextAwareAI parameters (currently 40.5% win rate vs BasicAI)
-  - See docs/context-aware-ai.md for recommended starting values
+- [ ] Tune ContextAwareAI parameters (currently ~53% win rate vs BasicAI)
+  - Best config so far: threshold=3, key_out=2, denial=0
+  - See SIMULATION_HISTORY.md for detailed results
+- [ ] Investigate opponent modeling
+  - How are we determining if a card might be helpful for opponent?
+  - Current OpponentModel tracks pickup/discard patterns by rank/suit
+  - Denial bonus was hurting performance - predictions may be inaccurate
+  - Consider: track which melds opponent might be building based on pickups
 - [ ] AI difficulty levels (easy/medium/hard)
 
 ## Card Helpfulness Ranking

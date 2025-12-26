@@ -9,7 +9,7 @@
 [context_aware_ai]
 # Base draw threshold before modifiers are applied.
 # This is the minimum deadwood improvement needed to take from discard pile.
-base_draw_threshold = 1
+base_draw_threshold = 3
 
 # --- Outs Calculation Weights ---
 # Higher values make those outs more attractive.
@@ -56,10 +56,10 @@ leading_conservative_threshold = 30
 # --- Bonus Adjustments ---
 
 # Extra "improvement" points for taking a meld-completing out.
-key_out_bonus = 3
+key_out_bonus = 2
 
 # Extra "improvement" points for denying opponent a card they likely want.
-denial_bonus = 2
+denial_bonus = 0
 
 # Opponent must want card with this probability to trigger denial bonus.
 denial_probability_threshold = 0.7
