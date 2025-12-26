@@ -15,6 +15,11 @@
   - Consider: track which melds opponent might be building based on pickups
 - [ ] AI difficulty levels (easy/medium/hard)
 
+## Simulator Improvements
+- [ ] Add game ending breakdown to simulation results
+  - Show % of rounds ending by: knock, gin, undercut, draw (deck exhausted)
+  - Helps understand AI play style differences
+
 ## Card Helpfulness Ranking
 - [ ] Rank all non-dead cards by how helpful they would be
   - Primary metric: deadwood reduction when added to hand
