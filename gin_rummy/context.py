@@ -447,6 +447,20 @@ class OpponentModel:
 
         return min(1.0, base_prob * 3)  # Scale up since frequencies are low
 
+    def is_rank_safe(self, rank: Rank) -> bool:
+        """Check if a rank is safe to discard (opponent discarded this rank).
+
+        If opponent discarded a card of this rank, they're likely not
+        building a set of that rank, making it safer to discard.
+
+        Args:
+            rank: The rank to check.
+
+        Returns:
+            True if opponent has discarded this rank at least once.
+        """
+        return self.discarded_ranks[rank] > 0
+
     def reset(self) -> None:
         """Reset all tracking for a new hand."""
         self.discarded_ranks.clear()

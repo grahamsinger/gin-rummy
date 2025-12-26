@@ -92,6 +92,7 @@ class ContextAwareAIConfig:
     # Bonus adjustments
     key_out_bonus: int = 3  # Bonus for meld-completing outs
     denial_bonus: int = 2  # Bonus for denying opponent
+    safe_rank_discard_bonus: int = 1  # Bonus for discarding safe ranks
     denial_probability_threshold: float = 0.7  # Opponent want probability to trigger
 
     # Opponent modeling

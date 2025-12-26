@@ -61,6 +61,11 @@ key_out_bonus = 2
 # Extra "improvement" points for denying opponent a card they likely want.
 denial_bonus = 0
 
+# Bonus for discarding a "safe" rank (opponent discarded same rank).
+# When choosing between discards with similar deadwood impact,
+# prefer ranks the opponent has shown they don't want.
+safe_rank_discard_bonus = 1
+
 # Opponent must want card with this probability to trigger denial bonus.
 denial_probability_threshold = 0.7
 

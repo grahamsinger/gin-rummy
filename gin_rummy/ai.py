@@ -436,3 +436,71 @@ class ContextAwareAI(BasicAI):
                 outs_analysis.live_out_count,
             )
             return DrawChoice.DECK
+
+    def decide_discard(self, hand: Hand) -> Card:
+        """Context-aware discard decision with safety scoring.
+
+        Extends BasicAI's deadwood-minimizing logic with a bonus for
+        discarding "safe" ranks that opponent has shown they don't want.
+
+        Args:
+            hand: Current hand (should have 11 cards after drawing).
+
+        Returns:
+            Card to discard.
+        """
+        cards = list(hand)
+        best_discard = None
+        best_score = float('inf')  # Lower is better
+        discard_options: list[tuple[Card, float, int, bool]] = []
+
+        for i, card in enumerate(cards):
+            remaining = cards[:i] + cards[i + 1 :]
+            analysis = analyze_hand(remaining)
+
+            # Base score is resulting deadwood (lower = better)
+            deadwood = analysis.deadwood_value
+            score = float(deadwood)
+
+            # Apply safety bonus (reduce score for safe discards)
+            is_safe = self.opponent_model.is_rank_safe(card.rank)
+            if is_safe:
+                score -= self.context_config.safe_rank_discard_bonus
+
+            discard_options.append((card, score, deadwood, is_safe))
+
+            if score < best_score:
+                best_score = score
+                best_discard = card
+
+        # Log all options considered
+        discard_options.sort(key=lambda x: x[1])
+        logger.debug(
+            "Discard options (card -> score, deadwood, safe): %s",
+            [(str(c), f"{s:.1f}", dw, safe) for c, s, dw, safe in discard_options],
+        )
+
+        # Fallback (shouldn't happen)
+        if best_discard is None:
+            best_discard = max(cards, key=lambda c: c.deadwood_value)
+            logger.info(
+                "Discard decision: %s (fallback - highest deadwood value card)",
+                best_discard,
+            )
+        else:
+            # Find the chosen option's details
+            chosen = next(
+                (opt for opt in discard_options if opt[0] == best_discard), None
+            )
+            if chosen:
+                _, score, deadwood, is_safe = chosen
+                safe_str = " [SAFE]" if is_safe else ""
+                logger.info(
+                    "Discard decision: %s (score=%.1f, deadwood=%d%s)",
+                    best_discard,
+                    score,
+                    deadwood,
+                    safe_str,
+                )
+
+        return best_discard
