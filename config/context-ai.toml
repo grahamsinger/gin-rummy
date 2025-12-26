@@ -66,6 +66,14 @@ denial_bonus = 0
 # prefer ranks the opponent has shown they don't want.
 safe_rank_discard_bonus = 1
 
+# Penalty for discarding a "dangerous" rank (opponent picked up same rank).
+# Opponent likely building a set - avoid giving them what they want.
+dangerous_rank_penalty = 0
+
+# Penalty for discarding a "dangerous" suit (opponent picked up same suit).
+# Opponent likely building a run - avoid giving them what they want.
+dangerous_suit_penalty = 0
+
 # Opponent must want card with this probability to trigger denial bonus.
 denial_probability_threshold = 0.7
 

@@ -461,6 +461,34 @@ class OpponentModel:
         """
         return self.discarded_ranks[rank] > 0
 
+    def is_rank_dangerous(self, rank: Rank) -> bool:
+        """Check if a rank is dangerous to discard (opponent picked up this rank).
+
+        If opponent picked up a card of this rank, they're likely building
+        a set and would want more cards of this rank.
+
+        Args:
+            rank: The rank to check.
+
+        Returns:
+            True if opponent has picked up this rank at least once.
+        """
+        return self.picked_up_ranks[rank] > 0
+
+    def is_suit_dangerous(self, suit: Suit) -> bool:
+        """Check if a suit is dangerous to discard (opponent picked up this suit).
+
+        If opponent picked up cards of this suit, they're likely building
+        a run and would want more cards of this suit.
+
+        Args:
+            suit: The suit to check.
+
+        Returns:
+            True if opponent has picked up this suit at least once.
+        """
+        return self.picked_up_suits[suit] > 0
+
     def reset(self) -> None:
         """Reset all tracking for a new hand."""
         self.discarded_ranks.clear()

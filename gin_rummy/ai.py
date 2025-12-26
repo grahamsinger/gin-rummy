@@ -440,8 +440,10 @@ class ContextAwareAI(BasicAI):
     def decide_discard(self, hand: Hand) -> Card:
         """Context-aware discard decision with safety scoring.
 
-        Extends BasicAI's deadwood-minimizing logic with a bonus for
-        discarding "safe" ranks that opponent has shown they don't want.
+        Extends BasicAI's deadwood-minimizing logic with:
+        - Bonus for discarding "safe" ranks (opponent discarded same rank)
+        - Penalty for discarding "dangerous" ranks (opponent picked up same rank)
+        - Penalty for discarding "dangerous" suits (opponent picked up same suit)
 
         Args:
             hand: Current hand (should have 11 cards after drawing).
@@ -452,7 +454,7 @@ class ContextAwareAI(BasicAI):
         cards = list(hand)
         best_discard = None
         best_score = float('inf')  # Lower is better
-        discard_options: list[tuple[Card, float, int, bool]] = []
+        discard_options: list[tuple[Card, float, int, str]] = []
 
         for i, card in enumerate(cards):
             remaining = cards[:i] + cards[i + 1 :]
@@ -461,13 +463,24 @@ class ContextAwareAI(BasicAI):
             # Base score is resulting deadwood (lower = better)
             deadwood = analysis.deadwood_value
             score = float(deadwood)
+            flags: list[str] = []
 
             # Apply safety bonus (reduce score for safe discards)
-            is_safe = self.opponent_model.is_rank_safe(card.rank)
-            if is_safe:
+            if self.opponent_model.is_rank_safe(card.rank):
                 score -= self.context_config.safe_rank_discard_bonus
+                flags.append("safe")
 
-            discard_options.append((card, score, deadwood, is_safe))
+            # Apply danger penalties (increase score for dangerous discards)
+            if self.opponent_model.is_rank_dangerous(card.rank):
+                score += self.context_config.dangerous_rank_penalty
+                flags.append("dangerous_rank")
+
+            if self.opponent_model.is_suit_dangerous(card.suit):
+                score += self.context_config.dangerous_suit_penalty
+                flags.append("dangerous_suit")
+
+            flag_str = ",".join(flags) if flags else ""
+            discard_options.append((card, score, deadwood, flag_str))
 
             if score < best_score:
                 best_score = score
@@ -476,8 +489,8 @@ class ContextAwareAI(BasicAI):
         # Log all options considered
         discard_options.sort(key=lambda x: x[1])
         logger.debug(
-            "Discard options (card -> score, deadwood, safe): %s",
-            [(str(c), f"{s:.1f}", dw, safe) for c, s, dw, safe in discard_options],
+            "Discard options (card -> score, deadwood, flags): %s",
+            [(str(c), f"{s:.1f}", dw, f) for c, s, dw, f in discard_options],
         )
 
         # Fallback (shouldn't happen)
@@ -493,14 +506,14 @@ class ContextAwareAI(BasicAI):
                 (opt for opt in discard_options if opt[0] == best_discard), None
             )
             if chosen:
-                _, score, deadwood, is_safe = chosen
-                safe_str = " [SAFE]" if is_safe else ""
+                _, score, deadwood, flags = chosen
+                flag_str = f" [{flags}]" if flags else ""
                 logger.info(
                     "Discard decision: %s (score=%.1f, deadwood=%d%s)",
                     best_discard,
                     score,
                     deadwood,
-                    safe_str,
+                    flag_str,
                 )
 
         return best_discard
