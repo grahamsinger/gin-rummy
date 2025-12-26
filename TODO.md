@@ -19,6 +19,18 @@
 - [ ] Add game ending breakdown to simulation results
   - Show % of rounds ending by: knock, gin, undercut, draw (deck exhausted)
   - Helps understand AI play style differences
+- [ ] Support per-player config overrides
+  - Allow passing separate config files for each AI opponent
+  - Override specific values from the default config
+  - Use cases:
+    - Isolate which settings have the biggest impact on win rate
+    - A/B test individual parameter changes
+    - Validate configs behave as expected (sanity checks)
+    - Example: test aggressive knock (threshold=10) vs conservative (threshold=3)
+  - Implementation ideas:
+    - CLI: `--ai1-config path/to/config.toml --ai2-config path/to/config.toml`
+    - Or: `--ai1-override "context_aware_ai.base_draw_threshold=5"`
+    - AI classes accept optional config override in constructor
 
 ## Card Helpfulness Ranking
 - [ ] Rank all non-dead cards by how helpful they would be
