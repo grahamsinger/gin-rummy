@@ -317,3 +317,288 @@ Once this basic version is working:
 1. **Suit safety for runs:** Track which suits opponent is discarding to infer run-building
 2. **Pickup-based danger:** Penalize discards matching opponent's pickup patterns
 3. **Combined scoring:** Weight both rank safety (sets) and suit safety (runs)
+
+---
+
+## Implementation Plan: Per-Player Config Overrides
+
+### Overview
+
+Allow each AI player in the simulator to have its own config overrides, enabling:
+- A/B testing of individual parameter changes
+- Isolating which settings have the biggest impact
+- Validating configs behave as expected
+
+### Approach: Override Config Files
+
+Use partial TOML files that override specific values from the default config.
+
+**Example usage:**
+```bash
+uv run python -m gin_rummy.simulator \
+  --ai1-config config/overrides/aggressive-draw.toml \
+  --ai2-config config/overrides/conservative-draw.toml
+```
+
+**Example override file** (`config/overrides/aggressive-draw.toml`):
+```toml
+# Only include values you want to override
+[context_aware_ai]
+base_draw_threshold = 1
+key_out_bonus = 3
+```
+
+### Files to Modify
+
+1. **`gin_rummy/config.py`** - Add config merging/override support
+2. **`gin_rummy/ai.py`** - Accept optional config in AI constructors
+3. **`gin_rummy/simulator.py`** - Add CLI args and pass configs to AIs
+
+### Step 1: Add Config Override Support
+
+**File:** `gin_rummy/config.py`
+
+Add a method to create a config with overrides:
+
+```python
+@classmethod
+def with_overrides(cls, override_path: Path | str) -> Self:
+    """Create config with values overridden from another file.
+
+    Loads the default config, then applies overrides from the
+    specified file. Only values present in the override file
+    are changed.
+
+    Args:
+        override_path: Path to TOML file with override values.
+
+    Returns:
+        Config with overrides applied.
+    """
+    # Load base config
+    base = cls.load()
+
+    # Load overrides
+    override_path = Path(override_path)
+    if not override_path.exists():
+        raise FileNotFoundError(f"Override config not found: {override_path}")
+
+    with open(override_path, "rb") as f:
+        overrides = tomllib.load(f)
+
+    # Apply overrides to each section
+    return cls._apply_overrides(base, overrides)
+
+@classmethod
+def _apply_overrides(cls, base: Self, overrides: dict) -> Self:
+    """Apply override dict to a base config."""
+    # Create new config with merged values
+    def merge_dataclass(obj, updates):
+        if not updates:
+            return obj
+        # Get current values as dict
+        from dataclasses import fields, replace
+        valid_updates = {}
+        for f in fields(obj):
+            if f.name in updates:
+                valid_updates[f.name] = updates[f.name]
+        return replace(obj, **valid_updates) if valid_updates else obj
+
+    return cls(
+        logging=merge_dataclass(base.logging, overrides.get("logging", {})),
+        game_rules=merge_dataclass(base.game_rules, overrides.get("game_rules", {})),
+        ai=merge_dataclass(base.ai, overrides.get("ai", {})),
+        display=merge_dataclass(base.display, overrides.get("display", {})),
+        database=merge_dataclass(base.database, overrides.get("database", {})),
+        assist=merge_dataclass(base.assist, overrides.get("assist", {})),
+        context_aware_ai=merge_dataclass(
+            base.context_aware_ai, overrides.get("context_aware_ai", {})
+        ),
+    )
+```
+
+### Step 2: Update AI Constructors
+
+**File:** `gin_rummy/ai.py`
+
+Modify `BasicAI` and `ContextAwareAI` to accept optional config:
+
+```python
+class BasicAI:
+    def __init__(self, config: Config | None = None) -> None:
+        """Initialize AI with settings from config.
+
+        Args:
+            config: Optional config override. If None, uses global config.
+        """
+        cfg = config or get_config()
+        self.knock_strategy = cfg.ai.knock_strategy
+        self.conservative_knock_threshold = cfg.ai.conservative_knock_threshold
+        self.min_deadwood_improvement = cfg.ai.min_deadwood_improvement
+
+
+class ContextAwareAI(BasicAI):
+    def __init__(self, config: Config | None = None) -> None:
+        """Initialize with context-aware components.
+
+        Args:
+            config: Optional config override. If None, uses global config.
+        """
+        super().__init__(config)
+
+        cfg = config or get_config()
+        self.context_config = cfg.context_aware_ai
+        # ... rest of init
+```
+
+### Step 3: Update Simulator CLI
+
+**File:** `gin_rummy/simulator.py`
+
+Add CLI arguments for per-player configs:
+
+```python
+parser.add_argument(
+    "--ai1-config",
+    type=str,
+    default=None,
+    help="Override config file for AI player 1",
+)
+parser.add_argument(
+    "--ai2-config",
+    type=str,
+    default=None,
+    help="Override config file for AI player 2",
+)
+parser.add_argument(
+    "--ai1-type",
+    type=str,
+    choices=["basic", "context"],
+    default="context",
+    help="AI type for player 1 (default: context)",
+)
+parser.add_argument(
+    "--ai2-type",
+    type=str,
+    choices=["basic", "context"],
+    default="basic",
+    help="AI type for player 2 (default: basic)",
+)
+```
+
+Then create AIs with their respective configs:
+
+```python
+def create_ai(ai_type: str, config_path: str | None) -> BasicAI:
+    """Create an AI with optional config override."""
+    config = None
+    if config_path:
+        config = Config.with_overrides(config_path)
+
+    if ai_type == "context":
+        return ContextAwareAI(config)
+    else:
+        return BasicAI(config)
+
+# In main():
+ai1 = create_ai(args.ai1_type, args.ai1_config)
+ai2 = create_ai(args.ai2_type, args.ai2_config)
+```
+
+### Step 4: Create Override Config Directory
+
+**Directory:** `config/overrides/`
+
+Create example override files:
+
+```
+config/overrides/
+├── aggressive-draw.toml      # base_draw_threshold = 1
+├── conservative-draw.toml    # base_draw_threshold = 5
+├── aggressive-knock.toml     # knock_strategy = "always"
+├── conservative-knock.toml   # knock_strategy = "conservative", threshold = 3
+├── high-key-out-bonus.toml   # key_out_bonus = 5
+├── no-bonuses.toml           # key_out_bonus = 0, denial_bonus = 0
+└── README.md                 # Explains the override system
+```
+
+**Example:** `config/overrides/aggressive-draw.toml`
+```toml
+# Aggressive draw strategy - take cards more readily
+[context_aware_ai]
+base_draw_threshold = 1
+key_out_bonus = 3
+```
+
+**Example:** `config/overrides/conservative-knock.toml`
+```toml
+# Conservative knock strategy - wait for better hand
+[ai]
+knock_strategy = "conservative"
+conservative_knock_threshold = 3
+```
+
+### Step 5: Update Simulator Output
+
+Include config info in results summary:
+
+```python
+def summary(self) -> str:
+    lines = [
+        # ... existing header ...
+        f"AI 1 config: {self.ai1_config_path or 'default'}",
+        f"AI 2 config: {self.ai2_config_path or 'default'}",
+        # ... rest of summary ...
+    ]
+```
+
+### Testing Plan
+
+1. **Unit test:** Config override loading
+   ```python
+   def test_config_with_overrides():
+       config = Config.with_overrides("config/overrides/aggressive-draw.toml")
+       assert config.context_aware_ai.base_draw_threshold == 1
+       # Other values should be defaults
+       assert config.ai.knock_strategy == "always"
+   ```
+
+2. **Integration test:** Run simulation with override configs
+   ```bash
+   uv run python -m gin_rummy.simulator -n 100 \
+     --ai1-config config/overrides/aggressive-draw.toml \
+     --ai2-config config/overrides/conservative-draw.toml
+   ```
+
+3. **Sanity checks:**
+   - Aggressive draw (threshold=1) vs Conservative draw (threshold=5)
+     - Expected: Aggressive draws from discard more often
+   - Always knock vs Conservative knock (threshold=3)
+     - Expected: Conservative knocks less, lower avg deadwood when knocking
+
+### Example Test Scenarios
+
+| Test | AI1 Config | AI2 Config | Expected Result |
+|------|------------|------------|-----------------|
+| Draw threshold impact | threshold=1 | threshold=5 | AI1 has higher discard draw rate |
+| Knock strategy | always knock | conservative (≤3) | AI2 knocks less, more gins |
+| Key out bonus | bonus=5 | bonus=0 | AI1 picks up meld-completing cards more |
+
+### Usage Examples
+
+```bash
+# Test aggressive vs conservative draw
+uv run python -m gin_rummy.simulator -n 200 -s 42 \
+  --ai1-type context --ai1-config config/overrides/aggressive-draw.toml \
+  --ai2-type context --ai2-config config/overrides/conservative-draw.toml
+
+# Test knock strategies (both using BasicAI to isolate knock behavior)
+uv run python -m gin_rummy.simulator -n 200 -s 42 \
+  --ai1-type basic --ai1-config config/overrides/aggressive-knock.toml \
+  --ai2-type basic --ai2-config config/overrides/conservative-knock.toml
+
+# Test ContextAwareAI with different key_out_bonus values
+uv run python -m gin_rummy.simulator -n 200 -s 42 \
+  --ai1-type context --ai1-config config/overrides/high-key-out-bonus.toml \
+  --ai2-type context --ai2-config config/overrides/no-bonuses.toml
+```
