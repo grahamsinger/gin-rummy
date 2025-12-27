@@ -16,10 +16,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from gin_rummy.card import Card, Suit, Rank
-from gin_rummy.hand import Hand
+from gin_rummy.models import Card, Suit, Rank, Hand, analyze_hand
 from gin_rummy.context import OutsCalculator, OutType, KnownCards, CardLocation
-from gin_rummy.melds import analyze_hand
 
 
 RANK_MAP = {

@@ -9,7 +9,7 @@ from enum import Enum, auto
 from pathlib import Path
 
 from gin_rummy.ai import BasicAI, DrawChoice, ContextAwareAI
-from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.models import Card, Suit, Rank, Hand, MeldType, HandAnalysis, Player
 from gin_rummy.config import get_config, load_config
 from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list
 from gin_rummy.game import Game, GamePhase, InvalidActionError
@@ -19,9 +19,6 @@ from gin_rummy.game_runner import (
     TurnCallbacks,
     execute_ai_turn,
 )
-from gin_rummy.hand import Hand
-from gin_rummy.melds import MeldType, HandAnalysis
-from gin_rummy.player import Player
 
 
 # ANSI color codes for terminal output

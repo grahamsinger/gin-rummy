@@ -3,8 +3,7 @@
 import pytest
 from collections import Counter
 
-from gin_rummy.card import Card, Suit, Rank
-from gin_rummy.hand import Hand
+from gin_rummy.models import Card, Suit, Rank, Hand
 from gin_rummy.context import (
     OutType,
     OutInfo,

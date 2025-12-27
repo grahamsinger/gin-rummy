@@ -7,10 +7,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.models import Card, Suit, Rank, Hand, analyze_hand, find_all_melds
 from gin_rummy.config import get_config, Config
-from gin_rummy.hand import Hand
-from gin_rummy.melds import analyze_hand, find_all_melds
 
 if TYPE_CHECKING:
     from gin_rummy.context import GameContext

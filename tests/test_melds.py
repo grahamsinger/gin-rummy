@@ -1,12 +1,11 @@
 """Tests for meld detection module."""
 
 import pytest
-from gin_rummy.melds import (
+from gin_rummy.models import (
     Meld, MeldType, HandAnalysis,
-    find_all_sets, find_all_runs, find_all_melds,
-    find_optimal_melds, analyze_hand,
+    Card, Suit, Rank, analyze_hand, find_all_melds,
 )
-from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.models.melds import find_all_sets, find_all_runs, find_optimal_melds
 
 
 class TestFindSets:

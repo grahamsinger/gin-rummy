@@ -1,7 +1,7 @@
 """Tests for card module."""
 
 import pytest
-from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.models import Card, Suit, Rank
 
 
 class TestSuit:

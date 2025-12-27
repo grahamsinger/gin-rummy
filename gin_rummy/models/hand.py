@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Iterator, TYPE_CHECKING
 
-from gin_rummy.card import Card
+from gin_rummy.models.card import Card
 
 if TYPE_CHECKING:
-    from gin_rummy.melds import HandAnalysis
+    from gin_rummy.models.melds import HandAnalysis
 
 
 class CardNotInHandError(Exception):
@@ -63,7 +63,7 @@ class Hand:
         Returns:
             HandAnalysis with melds, deadwood cards, and deadwood value.
         """
-        from gin_rummy.melds import analyze_hand
+        from gin_rummy.models.melds import analyze_hand
 
         if self._analysis_cache is None:
             self._analysis_cache = analyze_hand(self._cards)

@@ -2,8 +2,7 @@
 
 import pytest
 from gin_rummy.ai import BasicAI, DrawChoice
-from gin_rummy.hand import Hand
-from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.models import Hand, Card, Suit, Rank
 
 
 class TestBasicAI:

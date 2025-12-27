@@ -1,8 +1,7 @@
 """Tests for hand module."""
 
 import pytest
-from gin_rummy.hand import Hand, CardNotInHandError
-from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.models import Hand, CardNotInHandError, Card, Suit, Rank
 
 
 class TestHand:

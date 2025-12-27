@@ -6,7 +6,7 @@ import random
 from dataclasses import dataclass, field
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
-from gin_rummy.card import Card
+from gin_rummy.models import Card, Player
 from gin_rummy.config import Config
 from gin_rummy.game import Game, GamePhase, RoundResult
 from gin_rummy.game_runner import (
@@ -15,7 +15,6 @@ from gin_rummy.game_runner import (
     TurnCallbacks,
     execute_ai_turn,
 )
-from gin_rummy.player import Player
 
 
 logger = logging.getLogger(__name__)

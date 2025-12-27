@@ -1,8 +1,7 @@
 """Tests for deck module."""
 
 import pytest
-from gin_rummy.deck import Deck, DeckEmptyError
-from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.models import Deck, DeckEmptyError, Card, Suit, Rank
 
 
 class TestDeck:

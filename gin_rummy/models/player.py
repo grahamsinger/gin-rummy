@@ -1,6 +1,6 @@
 """Player class for Gin Rummy."""
 
-from gin_rummy.hand import Hand
+from gin_rummy.models.hand import Hand
 
 
 class Player:

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Generator
 from gin_rummy.config import get_config
 
 if TYPE_CHECKING:
-    from gin_rummy.card import Card
+    from gin_rummy.models import Card
 
 
 # Card serialization for database storage

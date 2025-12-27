@@ -7,11 +7,8 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Protocol
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
-from gin_rummy.card import Card
+from gin_rummy.models import Card, Hand, Player, analyze_hand
 from gin_rummy.game import Game, InvalidActionError, RoundResult
-from gin_rummy.hand import Hand
-from gin_rummy.melds import analyze_hand
-from gin_rummy.player import Player
 
 if TYPE_CHECKING:
     from gin_rummy.context import GameContext

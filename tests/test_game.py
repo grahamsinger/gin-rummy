@@ -2,7 +2,7 @@
 
 import pytest
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
-from gin_rummy.card import Card, Suit, Rank
+from gin_rummy.models import Card, Suit, Rank
 
 
 class TestGameSetup:

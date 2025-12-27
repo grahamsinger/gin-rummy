@@ -6,10 +6,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from gin_rummy.card import Card
+from gin_rummy.models import Card, Deck, Player
 from gin_rummy.config import get_config
-from gin_rummy.deck import Deck
-from gin_rummy.player import Player
 
 if TYPE_CHECKING:
     from gin_rummy.context import GameContext

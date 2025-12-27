@@ -7,11 +7,10 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from gin_rummy.card import Card, Suit, Rank
-from gin_rummy.melds import find_all_melds, Meld, MeldType
+from gin_rummy.models import Card, Suit, Rank, find_all_melds, Meld, MeldType
 
 if TYPE_CHECKING:
-    from gin_rummy.hand import Hand
+    from gin_rummy.models import Hand
     from gin_rummy.config import ContextAwareAIConfig
 
 
