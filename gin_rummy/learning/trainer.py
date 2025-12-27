@@ -427,24 +427,23 @@ class Trainer:
                 ctx = game.get_game_context(current_player_idx)
 
                 # Draw experience
+                # next_state is None because we transition to discard (different state size)
+                # The reward shaping provides the learning signal for this decision
                 draw_action = 0 if actions.draw_source == "deck" else 1
-                draw_next_state = self.encoder.encode_discard_state(
-                    hand, actions.drawn_card, ctx, self.learning_ai.opponent_model
-                ) if actions.drawn_card else None
 
                 round_experiences.append(
                     Experience(
                         state=state_before,
                         action=draw_action,
                         reward=turn_reward / 3,  # Split reward across decisions
-                        next_state=draw_next_state,
+                        next_state=None,  # Different state space (discard), so treat as terminal
                         done=False,
                         decision_type="draw",
                     )
                 )
 
-                # Discard experience
-                if actions.discarded_card:
+                # Discard experience (requires both drawn_card and discarded_card)
+                if actions.discarded_card and actions.drawn_card:
                     hand_list = list(current_player.hand)
                     # Find index of discarded card (may not be exact due to card equality)
                     discard_action = 0
@@ -453,7 +452,9 @@ class Trainer:
                             discard_action = i
                             break
 
-                    discard_state = draw_next_state if draw_next_state is not None else state_before
+                    discard_state = self.encoder.encode_discard_state(
+                        hand, actions.drawn_card, ctx, self.learning_ai.opponent_model
+                    )
                     knock_state = self.encoder.encode_knock_state(
                         hand, ctx, self.learning_ai.opponent_model
                     )
@@ -463,7 +464,7 @@ class Trainer:
                             state=discard_state,
                             action=discard_action,
                             reward=turn_reward / 3,
-                            next_state=knock_state,
+                            next_state=None,  # Different state space (knock), so treat as terminal
                             done=False,
                             decision_type="discard",
                         )
