@@ -33,24 +33,24 @@ The game state is encoded as a fixed-size tensor:
 
 ```
 State Vector Components:
-├── Hand (52)           - One-hot: which cards are in hand
-├── Dead cards (52)     - Multi-hot: cards known unavailable
-├── Discard top (52)    - One-hot: top card of discard pile
-├── Opponent patterns:
-│   ├── Pickup ranks (13)   - Normalized counts
-│   ├── Pickup suits (4)    - Normalized counts
-│   ├── Discard ranks (13)  - Normalized counts
-│   └── Discard suits (4)   - Normalized counts
-├── Game features (8):
-│   ├── deck_position_pct   - 0.0 (full) to 1.0 (empty)
-│   ├── my_deadwood_norm    - deadwood / 100
-│   ├── can_knock           - 1.0 if deadwood <= 10
-│   ├── is_gin              - 1.0 if deadwood == 0
-│   ├── score_diff_norm     - (my_score - opp_score) / 100
-│   ├── points_to_win_norm  - points_to_win / 100
-│   ├── meld_count_norm     - num_melds / 4
-│   └── live_outs_norm      - live_outs / 20
-└── Drawn card (52)     - One-hot (discard decision only)
++-- Hand (52)           - One-hot: which cards are in hand
++-- Dead cards (52)     - Multi-hot: cards known unavailable
++-- Discard top (52)    - One-hot: top card of discard pile
++-- Opponent patterns:
+|   +-- Pickup ranks (13)   - Normalized counts
+|   +-- Pickup suits (4)    - Normalized counts
+|   +-- Discard ranks (13)  - Normalized counts
+|   +-- Discard suits (4)   - Normalized counts
++-- Game features (8):
+|   +-- deck_position_pct   - 0.0 (full) to 1.0 (empty)
+|   +-- my_deadwood_norm    - deadwood / 100
+|   +-- can_knock           - 1.0 if deadwood <= 10
+|   +-- is_gin              - 1.0 if deadwood == 0
+|   +-- score_diff_norm     - (my_score - opp_score) / 100
+|   +-- points_to_win_norm  - points_to_win / 100
+|   +-- meld_count_norm     - num_melds / 4
+|   +-- live_outs_norm      - live_outs / 20
++-- Drawn card (52)     - One-hot (discard decision only)
 ```
 
 ## Training Process
@@ -176,7 +176,7 @@ Checkpoints are saved to `models/` directory:
 
 ```
 models/
-└── learning_ai.pt    # Contains all three networks + metadata
++-- learning_ai.pt    # Contains all three networks + metadata
 ```
 
 Metadata includes:

@@ -365,6 +365,21 @@ class Trainer:
         # Store experiences for this round
         round_experiences: list[Experience] = []
 
+        # Handle first discard (non-dealer discards to start the discard pile)
+        non_dealer_idx = 1 - game.dealer_idx
+        first_discard_ai = self.learning_ai if non_dealer_idx == 0 else opponent
+        discard = first_discard_ai.decide_discard(game.players[non_dealer_idx].hand)
+        game.discard_to_start(discard)
+
+        # Record first discard for opponent tracking
+        if non_dealer_idx == 0:
+            # Learning AI discarded, record for opponent
+            if hasattr(opponent, "record_opponent_discard"):
+                opponent.record_opponent_discard(discard)
+        else:
+            # Opponent discarded, record for learning AI
+            self.learning_ai.record_opponent_discard(discard)
+
         while game.phase.name not in ("ROUND_OVER", "KNOCKED"):
             current_player_idx = game.current_player_idx
             current_player = game.players[current_player_idx]
@@ -438,7 +453,7 @@ class Trainer:
                             discard_action = i
                             break
 
-                    discard_state = draw_next_state or state_before
+                    discard_state = draw_next_state if draw_next_state is not None else state_before
                     knock_state = self.encoder.encode_knock_state(
                         hand, ctx, self.learning_ai.opponent_model
                     )
@@ -583,6 +598,12 @@ class Trainer:
 
     def _play_eval_round(self, game: Game, opponent: BasicAI) -> None:
         """Play one evaluation round (no experience collection)."""
+        # Handle first discard (non-dealer discards to start the discard pile)
+        non_dealer_idx = 1 - game.dealer_idx
+        first_discard_ai = self.learning_ai if non_dealer_idx == 0 else opponent
+        discard = first_discard_ai.decide_discard(game.players[non_dealer_idx].hand)
+        game.discard_to_start(discard)
+
         while game.phase.name not in ("ROUND_OVER", "KNOCKED"):
             current_player_idx = game.current_player_idx
             ai = self.learning_ai if current_player_idx == 0 else opponent

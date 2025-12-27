@@ -74,15 +74,15 @@ class RewardCalculator:
             # Draw - no winner
             return self.config.draw_round_reward
 
-        is_winner = result.winner == player_name
-        is_knocker = result.knocker == player_name
+        # Check if this player won by comparing with winner's name
+        is_winner = result.winner.name == player_name
         points = result.points
 
         if is_winner:
             # Calculate base reward based on how we won
-            if result.was_gin:
+            if result.is_gin:
                 base_reward = self.config.win_by_gin
-            elif result.was_undercut:
+            elif result.is_undercut:
                 # We won by undercut (opponent knocked, we had lower deadwood)
                 base_reward = self.config.win_by_undercut
             else:
@@ -96,7 +96,8 @@ class RewardCalculator:
             # We lost
             base_penalty = 0.0
 
-            if is_knocker and result.was_undercut:
+            # If undercut happened and we lost, we were the knocker who got undercut
+            if result.is_undercut:
                 # We knocked but got undercut - extra penalty for bad decision
                 base_penalty = self.config.undercut_penalty
 
