@@ -16,13 +16,46 @@
 - [ ] AI difficulty levels (easy/medium/hard)
 
 ## Simulator Improvements
-- [ ] Add game ending breakdown to simulation results
-  - Show % of rounds ending by: knock, gin, undercut, draw (deck exhausted)
-  - Helps understand AI play style differences
+- [x] Add game ending breakdown to simulation results (COMPLETED)
+  - Shows % of rounds ending by: knock, gin, undercut, draw
+  - Added pts-per-knock-win and pts-per-undercut metrics
 - [x] Support per-player config overrides (COMPLETED)
   - CLI: `--ai1-config`, `--ai2-config`, `--ai1-type`, `--ai2-type`
   - Override files in `config/overrides/`
   - See `config/overrides/README.md` for usage
+
+## Learning AI (Reinforcement Learning)
+- [ ] Create LearningAI as third AI type (alongside BasicAI, ContextAwareAI)
+  - Uses reinforcement learning to improve play over time
+  - Learns from reward/punishment signals (points scored, wins/losses)
+- [ ] State representation design
+  - Hand composition (cards, melds, deadwood)
+  - Known game state (discard pile, cards seen, deck remaining)
+  - Opponent model (pickup/discard patterns)
+- [ ] Action space
+  - Draw decision (deck vs discard)
+  - Discard selection
+  - Knock decision
+- [ ] Reward function
+  - Points scored (positive/negative)
+  - Bonus for wins, penalty for losses
+  - Consider: intermediate rewards (deadwood reduction, meld completion)
+- [ ] Model persistence
+  - Save/load learned weights
+  - Version trained models for comparison
+- [ ] Training infrastructure
+  - Self-play mode in simulator
+  - Batch training over many games
+  - Curriculum: start vs BasicAI, graduate to ContextAwareAI
+- [ ] Evaluation metrics
+  - Win rate over time (learning curve)
+  - Points per game trend
+  - Decision quality metrics (compare to optimal play?)
+  - Periodic evaluation checkpoints during training
+- [ ] Integration
+  - `--ai-type learning` in simulator and CLI
+  - `--model-path` to specify trained model
+  - `--train` mode for training runs
 
 ## Card Helpfulness Ranking
 - [ ] Rank all non-dead cards by how helpful they would be
