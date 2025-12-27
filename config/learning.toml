@@ -1,0 +1,64 @@
+# Learning AI Configuration
+# Hyperparameters for training the reinforcement learning AI
+
+[learning]
+# Training duration
+num_episodes = 10000
+max_rounds_per_game = 50
+target_score = 100
+
+# Network training
+batch_size = 64
+learning_rate = 0.001
+gamma = 0.99  # Discount factor for future rewards
+
+# Exploration schedule (epsilon-greedy)
+exploration_start = 1.0    # Start with full exploration
+exploration_end = 0.05     # End with 5% exploration
+exploration_decay = 0.9995  # Decay rate per episode
+
+# Target network (for stable training)
+target_update_freq = 100  # Update target network every N episodes
+
+# Replay buffer
+buffer_capacity = 100000
+min_buffer_size = 1000  # Start training after this many experiences
+
+# Checkpointing
+save_freq = 1000  # Save model every N episodes
+eval_freq = 500   # Evaluate against BasicAI every N episodes
+eval_games = 100  # Number of games per evaluation
+
+# Network architecture (hidden layer sizes)
+[learning.network]
+draw_hidden_sizes = [128, 64]
+discard_hidden_sizes = [256, 128]
+knock_hidden_sizes = [64, 32]
+
+# Reward function parameters
+[learning.rewards]
+win_by_gin = 50.0
+win_by_knock = 20.0
+win_by_undercut = 30.0
+loss_multiplier = -1.0
+points_multiplier = 0.2
+deadwood_reduction_bonus = 0.1
+meld_completion_bonus = 1.0
+key_out_pickup_bonus = 0.5
+undercut_penalty = -5.0
+draw_round_reward = 0.0
+
+# Curriculum learning stages
+# Format: [opponent_type, num_episodes]
+# opponent_type: "basic" | "context" | "self"
+[[learning.curriculum]]
+opponent = "basic"
+episodes = 5000
+
+[[learning.curriculum]]
+opponent = "context"
+episodes = 5000
+
+[[learning.curriculum]]
+opponent = "self"
+episodes = 10000

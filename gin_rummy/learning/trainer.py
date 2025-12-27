@@ -1,0 +1,723 @@
+"""Training infrastructure for LearningAI.
+
+Provides the main training loop with experience collection, batch training,
+curriculum learning, and evaluation.
+"""
+
+from __future__ import annotations
+
+import copy
+import logging
+import random
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+from gin_rummy.ai import BasicAI, ContextAwareAI
+from gin_rummy.game import Game, RoundResult
+from gin_rummy.game_runner import execute_ai_turn, TurnResult
+from gin_rummy.learning.learning_ai import LearningAI
+from gin_rummy.learning.models import ModelPersistence
+from gin_rummy.learning.replay import (
+    DecisionType,
+    Experience,
+    ReplayBuffer,
+    batch_to_tensors,
+)
+from gin_rummy.learning.rewards import RewardCalculator, RewardConfig
+from gin_rummy.learning.state import StateEncoder
+
+if TYPE_CHECKING:
+    from torch.utils.tensorboard import SummaryWriter
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TrainingConfig:
+    """Configuration for training."""
+
+    # Training duration
+    num_episodes: int = 10_000
+    max_rounds_per_game: int = 50
+    target_score: int = 100
+
+    # Network training
+    batch_size: int = 64
+    learning_rate: float = 0.001
+    gamma: float = 0.99  # Discount factor
+
+    # Exploration schedule
+    exploration_start: float = 1.0
+    exploration_end: float = 0.05
+    exploration_decay: float = 0.9995
+
+    # Target network
+    target_update_freq: int = 100  # Episodes between target network updates
+
+    # Replay buffer
+    buffer_capacity: int = 100_000
+    min_buffer_size: int = 1000  # Start training after this many experiences
+
+    # Checkpointing
+    save_freq: int = 1000  # Save every N episodes
+    eval_freq: int = 500  # Evaluate every N episodes
+    eval_games: int = 100  # Games per evaluation
+
+    # Curriculum learning
+    curriculum: list[tuple[str, int]] = field(
+        default_factory=lambda: [
+            ("basic", 5000),
+            ("context", 5000),
+            ("self", 10000),
+        ]
+    )
+
+    # Reward configuration
+    reward_config: RewardConfig = field(default_factory=RewardConfig)
+
+
+@dataclass
+class TrainingMetrics:
+    """Metrics tracked during training."""
+
+    episode: int = 0
+    total_reward: float = 0.0
+    win_rate: float = 0.0
+    avg_points_per_game: float = 0.0
+    exploration_rate: float = 1.0
+
+    # Loss values
+    draw_loss: float = 0.0
+    discard_loss: float = 0.0
+    knock_loss: float = 0.0
+
+    # Buffer sizes
+    buffer_size: int = 0
+
+
+class Trainer:
+    """Main trainer for LearningAI.
+
+    Orchestrates the training loop:
+    1. Play games collecting experiences
+    2. Store experiences in replay buffer
+    3. Sample batches and train networks
+    4. Update exploration rate
+    5. Periodically evaluate and save checkpoints
+    """
+
+    def __init__(
+        self,
+        config: TrainingConfig,
+        save_path: Path,
+        tensorboard_path: Path | None = None,
+    ) -> None:
+        """Initialize trainer.
+
+        Args:
+            config: Training configuration.
+            save_path: Path to save model checkpoints.
+            tensorboard_path: Path for TensorBoard logs (optional).
+        """
+        self.config = config
+        self.save_path = save_path
+        self.tensorboard_path = tensorboard_path
+
+        # Initialize device
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        logger.info("Using device: %s", self.device)
+
+        # Initialize learning AI (will be trained)
+        self.learning_ai = LearningAI(
+            exploration_rate=config.exploration_start,
+            device=self.device,
+        )
+        self.learning_ai.train_mode()
+
+        # Target networks for stable training
+        self.target_ai = LearningAI(device=self.device)
+        self._sync_target_networks()
+        self.target_ai.eval_mode()
+
+        # Optimizers for each network
+        self.draw_optimizer = optim.Adam(
+            self.learning_ai.draw_net.parameters(),
+            lr=config.learning_rate,
+        )
+        self.discard_optimizer = optim.Adam(
+            self.learning_ai.discard_net.parameters(),
+            lr=config.learning_rate,
+        )
+        self.knock_optimizer = optim.Adam(
+            self.learning_ai.knock_net.parameters(),
+            lr=config.learning_rate,
+        )
+
+        # Replay buffer
+        self.replay_buffer = ReplayBuffer(capacity=config.buffer_capacity)
+
+        # Reward calculator
+        self.reward_calculator = RewardCalculator(config.reward_config)
+
+        # State encoder
+        self.encoder = StateEncoder()
+
+        # Metrics tracking
+        self.metrics_history: list[TrainingMetrics] = []
+        self.current_exploration_rate = config.exploration_start
+
+        # Curriculum tracking
+        self._curriculum_idx = 0
+        self._curriculum_episodes = 0
+
+        # TensorBoard writer
+        self._writer: SummaryWriter | None = None
+        if tensorboard_path:
+            try:
+                from torch.utils.tensorboard import SummaryWriter
+
+                self._writer = SummaryWriter(str(tensorboard_path))
+            except ImportError:
+                logger.warning("TensorBoard not available")
+
+    def _sync_target_networks(self) -> None:
+        """Copy weights from learning networks to target networks."""
+        self.target_ai.draw_net.load_state_dict(
+            self.learning_ai.draw_net.state_dict()
+        )
+        self.target_ai.discard_net.load_state_dict(
+            self.learning_ai.discard_net.state_dict()
+        )
+        self.target_ai.knock_net.load_state_dict(
+            self.learning_ai.knock_net.state_dict()
+        )
+
+    def _get_opponent(self) -> BasicAI:
+        """Get opponent based on curriculum stage."""
+        if self._curriculum_idx >= len(self.config.curriculum):
+            # Past curriculum, use self-play
+            return LearningAI(
+                model_path=self.save_path if self.save_path.exists() else None,
+                exploration_rate=0.0,
+                device=self.device,
+            )
+
+        opponent_type, _ = self.config.curriculum[self._curriculum_idx]
+
+        if opponent_type == "basic":
+            return BasicAI()
+        elif opponent_type == "context":
+            return ContextAwareAI()
+        elif opponent_type == "self":
+            # Self-play with frozen copy
+            return LearningAI(
+                model_path=self.save_path if self.save_path.exists() else None,
+                exploration_rate=0.0,
+                device=self.device,
+            )
+        else:
+            logger.warning("Unknown opponent type: %s, using BasicAI", opponent_type)
+            return BasicAI()
+
+    def _update_curriculum(self) -> None:
+        """Update curriculum progress."""
+        if self._curriculum_idx >= len(self.config.curriculum):
+            return
+
+        _, episodes_for_stage = self.config.curriculum[self._curriculum_idx]
+        self._curriculum_episodes += 1
+
+        if self._curriculum_episodes >= episodes_for_stage:
+            self._curriculum_idx += 1
+            self._curriculum_episodes = 0
+            if self._curriculum_idx < len(self.config.curriculum):
+                new_stage = self.config.curriculum[self._curriculum_idx][0]
+                logger.info("Curriculum advancing to stage: %s", new_stage)
+
+    def train(self, callback: Callable[[TrainingMetrics], None] | None = None) -> None:
+        """Run the full training loop.
+
+        Args:
+            callback: Optional callback called after each episode with metrics.
+        """
+        logger.info("Starting training for %d episodes", self.config.num_episodes)
+
+        for episode in range(self.config.num_episodes):
+            # Train one episode
+            episode_reward = self._train_episode()
+
+            # Update exploration rate
+            self._update_exploration_rate()
+
+            # Update curriculum
+            self._update_curriculum()
+
+            # Update target network periodically
+            if episode % self.config.target_update_freq == 0:
+                self._sync_target_networks()
+
+            # Create metrics
+            metrics = TrainingMetrics(
+                episode=episode,
+                total_reward=episode_reward,
+                exploration_rate=self.current_exploration_rate,
+                buffer_size=len(self.replay_buffer),
+            )
+
+            # Evaluate periodically
+            if episode > 0 and episode % self.config.eval_freq == 0:
+                win_rate, avg_points = self._evaluate()
+                metrics.win_rate = win_rate
+                metrics.avg_points_per_game = avg_points
+                logger.info(
+                    "Episode %d: win_rate=%.2f, avg_points=%.1f, exploration=%.3f",
+                    episode,
+                    win_rate,
+                    avg_points,
+                    self.current_exploration_rate,
+                )
+
+            # Save checkpoint periodically
+            if episode > 0 and episode % self.config.save_freq == 0:
+                self._save_checkpoint(episode)
+
+            # Log to TensorBoard
+            if self._writer:
+                self._writer.add_scalar("reward/episode", episode_reward, episode)
+                self._writer.add_scalar(
+                    "exploration_rate", self.current_exploration_rate, episode
+                )
+                if metrics.win_rate > 0:
+                    self._writer.add_scalar("eval/win_rate", metrics.win_rate, episode)
+
+            self.metrics_history.append(metrics)
+
+            # Callback
+            if callback:
+                callback(metrics)
+
+        # Final save
+        self._save_checkpoint(self.config.num_episodes)
+
+        if self._writer:
+            self._writer.close()
+
+        logger.info("Training complete!")
+
+    def _train_episode(self) -> float:
+        """Run one training episode (one game).
+
+        Returns:
+            Total reward for the episode.
+        """
+        opponent = self._get_opponent()
+        total_reward = 0.0
+
+        # Play a full game
+        game = Game("LearningAI", "Opponent")
+        game.deal()
+
+        rounds_played = 0
+        while (
+            max(p.score for p in game.players) < self.config.target_score
+            and rounds_played < self.config.max_rounds_per_game
+        ):
+            # Play one round collecting experiences
+            round_reward = self._play_round(game, opponent)
+            total_reward += round_reward
+            rounds_played += 1
+
+            # Start new round if game continues
+            if max(p.score for p in game.players) < self.config.target_score:
+                game.new_round()
+                game.deal()
+
+                # Reset AI tracking for new hand
+                self.learning_ai.reset_for_new_hand()
+                if hasattr(opponent, "reset_for_new_hand"):
+                    opponent.reset_for_new_hand()
+
+        # Train on collected experiences
+        if len(self.replay_buffer) >= self.config.min_buffer_size:
+            self._train_batch()
+
+        return total_reward
+
+    def _play_round(self, game: Game, opponent: BasicAI) -> float:
+        """Play one round collecting experiences.
+
+        Args:
+            game: Game instance.
+            opponent: Opponent AI.
+
+        Returns:
+            Reward for the round.
+        """
+        round_reward = 0.0
+        learning_player_idx = 0  # LearningAI is player 0
+
+        # Store experiences for this round
+        round_experiences: list[Experience] = []
+
+        while game.phase.name not in ("ROUND_OVER", "KNOCKED"):
+            current_player_idx = game.current_player_idx
+            current_player = game.players[current_player_idx]
+
+            # Get the AI for current player
+            if current_player_idx == learning_player_idx:
+                ai = self.learning_ai
+            else:
+                ai = opponent
+
+            # Update context if AI supports it
+            if hasattr(ai, "update_context"):
+                ctx = game.get_game_context(current_player_idx)
+                ai.update_context(ctx)
+
+            # Store state before turn (for learning AI only)
+            state_before = None
+            deadwood_before = 0
+            melds_before = 0
+            if current_player_idx == learning_player_idx:
+                hand = current_player.hand
+                ctx = game.get_game_context(current_player_idx)
+                state_before = self.encoder.encode_draw_state(
+                    hand, game.top_of_discard, ctx, self.learning_ai.opponent_model
+                )
+                deadwood_before = hand.deadwood_total
+                melds_before = len(hand.analyze().melds)
+
+            # Execute turn
+            other_ai = opponent if current_player_idx == learning_player_idx else self.learning_ai
+            result, actions, round_result = execute_ai_turn(game, ai, other_ai)
+
+            # Collect experiences for learning AI
+            if current_player_idx == learning_player_idx and actions and state_before is not None:
+                hand = current_player.hand
+                deadwood_after = hand.deadwood_total
+                melds_after = len(hand.analyze().melds)
+
+                # Calculate turn reward
+                turn_reward = self.reward_calculator.turn_reward(
+                    deadwood_before, deadwood_after, melds_before, melds_after
+                )
+
+                # Create experiences for each decision
+                ctx = game.get_game_context(current_player_idx)
+
+                # Draw experience
+                draw_action = 0 if actions.draw_source == "deck" else 1
+                draw_next_state = self.encoder.encode_discard_state(
+                    hand, actions.drawn_card, ctx, self.learning_ai.opponent_model
+                ) if actions.drawn_card else None
+
+                round_experiences.append(
+                    Experience(
+                        state=state_before,
+                        action=draw_action,
+                        reward=turn_reward / 3,  # Split reward across decisions
+                        next_state=draw_next_state,
+                        done=False,
+                        decision_type="draw",
+                    )
+                )
+
+                # Discard experience
+                if actions.discarded_card:
+                    hand_list = list(current_player.hand)
+                    # Find index of discarded card (may not be exact due to card equality)
+                    discard_action = 0
+                    for i, card in enumerate(hand_list):
+                        if card == actions.discarded_card:
+                            discard_action = i
+                            break
+
+                    discard_state = draw_next_state or state_before
+                    knock_state = self.encoder.encode_knock_state(
+                        hand, ctx, self.learning_ai.opponent_model
+                    )
+
+                    round_experiences.append(
+                        Experience(
+                            state=discard_state,
+                            action=discard_action,
+                            reward=turn_reward / 3,
+                            next_state=knock_state,
+                            done=False,
+                            decision_type="discard",
+                        )
+                    )
+
+                    # Knock experience (if could have knocked)
+                    if hand.deadwood_total <= 10:
+                        knock_action = 1 if actions.did_knock else 0
+                        round_experiences.append(
+                            Experience(
+                                state=knock_state,
+                                action=knock_action,
+                                reward=turn_reward / 3,
+                                next_state=None,  # Will be updated at round end
+                                done=actions.did_knock,
+                                decision_type="knock",
+                            )
+                        )
+
+            # Check for round end
+            if result == TurnResult.DRAW:
+                # Round ended in draw
+                break
+            elif result == TurnResult.KNOCKED and round_result:
+                # Round ended, calculate final rewards
+                final_reward = self.reward_calculator.round_end_reward(
+                    round_result, "LearningAI"
+                )
+                round_reward += final_reward
+
+                # Update last experiences with terminal reward
+                for exp in round_experiences[-3:]:  # Last 3 decisions
+                    exp.reward += final_reward / 3
+                    exp.done = True
+
+                break
+
+        # Add all experiences to buffer
+        for exp in round_experiences:
+            self.replay_buffer.add(exp)
+
+        return round_reward
+
+    def _train_batch(self) -> None:
+        """Train networks on a batch from replay buffer."""
+        # Train each network on its respective experiences
+        for decision_type, network, optimizer, target_network in [
+            ("draw", self.learning_ai.draw_net, self.draw_optimizer, self.target_ai.draw_net),
+            ("discard", self.learning_ai.discard_net, self.discard_optimizer, self.target_ai.discard_net),
+            ("knock", self.learning_ai.knock_net, self.knock_optimizer, self.target_ai.knock_net),
+        ]:
+            batch = self.replay_buffer.sample(self.config.batch_size, decision_type)
+            if len(batch) < self.config.batch_size // 2:
+                continue
+
+            # Convert to tensors
+            states, actions, rewards, next_states, dones = batch_to_tensors(
+                batch, self.device
+            )
+
+            # Compute current Q values
+            network.train()
+            current_q = network(states)
+            current_q_values = current_q.gather(1, actions.unsqueeze(1)).squeeze()
+
+            # Compute target Q values
+            with torch.no_grad():
+                next_q = target_network(next_states)
+                max_next_q = next_q.max(dim=1)[0]
+                target_q_values = rewards + (
+                    self.config.gamma * max_next_q * (~dones).float()
+                )
+
+            # Compute loss and update
+            loss = nn.functional.mse_loss(current_q_values, target_q_values)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+    def _update_exploration_rate(self) -> None:
+        """Decay exploration rate."""
+        self.current_exploration_rate = max(
+            self.config.exploration_end,
+            self.current_exploration_rate * self.config.exploration_decay,
+        )
+        self.learning_ai.set_exploration_rate(self.current_exploration_rate)
+
+    def _evaluate(self) -> tuple[float, float]:
+        """Evaluate current policy against BasicAI.
+
+        Returns:
+            Tuple of (win_rate, average_points_per_game).
+        """
+        self.learning_ai.eval_mode()
+        old_exploration = self.learning_ai.exploration_rate
+        self.learning_ai.set_exploration_rate(0.0)
+
+        wins = 0
+        total_points = 0
+        opponent = BasicAI()
+
+        for _ in range(self.config.eval_games):
+            game = Game("LearningAI", "Opponent")
+            game.deal()
+
+            rounds = 0
+            while (
+                max(p.score for p in game.players) < self.config.target_score
+                and rounds < self.config.max_rounds_per_game
+            ):
+                self._play_eval_round(game, opponent)
+                rounds += 1
+                if max(p.score for p in game.players) < self.config.target_score:
+                    game.new_round()
+                    game.deal()
+                    self.learning_ai.reset_for_new_hand()
+
+            # Check winner
+            if game.players[0].score >= self.config.target_score:
+                wins += 1
+            total_points += game.players[0].score
+
+        # Restore training mode
+        self.learning_ai.set_exploration_rate(old_exploration)
+        self.learning_ai.train_mode()
+
+        win_rate = wins / self.config.eval_games
+        avg_points = total_points / self.config.eval_games
+
+        return win_rate, avg_points
+
+    def _play_eval_round(self, game: Game, opponent: BasicAI) -> None:
+        """Play one evaluation round (no experience collection)."""
+        while game.phase.name not in ("ROUND_OVER", "KNOCKED"):
+            current_player_idx = game.current_player_idx
+            ai = self.learning_ai if current_player_idx == 0 else opponent
+
+            if hasattr(ai, "update_context"):
+                ctx = game.get_game_context(current_player_idx)
+                ai.update_context(ctx)
+
+            other_ai = opponent if current_player_idx == 0 else self.learning_ai
+            result, _, _ = execute_ai_turn(game, ai, other_ai)
+
+            if result in (TurnResult.DRAW, TurnResult.KNOCKED):
+                break
+
+    def _save_checkpoint(self, episode: int) -> None:
+        """Save model checkpoint.
+
+        Args:
+            episode: Current episode number.
+        """
+        self.save_path.parent.mkdir(parents=True, exist_ok=True)
+
+        metadata = {
+            "episode": episode,
+            "exploration_rate": self.current_exploration_rate,
+            "curriculum_idx": self._curriculum_idx,
+            "curriculum_episodes": self._curriculum_episodes,
+        }
+
+        ModelPersistence.save(
+            self.save_path,
+            self.learning_ai.draw_net,
+            self.learning_ai.discard_net,
+            self.learning_ai.knock_net,
+            metadata,
+        )
+
+        logger.info("Saved checkpoint at episode %d to %s", episode, self.save_path)
+
+
+def main() -> None:
+    """CLI entry point for training."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Train LearningAI for Gin Rummy")
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=10000,
+        help="Number of training episodes",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="models/learning_ai.pt",
+        help="Path to save trained model",
+    )
+    parser.add_argument(
+        "--tensorboard",
+        type=str,
+        default="runs/gin_learning",
+        help="TensorBoard log directory",
+    )
+    parser.add_argument(
+        "--resume",
+        type=str,
+        help="Resume training from checkpoint",
+    )
+    parser.add_argument(
+        "--eval-freq",
+        type=int,
+        default=500,
+        help="Evaluate every N episodes",
+    )
+    parser.add_argument(
+        "--save-freq",
+        type=int,
+        default=1000,
+        help="Save checkpoint every N episodes",
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose logging",
+    )
+
+    args = parser.parse_args()
+
+    # Setup logging
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    # Create config
+    config = TrainingConfig(
+        num_episodes=args.episodes,
+        eval_freq=args.eval_freq,
+        save_freq=args.save_freq,
+    )
+
+    # Create trainer
+    save_path = Path(args.output)
+    tensorboard_path = Path(args.tensorboard) if args.tensorboard else None
+
+    trainer = Trainer(config, save_path, tensorboard_path)
+
+    # Resume from checkpoint if specified
+    if args.resume:
+        resume_path = Path(args.resume)
+        if resume_path.exists():
+            logger.info("Resuming from checkpoint: %s", resume_path)
+            trainer.learning_ai = LearningAI(
+                model_path=resume_path,
+                exploration_rate=config.exploration_start,
+                device=trainer.device,
+            )
+            trainer._sync_target_networks()
+
+    # Progress callback
+    def progress_callback(metrics: TrainingMetrics) -> None:
+        if metrics.episode % 100 == 0:
+            print(
+                f"Episode {metrics.episode}: "
+                f"reward={metrics.total_reward:.1f}, "
+                f"exploration={metrics.exploration_rate:.3f}, "
+                f"buffer={metrics.buffer_size}"
+            )
+
+    # Run training
+    trainer.train(callback=progress_callback)
+
+    print(f"\nTraining complete! Model saved to {save_path}")
+
+
+if __name__ == "__main__":
+    main()

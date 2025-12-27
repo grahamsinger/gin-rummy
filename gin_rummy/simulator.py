@@ -6,6 +6,20 @@ import random
 from dataclasses import dataclass, field
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
+
+# Lazy import for LearningAI to avoid requiring torch
+_LearningAI = None
+
+
+def _get_learning_ai():
+    """Lazy import LearningAI to avoid torch dependency."""
+    global _LearningAI
+    if _LearningAI is None:
+        from gin_rummy.learning import LearningAI
+        _LearningAI = LearningAI
+    return _LearningAI
+
+
 from gin_rummy.models import Card, Player
 from gin_rummy.config import Config
 from gin_rummy.game import Game, GamePhase, RoundResult
@@ -266,9 +280,9 @@ class Simulator:
         """Run a single round and return the result."""
         game.deal()
 
-        # Reset ContextAwareAI tracking for new hand
+        # Reset AI tracking for new hand (ContextAwareAI and LearningAI)
         for ai in (self.ai1, self.ai2):
-            if isinstance(ai, ContextAwareAI):
+            if hasattr(ai, "reset_for_new_hand"):
                 ai.reset_for_new_hand()
 
         # First discard by non-dealer
@@ -279,7 +293,7 @@ class Simulator:
 
         # Record first discard for opponent tracking
         other_ai = self.ai2 if non_dealer_idx == 0 else self.ai1
-        if isinstance(other_ai, ContextAwareAI):
+        if hasattr(other_ai, "record_opponent_discard"):
             other_ai.record_opponent_discard(discard)
 
         # Main game loop
@@ -373,21 +387,29 @@ def run_simulation(
     return simulator.run()
 
 
-def create_ai(ai_type: str, config_path: str | None) -> BasicAI:
+def create_ai(
+    ai_type: str,
+    config_path: str | None,
+    model_path: str | None = None,
+) -> BasicAI:
     """Create an AI with optional config override.
 
     Args:
-        ai_type: Type of AI ("basic" or "context").
+        ai_type: Type of AI ("basic", "context", or "learning").
         config_path: Optional path to config override file.
+        model_path: Path to trained model (for "learning" type only).
 
     Returns:
-        BasicAI or ContextAwareAI instance.
+        BasicAI, ContextAwareAI, or LearningAI instance.
     """
     config = None
     if config_path:
         config = Config.with_overrides(config_path)
 
-    if ai_type == "context":
+    if ai_type == "learning":
+        LearningAI = _get_learning_ai()
+        return LearningAI(model_path=model_path, config=config)
+    elif ai_type == "context":
         return ContextAwareAI(config)
     else:
         return BasicAI(config)
@@ -432,14 +454,14 @@ def main() -> None:
     parser.add_argument(
         "--ai1-type",
         type=str,
-        choices=["basic", "context"],
+        choices=["basic", "context", "learning"],
         default="context",
         help="AI type for player 1",
     )
     parser.add_argument(
         "--ai2-type",
         type=str,
-        choices=["basic", "context"],
+        choices=["basic", "context", "learning"],
         default="basic",
         help="AI type for player 2",
     )
@@ -454,6 +476,18 @@ def main() -> None:
         type=str,
         default=None,
         help="Override config file for AI player 2",
+    )
+    parser.add_argument(
+        "--ai1-model",
+        type=str,
+        default=None,
+        help="Path to trained model for AI 1 (when --ai1-type=learning)",
+    )
+    parser.add_argument(
+        "--ai2-model",
+        type=str,
+        default=None,
+        help="Path to trained model for AI 2 (when --ai2-type=learning)",
     )
 
     args = parser.parse_args()
@@ -472,8 +506,8 @@ def main() -> None:
     )
 
     # Create AIs with optional config overrides
-    ai1 = create_ai(args.ai1_type, args.ai1_config)
-    ai2 = create_ai(args.ai2_type, args.ai2_config)
+    ai1 = create_ai(args.ai1_type, args.ai1_config, args.ai1_model)
+    ai2 = create_ai(args.ai2_type, args.ai2_config, args.ai2_model)
 
     config = SimulatorConfig(
         num_games=args.num_games,

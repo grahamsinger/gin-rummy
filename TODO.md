@@ -24,38 +24,56 @@
   - Override files in `config/overrides/`
   - See `config/overrides/README.md` for usage
 
-## Learning AI (Reinforcement Learning)
-- [ ] Create LearningAI as third AI type (alongside BasicAI, ContextAwareAI)
-  - Uses reinforcement learning to improve play over time
-  - Learns from reward/punishment signals (points scored, wins/losses)
-- [ ] State representation design
-  - Hand composition (cards, melds, deadwood)
-  - Known game state (discard pile, cards seen, deck remaining)
-  - Opponent model (pickup/discard patterns)
-- [ ] Action space
-  - Draw decision (deck vs discard)
-  - Discard selection
-  - Knock decision
-- [ ] Reward function
-  - Points scored (positive/negative)
-  - Bonus for wins, penalty for losses
-  - Consider: intermediate rewards (deadwood reduction, meld completion)
-- [ ] Model persistence
-  - Save/load learned weights
-  - Version trained models for comparison
-- [ ] Training infrastructure
-  - Self-play mode in simulator
-  - Batch training over many games
-  - Curriculum: start vs BasicAI, graduate to ContextAwareAI
-- [ ] Evaluation metrics
-  - Win rate over time (learning curve)
-  - Points per game trend
-  - Decision quality metrics (compare to optimal play?)
-  - Periodic evaluation checkpoints during training
-- [ ] Integration
-  - `--ai-type learning` in simulator and CLI
-  - `--model-path` to specify trained model
-  - `--train` mode for training runs
+## Learning AI (Reinforcement Learning) - IMPLEMENTED
+- [x] Create LearningAI as third AI type (alongside BasicAI, ContextAwareAI)
+  - Uses Deep Q-Learning with PyTorch
+  - Three separate networks: DrawNet, DiscardNet, KnockNet
+- [x] State representation design (~200 features)
+  - Hand encoding (52-dim one-hot)
+  - Dead cards encoding (52-dim multi-hot)
+  - Discard top encoding (52-dim one-hot)
+  - Opponent patterns (34-dim: pickup/discard by rank/suit)
+  - Game features (8-dim: deck position, deadwood, score, etc.)
+- [x] Action space
+  - Draw decision (2 outputs: deck vs discard)
+  - Discard selection (11 outputs: one per card position)
+  - Knock decision (2 outputs: don't knock vs knock)
+- [x] Reward function
+  - End of round: +50 gin, +20 knock, +30 undercut, -points/5 for loss
+  - Intermediate: +0.1 per deadwood reduction, +1.0 per meld completed
+- [x] Model persistence
+  - Save/load via `ModelPersistence` class
+  - Checkpoints with metadata (episode, exploration rate)
+- [x] Training infrastructure
+  - `Trainer` class with full training loop
+  - Experience replay buffer (per decision type)
+  - Target network for stable training
+  - Curriculum learning: BasicAI -> ContextAwareAI -> self-play
+  - TensorBoard logging support
+- [x] Evaluation metrics
+  - Periodic evaluation against BasicAI
+  - Win rate and avg points tracking
+  - Training metrics logging
+- [x] Integration
+  - `--ai1-type learning` / `--ai2-type learning` in simulator
+  - `--ai1-model` / `--ai2-model` to specify trained model
+  - `gin-train` command for training: `uv run gin-train --episodes 10000`
+  - Optional dependency: `uv sync --extra learning`
+
+### Training the Learning AI
+```bash
+# Install learning dependencies
+uv sync --extra learning
+
+# Train a new model
+uv run gin-train --episodes 10000 --output models/learning_ai.pt
+
+# Monitor training with TensorBoard
+tensorboard --logdir runs/
+
+# Use trained model in simulation
+uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-type context
+```
 
 ## Card Helpfulness Ranking
 - [ ] Rank all non-dead cards by how helpful they would be
