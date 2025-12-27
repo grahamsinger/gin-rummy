@@ -205,14 +205,15 @@ class LearningAI(BasicAI):
             logger.debug("Discard decision: %s (exploration)", choice)
             return choice
 
-        # Encode state
         # Note: _drawn_card should be set by make_turn_decision before this is called
         drawn_card = self._drawn_card
         if drawn_card is None:
-            # Fallback: assume we drew something, use first card as placeholder
-            logger.warning("No drawn card tracked, using fallback")
-            drawn_card = cards[0]
+            # This happens for the initial discard (before first draw)
+            # Fall back to BasicAI logic for this case
+            logger.debug("Initial discard - using BasicAI fallback")
+            return super().decide_discard(hand)
 
+        # Encode state
         state = self.encoder.encode_discard_state(
             hand, drawn_card, self._current_context, self.opponent_model
         )
