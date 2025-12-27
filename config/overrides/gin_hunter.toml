@@ -1,0 +1,8 @@
+# Gin Hunter AI config
+# Only knocks when it has gin (0 deadwood)
+# More aggressive about taking cards from discard
+
+[ai]
+knock_strategy = "conservative"
+conservative_knock_threshold = 0  # Only knock with gin
+min_deadwood_improvement = 0      # Take any card that helps

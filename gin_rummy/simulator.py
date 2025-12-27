@@ -52,6 +52,11 @@ class PlayerMetrics:
     draws_from_deck: int = 0
     draws_from_discard: int = 0
 
+    # Points breakdown
+    points_from_gins: int = 0
+    points_from_knocks: int = 0  # Regular knock wins (not gin)
+    points_from_undercuts: int = 0
+
     @property
     def avg_knock_deadwood(self) -> float:
         """Average deadwood when knocking."""
@@ -62,6 +67,25 @@ class PlayerMetrics:
         """Percentage of draws from discard pile."""
         total = self.draws_from_deck + self.draws_from_discard
         return self.draws_from_discard / total if total > 0 else 0.0
+
+    @property
+    def knock_wins(self) -> int:
+        """Number of rounds won by knocking (gin + regular knock)."""
+        return self.gins + (self.rounds_won - self.gins - self.undercuts_made)
+
+    @property
+    def points_per_knock_win(self) -> float:
+        """Average points scored when winning by knock (gin or regular)."""
+        knock_points = self.points_from_gins + self.points_from_knocks
+        wins = self.gins + self.rounds_won - self.gins - self.undercuts_made
+        # Simpler: knock_wins = rounds_won - undercuts_made
+        knock_wins = self.rounds_won - self.undercuts_made
+        return knock_points / knock_wins if knock_wins > 0 else 0.0
+
+    @property
+    def points_per_undercut(self) -> float:
+        """Average points scored per undercut."""
+        return self.points_from_undercuts / self.undercuts_made if self.undercuts_made > 0 else 0.0
 
 
 @dataclass
@@ -78,6 +102,11 @@ class SimulatorMetrics:
     rounds_played: int = 0
     draws: int = 0
 
+    # Round ending breakdown
+    rounds_ended_by_gin: int = 0
+    rounds_ended_by_undercut: int = 0
+    rounds_ended_by_knock: int = 0  # Regular knock (not gin, knocker won)
+
     def get_player_metrics(self, player_idx: int) -> PlayerMetrics:
         """Get metrics for a player by index."""
         return self.player1 if player_idx == 0 else self.player2
@@ -88,29 +117,44 @@ class SimulatorMetrics:
         p1_header = f"{self.player1_name} ({self.player1_ai_class})"
         p2_header = f"{self.player2_name} ({self.player2_ai_class})"
         col_width = max(len(p1_header), len(p2_header), 12)
+        line_width = 32 + col_width * 2 + 2
+
+        # Calculate round ending percentages
+        total = self.rounds_played if self.rounds_played > 0 else 1
+        knock_pct = self.rounds_ended_by_knock / total * 100
+        gin_pct = self.rounds_ended_by_gin / total * 100
+        undercut_pct = self.rounds_ended_by_undercut / total * 100
+        draw_pct = self.draws / total * 100
 
         lines = [
-            "=" * (32 + col_width * 2 + 2),
+            "=" * line_width,
             "SIMULATION RESULTS",
-            "=" * (32 + col_width * 2 + 2),
+            "=" * line_width,
             f"Games played: {self.games_played}",
             f"Total rounds: {self.rounds_played}",
-            f"Draws (deck exhausted): {self.draws}",
+            "",
+            "Round Endings:",
+            f"  Knock (regular):  {self.rounds_ended_by_knock:>5} ({knock_pct:5.1f}%)",
+            f"  Gin:              {self.rounds_ended_by_gin:>5} ({gin_pct:5.1f}%)",
+            f"  Undercut:         {self.rounds_ended_by_undercut:>5} ({undercut_pct:5.1f}%)",
+            f"  Draw (exhausted): {self.draws:>5} ({draw_pct:5.1f}%)",
             "",
             f"{'Metric':<30} {p1_header:>{col_width}} {p2_header:>{col_width}}",
-            "-" * (32 + col_width * 2 + 2),
+            "-" * line_width,
             f"{'Games won':<30} {self.player1.games_won:>{col_width}} {self.player2.games_won:>{col_width}}",
             f"{'Rounds won':<30} {self.player1.rounds_won:>{col_width}} {self.player2.rounds_won:>{col_width}}",
             f"{'Total points':<30} {self.player1.total_points:>{col_width}} {self.player2.total_points:>{col_width}}",
             f"{'Gins':<30} {self.player1.gins:>{col_width}} {self.player2.gins:>{col_width}}",
             f"{'Knocks':<30} {self.player1.knocks:>{col_width}} {self.player2.knocks:>{col_width}}",
             f"{'Avg knock deadwood':<30} {self.player1.avg_knock_deadwood:>{col_width}.1f} {self.player2.avg_knock_deadwood:>{col_width}.1f}",
+            f"{'Pts per knock win':<30} {self.player1.points_per_knock_win:>{col_width}.1f} {self.player2.points_per_knock_win:>{col_width}.1f}",
             f"{'Undercuts made':<30} {self.player1.undercuts_made:>{col_width}} {self.player2.undercuts_made:>{col_width}}",
+            f"{'Pts per undercut':<30} {self.player1.points_per_undercut:>{col_width}.1f} {self.player2.points_per_undercut:>{col_width}.1f}",
             f"{'Undercuts received':<30} {self.player1.undercuts_received:>{col_width}} {self.player2.undercuts_received:>{col_width}}",
             f"{'Draws from deck':<30} {self.player1.draws_from_deck:>{col_width}} {self.player2.draws_from_deck:>{col_width}}",
             f"{'Draws from discard':<30} {self.player1.draws_from_discard:>{col_width}} {self.player2.draws_from_discard:>{col_width}}",
             f"{'Discard draw rate':<30} {self.player1.discard_draw_rate:>{col_width - 1}.1%} {self.player2.discard_draw_rate:>{col_width - 1}.1%}",
-            "=" * (32 + col_width * 2 + 2),
+            "=" * line_width,
         ]
         return "\n".join(lines)
 
@@ -288,10 +332,17 @@ class Simulator:
 
         if result.is_gin:
             winner_metrics.gins += 1
-
-        if result.is_undercut:
+            winner_metrics.points_from_gins += result.points
+            self.metrics.rounds_ended_by_gin += 1
+        elif result.is_undercut:
             winner_metrics.undercuts_made += 1
+            winner_metrics.points_from_undercuts += result.points
             loser_metrics.undercuts_received += 1
+            self.metrics.rounds_ended_by_undercut += 1
+        else:
+            # Regular knock (knocker won, not gin)
+            winner_metrics.points_from_knocks += result.points
+            self.metrics.rounds_ended_by_knock += 1
 
 
 def run_simulation(
