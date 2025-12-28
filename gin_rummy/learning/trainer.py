@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from gin_rummy.ai import BasicAI, ContextAwareAI
+from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
 from gin_rummy.game import Game, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.learning.learning_ai import LearningAI
@@ -129,8 +129,13 @@ class Trainer:
         self.save_path = save_path
         self.tensorboard_path = tensorboard_path
 
-        # Initialize device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Initialize device (CUDA > MPS > CPU)
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
         logger.info("Using device: %s", self.device)
 
         # Initialize learning AI (will be trained)
@@ -428,14 +433,22 @@ class Trainer:
 
                 # Draw experience
                 # next_state is None because we transition to discard (different state size)
-                # The reward shaping provides the learning signal for this decision
-                draw_action = 0 if actions.draw_source == "deck" else 1
+                drew_from_discard = actions.draw_source == DrawChoice.DISCARD
+                draw_action = 0 if actions.draw_source == DrawChoice.DECK else 1
+
+                # Calculate draw-specific reward (penalize wasteful discard draws)
+                draw_specific_reward = self.reward_calculator.draw_reward(
+                    drew_from_discard=drew_from_discard,
+                    drawn_card=actions.drawn_card,
+                    discarded_card=actions.discarded_card,
+                )
+                draw_reward = (turn_reward / 3) + draw_specific_reward
 
                 round_experiences.append(
                     Experience(
                         state=state_before,
                         action=draw_action,
-                        reward=turn_reward / 3,  # Split reward across decisions
+                        reward=draw_reward,
                         next_state=None,  # Different state space (discard), so treat as terminal
                         done=False,
                         decision_type="draw",

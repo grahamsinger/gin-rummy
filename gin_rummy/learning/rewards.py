@@ -39,6 +39,9 @@ class RewardConfig:
     key_out_pickup_bonus: float = 0.5
     undercut_penalty: float = -5.0
     draw_round_reward: float = 0.0
+    # Draw-specific rewards
+    discard_kept_bonus: float = 0.5  # Bonus for keeping a card from discard pile
+    discard_wasted_penalty: float = -1.0  # Penalty for taking from discard then discarding it
 
 
 class RewardCalculator:
@@ -144,6 +147,39 @@ class RewardCalculator:
             reward += self.config.key_out_pickup_bonus
 
         return reward
+
+    def draw_reward(
+        self,
+        drew_from_discard: bool,
+        drawn_card: object,
+        discarded_card: object,
+    ) -> float:
+        """Calculate reward specific to the draw decision.
+
+        This provides targeted feedback for whether drawing from discard
+        was a good idea, independent of the overall turn outcome.
+
+        Args:
+            drew_from_discard: Whether draw was from discard pile.
+            drawn_card: The card that was drawn.
+            discarded_card: The card that was discarded after.
+
+        Returns:
+            Draw-specific reward component.
+        """
+        if not drew_from_discard:
+            # Drawing from deck is neutral (random outcome)
+            return 0.0
+
+        # Drew from discard - check if we kept the card or wasted the draw
+        if drawn_card == discarded_card:
+            # Took from discard and immediately discarded it
+            # Bad: revealed interest in that area to opponent for nothing
+            return self.config.discard_wasted_penalty
+        else:
+            # Kept the card from discard
+            # Good: we specifically chose this card and it helped
+            return self.config.discard_kept_bonus
 
     def normalize_reward(self, reward: float, scale: float = 100.0) -> float:
         """Normalize reward to a reasonable range.
