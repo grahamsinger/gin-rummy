@@ -441,6 +441,8 @@ class Trainer:
                     drew_from_discard=drew_from_discard,
                     drawn_card=actions.drawn_card,
                     discarded_card=actions.discarded_card,
+                    deadwood_before=deadwood_before,
+                    deadwood_after=deadwood_after,
                 )
                 draw_reward = (turn_reward / 3) + draw_specific_reward
 

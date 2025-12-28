@@ -153,6 +153,8 @@ class RewardCalculator:
         drew_from_discard: bool,
         drawn_card: object,
         discarded_card: object,
+        deadwood_before: int,
+        deadwood_after: int,
     ) -> float:
         """Calculate reward specific to the draw decision.
 
@@ -163,6 +165,8 @@ class RewardCalculator:
             drew_from_discard: Whether draw was from discard pile.
             drawn_card: The card that was drawn.
             discarded_card: The card that was discarded after.
+            deadwood_before: Deadwood before the turn.
+            deadwood_after: Deadwood after the turn.
 
         Returns:
             Draw-specific reward component.
@@ -171,15 +175,21 @@ class RewardCalculator:
             # Drawing from deck is neutral (random outcome)
             return 0.0
 
-        # Drew from discard - check if we kept the card or wasted the draw
+        # Drew from discard - check if it was a good decision
         if drawn_card == discarded_card:
             # Took from discard and immediately discarded it
             # Bad: revealed interest in that area to opponent for nothing
             return self.config.discard_wasted_penalty
-        else:
-            # Kept the card from discard
-            # Good: we specifically chose this card and it helped
+
+        # Kept the card - but did it actually help?
+        deadwood_improvement = deadwood_before - deadwood_after
+        if deadwood_improvement > 0:
+            # Card actually helped reduce deadwood
             return self.config.discard_kept_bonus
+        else:
+            # Kept the card but it didn't help - slight penalty
+            # (not as bad as wasting, but not good either)
+            return self.config.discard_wasted_penalty * 0.3
 
     def normalize_reward(self, reward: float, scale: float = 100.0) -> float:
         """Normalize reward to a reasonable range.
