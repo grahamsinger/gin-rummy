@@ -21,7 +21,7 @@ from gin_rummy.learning.models import (
     KnockNet,
     ModelPersistence,
 )
-from gin_rummy.learning.state import StateEncoder
+from gin_rummy.learning.state import StateEncoder, card_to_index
 
 if TYPE_CHECKING:
     from gin_rummy.context import GameContext
@@ -220,17 +220,34 @@ class LearningAI(BasicAI):
         state = state.unsqueeze(0).to(self.device).float()
 
         with torch.no_grad():
-            q_values = self.discard_net(state)
+            q_values = self.discard_net(state)  # Shape: (1, 52)
 
-        # Select card with highest Q-value (only consider valid positions)
-        valid_q = q_values[0, : len(cards)]
-        action_idx = valid_q.argmax().item()
-        choice = cards[action_idx]
+        # Get card indices for cards in hand
+        card_indices = [card_to_index(c) for c in cards]
+
+        # Mask: set non-hand cards to -inf so they won't be selected
+        mask = torch.full((52,), float("-inf"), device=self.device)
+        for idx in card_indices:
+            mask[idx] = 0.0
+
+        masked_q = q_values[0] + mask
+        best_card_idx = masked_q.argmax().item()
+
+        # Find the card with this index
+        choice = None
+        for card in cards:
+            if card_to_index(card) == best_card_idx:
+                choice = card
+                break
+
+        if choice is None:
+            # Fallback (shouldn't happen)
+            choice = cards[0]
 
         logger.info(
             "Discard decision: %s (Q-value=%.3f, best of %d cards)",
             choice,
-            valid_q[action_idx].item(),
+            masked_q[best_card_idx].item(),
             len(cards),
         )
 

@@ -125,7 +125,8 @@ class TestNetworks:
 
         output = net(x)
 
-        assert output.shape == (batch_size, 11)
+        # 52 outputs (one per card), not 11 (position-based)
+        assert output.shape == (batch_size, 52)
 
     def test_knock_net_forward(self):
         """Test KnockNet forward pass."""

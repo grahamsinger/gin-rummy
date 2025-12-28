@@ -55,10 +55,11 @@ class DiscardNet(nn.Module):
     """Network for discard decisions.
 
     Input: State vector (DISCARD_STATE_SIZE features)
-    Output: 11 Q-values, one for each card position in hand
+    Output: 52 Q-values, one for each possible card
 
-    During inference, only the first N outputs are used (where N = hand size).
-    Invalid positions are masked.
+    During inference, cards not in hand are masked with -inf.
+    This allows the network to learn card-specific values rather than
+    position-specific values (which change as hand order changes).
     """
 
     def __init__(
@@ -79,13 +80,13 @@ class DiscardNet(nn.Module):
             layers.append(nn.ReLU())
             prev_size = hidden_size
 
-        # Output 11 Q-values (max hand size after drawing)
-        layers.append(nn.Linear(prev_size, 11))
+        # Output 52 Q-values (one per card in deck)
+        layers.append(nn.Linear(prev_size, 52))
 
         self.network = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass returning Q-values for each card position."""
+        """Forward pass returning Q-values for each card (0-51)."""
         return self.network(x)
 
 

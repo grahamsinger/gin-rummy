@@ -29,7 +29,7 @@ from gin_rummy.learning.replay import (
     batch_to_tensors,
 )
 from gin_rummy.learning.rewards import RewardCalculator, RewardConfig
-from gin_rummy.learning.state import StateEncoder
+from gin_rummy.learning.state import StateEncoder, card_to_index
 
 if TYPE_CHECKING:
     from torch.utils.tensorboard import SummaryWriter
@@ -129,11 +129,9 @@ class Trainer:
         self.save_path = save_path
         self.tensorboard_path = tensorboard_path
 
-        # Initialize device (CUDA > MPS > CPU)
+        # Initialize device (CUDA > CPU, MPS has dtype issues)
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
-        elif torch.backends.mps.is_available():
-            self.device = torch.device("mps")
         else:
             self.device = torch.device("cpu")
         logger.info("Using device: %s", self.device)
@@ -459,13 +457,8 @@ class Trainer:
 
                 # Discard experience (requires both drawn_card and discarded_card)
                 if actions.discarded_card and actions.drawn_card:
-                    hand_list = list(current_player.hand)
-                    # Find index of discarded card (may not be exact due to card equality)
-                    discard_action = 0
-                    for i, card in enumerate(hand_list):
-                        if card == actions.discarded_card:
-                            discard_action = i
-                            break
+                    # Use card index (0-51) instead of position in hand
+                    discard_action = card_to_index(actions.discarded_card)
 
                     discard_state = self.encoder.encode_discard_state(
                         hand, actions.drawn_card, ctx, self.learning_ai.opponent_model

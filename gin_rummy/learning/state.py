@@ -183,14 +183,14 @@ class StateEncoder:
 
         components = [
             self.encode_hand(hand),  # 52
-            self.encode_known_cards(known) if known else np.zeros(52),  # 52
+            self.encode_known_cards(known) if known else np.zeros(52, dtype=np.float32),  # 52
             self.encode_card(discard_top),  # 52
             self.encode_opponent_model(opponent_model),  # 34
             self.encode_game_features(hand, context),  # 8
         ]
 
         state = np.concatenate(components)
-        return torch.from_numpy(state)
+        return torch.from_numpy(state).float()
 
     def encode_discard_state(
         self,
@@ -208,7 +208,7 @@ class StateEncoder:
 
         components = [
             self.encode_hand(hand),  # 52
-            self.encode_known_cards(known) if known else np.zeros(52),  # 52
+            self.encode_known_cards(known) if known else np.zeros(52, dtype=np.float32),  # 52
             np.zeros(52, dtype=np.float32),  # No discard top during discard decision
             self.encode_opponent_model(opponent_model),  # 34
             self.encode_game_features(hand, context),  # 8
@@ -216,7 +216,7 @@ class StateEncoder:
         ]
 
         state = np.concatenate(components)
-        return torch.from_numpy(state)
+        return torch.from_numpy(state).float()
 
     def encode_knock_state(
         self,
@@ -233,14 +233,14 @@ class StateEncoder:
 
         components = [
             self.encode_hand(hand),  # 52
-            self.encode_known_cards(known) if known else np.zeros(52),  # 52
+            self.encode_known_cards(known) if known else np.zeros(52, dtype=np.float32),  # 52
             np.zeros(52, dtype=np.float32),  # No discard top for knock decision
             self.encode_opponent_model(opponent_model),  # 34
             self.encode_game_features(hand, context),  # 8
         ]
 
         state = np.concatenate(components)
-        return torch.from_numpy(state)
+        return torch.from_numpy(state).float()
 
     def get_card_indices(self, hand: Hand) -> list[int]:
         """Get the card indices for each card in hand (for discard action mapping)."""
