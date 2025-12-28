@@ -706,12 +706,20 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Setup logging
-    log_level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    # Setup logging - suppress game logs unless verbose
+    if args.verbose:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
+    else:
+        # Only show trainer logs, suppress noisy game/AI logs
+        logging.basicConfig(
+            level=logging.WARNING,
+            format="%(message)s",
+        )
+        # But keep trainer logger at INFO for important messages
+        logging.getLogger("gin_rummy.learning.trainer").setLevel(logging.INFO)
 
     # Create config
     config = TrainingConfig(
@@ -738,20 +746,58 @@ def main() -> None:
             )
             trainer._sync_target_networks()
 
-    # Progress callback
+    # Progress bar state
+    import time
+    import sys
+    start_time = time.time()
+    last_rewards: list[float] = []
+
+    def format_time(seconds: float) -> str:
+        """Format seconds as HH:MM:SS or MM:SS."""
+        if seconds < 3600:
+            return f"{int(seconds // 60):02d}:{int(seconds % 60):02d}"
+        return f"{int(seconds // 3600)}:{int((seconds % 3600) // 60):02d}:{int(seconds % 60):02d}"
+
     def progress_callback(metrics: TrainingMetrics) -> None:
-        if metrics.episode % 100 == 0:
-            print(
-                f"Episode {metrics.episode}: "
-                f"reward={metrics.total_reward:.1f}, "
-                f"exploration={metrics.exploration_rate:.3f}, "
-                f"buffer={metrics.buffer_size}"
-            )
+        nonlocal last_rewards
+
+        # Track recent rewards for averaging
+        last_rewards.append(metrics.total_reward)
+        if len(last_rewards) > 100:
+            last_rewards = last_rewards[-100:]
+
+        # Update progress bar every episode
+        elapsed = time.time() - start_time
+        progress = metrics.episode / config.num_episodes
+
+        if progress > 0:
+            eta = elapsed / progress - elapsed
+        else:
+            eta = 0
+
+        avg_reward = sum(last_rewards) / len(last_rewards)
+
+        # Build progress bar
+        bar_width = 30
+        filled = int(bar_width * progress)
+        bar = "█" * filled + "░" * (bar_width - filled)
+
+        # Print progress line (overwrite previous)
+        status = (
+            f"\r[{bar}] {metrics.episode:>6}/{config.num_episodes} "
+            f"| ε={metrics.exploration_rate:.3f} "
+            f"| avg_r={avg_reward:>6.1f} "
+            f"| buf={metrics.buffer_size:>6} "
+            f"| {format_time(elapsed)}<{format_time(eta)}"
+        )
+        sys.stdout.write(status)
+        sys.stdout.flush()
 
     # Run training
+    print(f"Training {config.num_episodes} episodes on {trainer.device}...")
     trainer.train(callback=progress_callback)
 
-    print(f"\nTraining complete! Model saved to {save_path}")
+    print(f"\n\nTraining complete! Model saved to {save_path}")
 
 
 if __name__ == "__main__":
