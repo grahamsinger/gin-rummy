@@ -32,3 +32,7 @@ Thumbs.db
 # Project specific
 out.txt
 game_history.db
+
+# ML artifacts
+runs/
+models/*.pt
