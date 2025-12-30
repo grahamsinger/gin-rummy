@@ -36,3 +36,5 @@ game_history.db
 # ML artifacts
 runs/
 models/*.pt
+models/experiments/
+models/statistical_ai.json

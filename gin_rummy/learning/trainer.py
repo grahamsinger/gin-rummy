@@ -241,7 +241,7 @@ class Trainer:
             self._curriculum_episodes = 0
             if self._curriculum_idx < len(self.config.curriculum):
                 new_stage = self.config.curriculum[self._curriculum_idx][0]
-                logger.info("Curriculum advancing to stage: %s", new_stage)
+                logger.info("\nCurriculum advancing to stage: %s", new_stage)
 
     def train(self, callback: Callable[[TrainingMetrics], None] | None = None) -> None:
         """Run the full training loop.
@@ -279,7 +279,7 @@ class Trainer:
                 metrics.win_rate = win_rate
                 metrics.avg_points_per_game = avg_points
                 logger.info(
-                    "Episode %d: win_rate=%.2f, avg_points=%.1f, exploration=%.3f",
+                    "\nEpisode %d: win_rate=%.2f, avg_points=%.1f, exploration=%.3f",
                     episode,
                     win_rate,
                     avg_points,
@@ -779,7 +779,7 @@ def main() -> None:
 
         # Print progress line (overwrite previous)
         status = (
-            f"\r[{bar}] {metrics.episode:>6}/{config.num_episodes} "
+            f"\r[{bar}] \ngts {metrics.episode:>6}/{config.num_episodes} "
             f"| ε={metrics.exploration_rate:.3f} "
             f"| avg_r={avg_reward:>6.1f} "
             f"| buf={metrics.buffer_size:>6} "

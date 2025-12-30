@@ -5,7 +5,7 @@ import logging
 import random
 from dataclasses import dataclass, field
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
+from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, StatisticalAI
 
 # Lazy import for LearningAI to avoid requiring torch
 _LearningAI = None
@@ -358,6 +358,13 @@ class Simulator:
             winner_metrics.points_from_knocks += result.points
             self.metrics.rounds_ended_by_knock += 1
 
+        # Update StatisticalAI learning
+        for idx, ai in enumerate([self.ai1, self.ai2]):
+            if hasattr(ai, "record_round_outcome"):
+                won = idx == winner_idx
+                points = result.points if won else -result.points
+                ai.record_round_outcome(won, points)
+
 
 def run_simulation(
     num_games: int = 100,
@@ -391,16 +398,18 @@ def create_ai(
     ai_type: str,
     config_path: str | None,
     model_path: str | None = None,
+    stats_path: str | None = None,
 ) -> BasicAI:
     """Create an AI with optional config override.
 
     Args:
-        ai_type: Type of AI ("basic", "context", or "learning").
+        ai_type: Type of AI ("basic", "context", "learning", or "statistical").
         config_path: Optional path to config override file.
         model_path: Path to trained model (for "learning" type only).
+        stats_path: Path to stats file (for "statistical" type only).
 
     Returns:
-        BasicAI, ContextAwareAI, or LearningAI instance.
+        BasicAI, ContextAwareAI, StatisticalAI, or LearningAI instance.
     """
     config = None
     if config_path:
@@ -411,6 +420,8 @@ def create_ai(
         return LearningAI(model_path=model_path, config=config)
     elif ai_type == "context":
         return ContextAwareAI(config)
+    elif ai_type == "statistical":
+        return StatisticalAI(stats_path=stats_path, config=config)
     else:
         return BasicAI(config)
 
@@ -454,16 +465,22 @@ def main() -> None:
     parser.add_argument(
         "--ai1-type",
         type=str,
-        choices=["basic", "context", "learning"],
+        choices=["basic", "context", "learning", "statistical"],
         default="context",
         help="AI type for player 1",
     )
     parser.add_argument(
         "--ai2-type",
         type=str,
-        choices=["basic", "context", "learning"],
+        choices=["basic", "context", "learning", "statistical"],
         default="basic",
         help="AI type for player 2",
+    )
+    parser.add_argument(
+        "--stats-file",
+        type=str,
+        default="models/statistical_ai.json",
+        help="Path to stats file for Statistical AI (default: models/statistical_ai.json)",
     )
     parser.add_argument(
         "--ai1-config",
@@ -506,8 +523,8 @@ def main() -> None:
     )
 
     # Create AIs with optional config overrides
-    ai1 = create_ai(args.ai1_type, args.ai1_config, args.ai1_model)
-    ai2 = create_ai(args.ai2_type, args.ai2_config, args.ai2_model)
+    ai1 = create_ai(args.ai1_type, args.ai1_config, args.ai1_model, args.stats_file)
+    ai2 = create_ai(args.ai2_type, args.ai2_config, args.ai2_model, args.stats_file)
 
     config = SimulatorConfig(
         num_games=args.num_games,
@@ -524,6 +541,16 @@ def main() -> None:
 
     simulator = Simulator(ai1=ai1, ai2=ai2, config=config)
     metrics = simulator.run()
+
+    # Save StatisticalAI stats after simulation
+    for ai in [ai1, ai2]:
+        if hasattr(ai, "save"):
+            ai.save()
+            if hasattr(ai, "get_stats_summary"):
+                summary = ai.get_stats_summary()
+                if summary.get("total_discard_samples", 0) > 0:
+                    print(f"\nStatisticalAI stats: {summary['total_discard_samples']} samples collected")
+
     print(metrics.summary())
 
 
