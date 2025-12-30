@@ -33,6 +33,16 @@ class OutType(Enum):
 
 
 @dataclass
+class InferredMeld:
+    """A meld we believe opponent is building based on their pickups."""
+
+    cards: frozenset[Card]  # Cards we know they picked up for this meld
+    meld_type: MeldType  # SET or RUN
+    completing_cards: frozenset[Card]  # Cards that would complete/extend this meld
+    confidence: float = 1.0  # 0.0 to 1.0 (for future use)
+
+
+@dataclass
 class OutInfo:
     """Information about a single 'out' card."""
 
@@ -392,6 +402,12 @@ class OpponentModel:
     total_discards: int = 0
     total_pickups: int = 0
 
+    # Specific cards picked up (for meld inference)
+    picked_up_cards: list[Card] = field(default_factory=list)
+
+    # Inferred melds opponent is building
+    inferred_melds: list[InferredMeld] = field(default_factory=list)
+
     def record_discard(self, card: Card) -> None:
         """Record that opponent discarded a card."""
         self.discarded_ranks[card.rank] += 1
@@ -403,6 +419,125 @@ class OpponentModel:
         self.picked_up_ranks[card.rank] += 1
         self.picked_up_suits[card.suit] += 1
         self.total_pickups += 1
+        self.picked_up_cards.append(card)
+        self._update_inferred_melds()
+
+    def _update_inferred_melds(self) -> None:
+        """Analyze picked_up_cards to infer what melds opponent is building."""
+        self.inferred_melds.clear()
+
+        if len(self.picked_up_cards) < 2:
+            return
+
+        # Group cards by rank (for set detection)
+        by_rank: dict[Rank, list[Card]] = {}
+        for card in self.picked_up_cards:
+            if card.rank not in by_rank:
+                by_rank[card.rank] = []
+            by_rank[card.rank].append(card)
+
+        # Detect sets: 2+ cards of same rank
+        for rank, cards in by_rank.items():
+            if len(cards) >= 2:
+                # Find remaining cards of this rank that would complete the set
+                completing = frozenset(
+                    Card(rank, suit)
+                    for suit in Suit
+                    if Card(rank, suit) not in cards
+                )
+                self.inferred_melds.append(
+                    InferredMeld(
+                        cards=frozenset(cards),
+                        meld_type=MeldType.SET,
+                        completing_cards=completing,
+                    )
+                )
+
+        # Group cards by suit (for run detection)
+        by_suit: dict[Suit, list[Card]] = {}
+        for card in self.picked_up_cards:
+            if card.suit not in by_suit:
+                by_suit[card.suit] = []
+            by_suit[card.suit].append(card)
+
+        # Detect runs: cards of same suit that are consecutive or have gap of 1
+        for suit, cards in by_suit.items():
+            if len(cards) < 2:
+                continue
+
+            # Sort by rank value
+            sorted_cards = sorted(cards, key=lambda c: c.rank.value)
+
+            # Find consecutive sequences or gaps
+            i = 0
+            while i < len(sorted_cards):
+                run_cards = [sorted_cards[i]]
+
+                # Extend run as far as possible
+                j = i + 1
+                while j < len(sorted_cards):
+                    prev_val = sorted_cards[j - 1].rank.value
+                    curr_val = sorted_cards[j].rank.value
+                    gap = curr_val - prev_val
+
+                    if gap <= 2:  # Consecutive or gap of 1
+                        run_cards.append(sorted_cards[j])
+                        j += 1
+                    else:
+                        break
+
+                if len(run_cards) >= 2:
+                    completing = self._find_run_completing_cards(run_cards, suit)
+                    if completing:
+                        self.inferred_melds.append(
+                            InferredMeld(
+                                cards=frozenset(run_cards),
+                                meld_type=MeldType.RUN,
+                                completing_cards=completing,
+                            )
+                        )
+
+                i = j if j > i + 1 else i + 1
+
+    def _find_run_completing_cards(
+        self, run_cards: list[Card], suit: Suit
+    ) -> frozenset[Card]:
+        """Find cards that would complete or extend a run."""
+        completing: set[Card] = set()
+        values = sorted(c.rank.value for c in run_cards)
+
+        # Check for gaps within the run
+        for i in range(len(values) - 1):
+            gap = values[i + 1] - values[i]
+            if gap == 2:
+                # There's a gap - the middle card completes it
+                middle_rank = Rank(values[i] + 1)
+                completing.add(Card(middle_rank, suit))
+
+        # Extensions at the ends
+        min_val = min(values)
+        max_val = max(values)
+
+        # Lower extension (but not below Ace=1)
+        if min_val > 1:
+            completing.add(Card(Rank(min_val - 1), suit))
+
+        # Upper extension (but not above King=13)
+        if max_val < 13:
+            completing.add(Card(Rank(max_val + 1), suit))
+
+        return frozenset(completing)
+
+    def get_danger_cards(self) -> set[Card]:
+        """Return cards that would help opponent complete inferred melds."""
+        danger: set[Card] = set()
+        for meld in self.inferred_melds:
+            danger.update(meld.completing_cards)
+        return danger
+
+    def is_card_dangerous(self, card: Card) -> bool:
+        """Check if discarding this card would help opponent."""
+        return card in self.get_danger_cards()
 
     def predict_will_discard(self, card: Card) -> float:
         """Predict probability (0-1) opponent might discard this card.
@@ -496,6 +631,8 @@ class OpponentModel:
         self.picked_up_suits.clear()
         self.total_discards = 0
         self.total_pickups = 0
+        self.picked_up_cards.clear()
+        self.inferred_melds.clear()
 
 
 class DynamicThresholdCalculator:

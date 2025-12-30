@@ -13,7 +13,41 @@
   - Current OpponentModel tracks pickup/discard patterns by rank/suit
   - Denial bonus was hurting performance - predictions may be inaccurate
   - Consider: track which melds opponent might be building based on pickups
+
+### ContextAwareAI Improvement Roadmap
+- [ ] **Opponent Meld Inference** (High Impact)
+  - Track specific cards opponent picks up, not just rank/suit frequencies
+  - Infer likely melds: if opponent picks 7♥ then 8♥ → likely building hearts run
+  - Generate "danger cards" list: cards that would complete opponent's inferred melds
+  - Use danger cards in discard decisions (avoid discarding them)
+- [ ] **Deadwood-Based Discard Safety** (Medium Impact)
+  - Factor card deadwood value into safety calculation
+  - High cards (K, Q, J) safer early game (less meld potential)
+  - Low cards riskier (more combinations possible)
+- [ ] **Knock Timing Strategy** (Medium Impact)
+  - Gin pursuit: if deadwood 1-3, consider holding for gin bonus
+  - Opponent deadwood estimation based on their pick/discard patterns
+  - If opponent likely has high deadwood → knock early
+- [ ] **Discard Pile Sequence Memory** (Low-Medium Impact)
+  - Weight recent discards higher than old ones
+  - Track discard order to infer hand evolution
+  - If opponent discarded X early but picked related cards later, X might be wanted now
+- [ ] **End-Game Desperation Mode** (Low Impact)
+  - When deck < 5 cards: dramatically lower all thresholds
+  - Take any card that reduces deadwood
+  - Knock immediately when able
+- [ ] **Fix Denial Bonus** (Low Impact)
+  - Current denial bonus hurts performance (predictions inaccurate)
+  - Only apply when confidence high (2+ pickups of same rank)
+  - Or remove entirely and focus on own hand optimization
 - [ ] AI difficulty levels (easy/medium/hard)
+- [x] StatisticalAI implementation
+  - Tracks win rates for draw/discard/knock decisions
+  - Uses probabilistic selection weighted by historical outcomes
+  - Currently underperforms vs heuristic AIs (needs better training approach)
+- [x] AI tournament/comparison framework
+  - Round-robin results in docs/ai-tournament.md
+  - Ranking: ContextAwareAI > BasicAI >> StatisticalAI
 
 ## Simulator Improvements
 - [x] Add game ending breakdown to simulation results (COMPLETED)

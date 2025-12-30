@@ -258,6 +258,115 @@ class TestOpponentModel:
         assert len(model.picked_up_ranks) == 0
 
 
+class TestOpponentMeldInference:
+    """Tests for opponent meld inference from pickup patterns."""
+
+    def test_infers_set_from_same_rank_pickups(self):
+        """Picking up two cards of same rank suggests building a set."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+        model.record_pickup(Card(Rank.SEVEN, Suit.SPADES))
+
+        danger = model.get_danger_cards()
+        # Other 7s would complete the set
+        assert Card(Rank.SEVEN, Suit.DIAMONDS) in danger
+        assert Card(Rank.SEVEN, Suit.CLUBS) in danger
+
+    def test_infers_run_from_consecutive_suit_pickups(self):
+        """Picking up consecutive cards of same suit suggests building a run."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+        model.record_pickup(Card(Rank.EIGHT, Suit.HEARTS))
+
+        danger = model.get_danger_cards()
+        # Cards that extend the run are dangerous
+        assert Card(Rank.SIX, Suit.HEARTS) in danger
+        assert Card(Rank.NINE, Suit.HEARTS) in danger
+
+    def test_infers_run_from_gapped_suit_pickups(self):
+        """Picking up same-suit cards with gap of 1 suggests building a run."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+        model.record_pickup(Card(Rank.NINE, Suit.HEARTS))
+
+        danger = model.get_danger_cards()
+        # The middle card would complete the run
+        assert Card(Rank.EIGHT, Suit.HEARTS) in danger
+
+    def test_tracks_specific_picked_up_cards(self):
+        """Should track the actual cards picked up, not just counts."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+        model.record_pickup(Card(Rank.EIGHT, Suit.CLUBS))
+
+        assert Card(Rank.SEVEN, Suit.HEARTS) in model.picked_up_cards
+        assert Card(Rank.EIGHT, Suit.CLUBS) in model.picked_up_cards
+
+    def test_is_card_dangerous_for_inferred_melds(self):
+        """is_card_dangerous should return True for cards that complete inferred melds."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+        model.record_pickup(Card(Rank.SEVEN, Suit.SPADES))
+
+        # 7♦ would help opponent
+        assert model.is_card_dangerous(Card(Rank.SEVEN, Suit.DIAMONDS)) is True
+        # K♠ is unrelated
+        assert model.is_card_dangerous(Card(Rank.KING, Suit.SPADES)) is False
+
+    def test_reset_clears_inferred_melds(self):
+        """Reset should clear inferred melds and picked up cards."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+        model.record_pickup(Card(Rank.SEVEN, Suit.SPADES))
+
+        model.reset()
+
+        assert len(model.picked_up_cards) == 0
+        assert len(model.inferred_melds) == 0
+        assert len(model.get_danger_cards()) == 0
+
+    def test_single_pickup_no_inferred_melds(self):
+        """A single pickup should not infer any melds."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+
+        # No melds can be inferred from a single card
+        assert len(model.inferred_melds) == 0
+        assert len(model.get_danger_cards()) == 0
+
+    def test_unrelated_pickups_no_melds(self):
+        """Unrelated pickups should not infer melds."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+        model.record_pickup(Card(Rank.KING, Suit.CLUBS))
+
+        # These cards don't form any meld pattern
+        assert len(model.inferred_melds) == 0
+
+    def test_three_card_run_pickup(self):
+        """Three consecutive same-suit pickups should infer a run."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+        model.record_pickup(Card(Rank.EIGHT, Suit.HEARTS))
+        model.record_pickup(Card(Rank.NINE, Suit.HEARTS))
+
+        danger = model.get_danger_cards()
+        # Extensions at both ends
+        assert Card(Rank.SIX, Suit.HEARTS) in danger
+        assert Card(Rank.TEN, Suit.HEARTS) in danger
+
+    def test_run_at_edge_of_ranks(self):
+        """Run at edge (A-2 or Q-K) should only have one extension."""
+        model = OpponentModel()
+        model.record_pickup(Card(Rank.QUEEN, Suit.HEARTS))
+        model.record_pickup(Card(Rank.KING, Suit.HEARTS))
+
+        danger = model.get_danger_cards()
+        # Only Jack extends (Ace doesn't continue runs in gin rummy)
+        assert Card(Rank.JACK, Suit.HEARTS) in danger
+        assert Card(Rank.ACE, Suit.HEARTS) not in danger
+
+
 class TestDynamicThresholdCalculator:
     """Tests for DynamicThresholdCalculator."""
 

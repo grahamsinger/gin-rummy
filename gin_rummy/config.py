@@ -95,6 +95,7 @@ class ContextAwareAIConfig:
     safe_rank_discard_bonus: int = 1  # Bonus for discarding safe ranks
     dangerous_rank_penalty: int = 2  # Penalty for discarding ranks opponent picked up
     dangerous_suit_penalty: int = 1  # Penalty for discarding suits opponent picked up
+    danger_card_penalty: int = 3  # Penalty for cards that complete opponent's inferred melds
     denial_probability_threshold: float = 0.7  # Opponent want probability to trigger
 
     # Opponent modeling

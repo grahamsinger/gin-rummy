@@ -488,6 +488,11 @@ class ContextAwareAI(BasicAI):
                 score += self.context_config.dangerous_suit_penalty
                 flags.append("dangerous_suit")
 
+            # Check if this card would complete an inferred meld for opponent
+            if self.opponent_model.is_card_dangerous(card):
+                score += self.context_config.danger_card_penalty
+                flags.append("completes_meld")
+
             flag_str = ",".join(flags) if flags else ""
             discard_options.append((card, score, deadwood, flag_str))
 
