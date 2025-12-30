@@ -480,18 +480,19 @@ class ContextAwareAI(BasicAI):
                 flags.append("safe")
 
             # Apply danger penalties (increase score for dangerous discards)
-            if self.opponent_model.is_rank_dangerous(card.rank):
-                score += self.context_config.dangerous_rank_penalty
-                flags.append("dangerous_rank")
-
-            if self.opponent_model.is_suit_dangerous(card.suit):
-                score += self.context_config.dangerous_suit_penalty
-                flags.append("dangerous_suit")
-
-            # Check if this card would complete an inferred meld for opponent
+            # Check specific meld completion first (most precise signal)
             if self.opponent_model.is_card_dangerous(card):
                 score += self.context_config.danger_card_penalty
                 flags.append("completes_meld")
+            else:
+                # Fall back to general rank/suit danger (less precise)
+                if self.opponent_model.is_rank_dangerous(card.rank):
+                    score += self.context_config.dangerous_rank_penalty
+                    flags.append("dangerous_rank")
+
+                if self.opponent_model.is_suit_dangerous(card.suit):
+                    score += self.context_config.dangerous_suit_penalty
+                    flags.append("dangerous_suit")
 
             flag_str = ",".join(flags) if flags else ""
             discard_options.append((card, score, deadwood, flag_str))
