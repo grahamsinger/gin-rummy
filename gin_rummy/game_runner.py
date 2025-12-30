@@ -226,7 +226,14 @@ def execute_ai_turn(
     # Calculate post-discard deadwood for actions record
     deadwood_after = calculate_post_discard_deadwood(current.hand, discard)
 
-    if should_knock and game.can_knock:
+    # Check if can knock based on post-discard deadwood (not current 11-card hand)
+    can_knock_after_discard = deadwood_after <= game.knock_threshold
+
+    if should_knock and can_knock_after_discard:
+        # First discard the card (game.knock expects 10-card hand)
+        current.hand.remove(discard)
+        game.discard_pile.append(discard)
+
         # Callback: knock
         callbacks.on_knock(current, discard, deadwood_after)
 
