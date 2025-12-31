@@ -9,6 +9,7 @@
 [context_aware_ai]
 # Base draw threshold before modifiers are applied.
 # This is the minimum deadwood improvement needed to take from discard pile.
+# Same as BasicAI to start, then modifiers apply.
 base_draw_threshold = 3
 
 # --- Outs Calculation Weights ---
@@ -40,10 +41,12 @@ late_game_threshold = 0.3
 # How much context affects the draw threshold.
 
 # Max reduction to threshold from deck running low (more desperate = lower threshold).
-max_deck_modifier = 2.0
+# Disabled - keep threshold stable.
+max_deck_modifier = 0.0
 
 # Max increase to threshold from having many outs (can wait = higher threshold).
-max_outs_modifier = 2.0
+# Disabled - having outs doesn't mean you should wait.
+max_outs_modifier = 0.0
 
 # --- Score Differential Thresholds ---
 
@@ -56,7 +59,8 @@ leading_conservative_threshold = 30
 # --- Bonus Adjustments ---
 
 # Extra "improvement" points for taking a meld-completing out.
-key_out_bonus = 2
+# This is the key advantage over BasicAI - prioritize cards that complete melds.
+key_out_bonus = 3
 
 # Extra "improvement" points for denying opponent a card they likely want.
 denial_bonus = 0
@@ -68,11 +72,11 @@ safe_rank_discard_bonus = 1
 
 # Penalty for discarding a "dangerous" rank (opponent picked up same rank).
 # Opponent likely building a set - avoid giving them what they want.
-dangerous_rank_penalty = 0
+dangerous_rank_penalty = 2
 
 # Penalty for discarding a "dangerous" suit (opponent picked up same suit).
 # Opponent likely building a run - avoid giving them what they want.
-dangerous_suit_penalty = 0
+dangerous_suit_penalty = 1
 
 # Opponent must want card with this probability to trigger denial bonus.
 denial_probability_threshold = 0.7

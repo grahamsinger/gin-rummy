@@ -24,8 +24,10 @@ The AI uses three specialized neural networks, one for each decision type:
 | Network | Decision | Input Size | Output | Hidden Layers |
 |---------|----------|------------|--------|---------------|
 | DrawNet | Deck vs discard | 198 | 2 Q-values | [128, 64] |
-| DiscardNet | Which card to discard | 250 | 11 Q-values | [256, 128] |
+| DiscardNet | Which card to discard | 250 | 52 Q-values | [256, 128] |
 | KnockNet | Whether to knock | 198 | 2 Q-values | [64, 32] |
+
+Note: DiscardNet outputs 52 Q-values (one per card in deck). During inference, cards not in hand are masked with `-inf` so only valid discards are selected. This allows the network to learn card-specific values rather than position-based values.
 
 ### State Representation (~200 features)
 
@@ -118,6 +120,118 @@ uv run gin-simulate \
   -n 100
 ```
 
+## Hyperparameter Experiments
+
+Use `gin-experiment` for easy A/B testing of different configurations.
+
+### Quick Start
+
+```bash
+# List available presets
+uv run gin-experiment --list-presets
+
+# Use a preset
+uv run gin-experiment --preset fast              # 1000 episodes, quick test
+uv run gin-experiment --preset low-lr            # lr=0.0003
+uv run gin-experiment --preset aggressive-rewards # Higher reward signals
+
+# Custom hyperparameters
+uv run gin-experiment --lr 0.0003 --batch-size 128 --episodes 10000
+
+# Named experiment (for easy comparison)
+uv run gin-experiment --name "test_v2" --lr 0.0003 --gamma 0.95
+```
+
+### Available Presets
+
+| Preset | Description | Key Changes |
+|--------|-------------|-------------|
+| `fast` | Quick test run | 1000 episodes |
+| `standard` | Standard training | 10000 episodes |
+| `thorough` | Thorough training | 25000 episodes |
+| `low-lr` | Lower learning rate | lr=0.0003 |
+| `big-batch` | Larger batch size | batch_size=128 |
+| `slow-explore` | Slower exploration decay | decay=0.9998 |
+| `aggressive-rewards` | Higher reward signals | gin=75, knock=30 |
+
+### All Hyperparameter Options
+
+```bash
+uv run gin-experiment [OPTIONS]
+
+Training Parameters:
+  --episodes, -n N          Number of training episodes
+  --lr, --learning-rate F   Learning rate (default: 0.001)
+  --batch-size N            Batch size (default: 64)
+  --gamma F                 Discount factor (default: 0.99)
+
+Exploration:
+  --exploration-start F     Starting epsilon (default: 1.0)
+  --exploration-end F       Final epsilon (default: 0.05)
+  --exploration-decay F     Decay rate (default: 0.9995)
+
+Network:
+  --target-update-freq N    Target network update interval (default: 100)
+  --buffer-capacity N       Replay buffer size (default: 100000)
+  --min-buffer-size N       Min samples before training (default: 1000)
+
+Rewards:
+  --win-gin-reward F        Reward for gin (default: 50.0)
+  --win-knock-reward F      Reward for knock (default: 20.0)
+  --deadwood-bonus F        Per-point deadwood reduction bonus (default: 0.1)
+  --meld-bonus F            Meld completion bonus (default: 1.0)
+
+Output:
+  --output, -o PATH         Model save path (default: auto-generated)
+  --name NAME               Experiment name
+  --no-tensorboard          Disable TensorBoard logging
+```
+
+### Experiment Output
+
+Each experiment automatically saves:
+- Model checkpoint: `models/experiments/<name>.pt`
+- Config file: `models/experiments/<name>.json` (for reproducibility)
+- TensorBoard logs: `runs/<name>/`
+
+### Suggested Experiments
+
+Start with these to find what works best for your setup:
+
+```bash
+# Experiment 1: Lower learning rate (more stable)
+uv run gin-experiment --name "lr_0003" --lr 0.0003 --episodes 15000
+
+# Experiment 2: Larger batches (smoother gradients)
+uv run gin-experiment --name "batch_128" --batch-size 128 --episodes 15000
+
+# Experiment 3: Slower exploration (more exploitation time)
+uv run gin-experiment --name "slow_decay" --exploration-decay 0.9998 --episodes 20000
+
+# Experiment 4: Higher reward signals
+uv run gin-experiment --preset aggressive-rewards --name "high_rewards"
+
+# Experiment 5: Combined tweaks
+uv run gin-experiment --name "combined" --lr 0.0005 --batch-size 128 --gamma 0.95
+```
+
+### Comparing Results
+
+Use TensorBoard to compare experiments:
+
+```bash
+tensorboard --logdir runs/
+# Open http://localhost:6006
+```
+
+Or compare models directly:
+
+```bash
+# Test each trained model
+uv run gin-simulate --ai1-type learning --ai1-model models/experiments/lr_0003.pt --ai2-type basic -n 200
+uv run gin-simulate --ai1-type learning --ai1-model models/experiments/batch_128.pt --ai2-type basic -n 200
+```
+
 ## Monitoring Training
 
 ### TensorBoard
@@ -146,11 +260,13 @@ Episode 500: win_rate=0.42, avg_points=45.2, exploration=0.779
 
 ## Configuration
 
-Training hyperparameters are in `config/learning.toml`:
+Training hyperparameters are defined in `gin_rummy/learning/trainer.py` (TrainingConfig) and `gin_rummy/learning/rewards.py` (RewardConfig). You can override them via CLI with `gin-experiment`:
 
-```toml
-[learning]
-num_episodes = 10000
+### Default Values
+
+**Training Config** (`trainer.py:42-83`):
+```python
+num_episodes = 10_000
 batch_size = 64
 learning_rate = 0.001
 gamma = 0.99              # Discount factor
@@ -160,14 +276,26 @@ exploration_end = 0.05
 exploration_decay = 0.9995
 
 target_update_freq = 100  # Sync target network every N episodes
-buffer_capacity = 100000
+buffer_capacity = 100_000
 min_buffer_size = 1000    # Start training after N experiences
+```
 
-[learning.rewards]
+**Reward Config** (`rewards.py:16-44`):
+```python
 win_by_gin = 50.0
 win_by_knock = 20.0
+win_by_undercut = 30.0
 deadwood_reduction_bonus = 0.1
 meld_completion_bonus = 1.0
+discard_kept_bonus = 0.5
+discard_wasted_penalty = -1.0
+```
+
+**Network Architecture** (`models.py`):
+```python
+DrawNet:    hidden_sizes = [128, 64]
+DiscardNet: hidden_sizes = [256, 128]
+KnockNet:   hidden_sizes = [64, 32]
 ```
 
 ## Model Files

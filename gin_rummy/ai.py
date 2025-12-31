@@ -402,9 +402,9 @@ class ContextAwareAI(BasicAI):
                     best_new_deadwood = analysis.deadwood_value
             improvement = current_deadwood - best_new_deadwood
 
-        # Key out bonus: meld-completing cards get bonus
+        # Key out bonus: meld-completing cards get bonus (only if they also help)
         is_key_out = discard_top in outs_analysis.live_meld_completing_cards
-        if is_key_out:
+        if is_key_out and improvement > 0:
             improvement += self.context_config.key_out_bonus
             logger.debug(
                 "Key out bonus: +%d for meld-completing card %s",

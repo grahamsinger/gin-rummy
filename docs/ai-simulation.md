@@ -42,6 +42,142 @@ uv run gin-simulate -vv     # DEBUG: shows all options considered
 | `-s, --seed` | None | Random seed for reproducibility |
 | `-v, --verbose` | 0 | Increase verbosity (-v for INFO, -vv for DEBUG) |
 | `--max-rounds` | 50 | Maximum rounds per game (safety limit) |
+| `--ai1-type` | context | AI type for player 1 (basic, context, learning, montecarlo) |
+| `--ai2-type` | basic | AI type for player 2 |
+| `--mc-sims` | 100 | Number of simulations for Monte Carlo AI |
+
+## Available AI Types
+
+| Type | Class | Description |
+|------|-------|-------------|
+| `basic` | `BasicAI` | Simple heuristic-based AI |
+| `context` | `ContextAwareAI` | Tracks opponent patterns, dynamic thresholds |
+| `learning` | `LearningAI` | Neural network trained via DQN (requires model) |
+| `statistical` | `StatisticalAI` | Learns from experience over games |
+
+```bash
+# Compare different AI types
+uv run gin-simulate --ai1-type statistical --ai2-type basic -n 100
+uv run gin-simulate --ai1-type context --ai2-type basic -n 100
+```
+
+---
+
+## Statistical AI
+
+The `StatisticalAI` learns from experience by tracking outcomes of its decisions over many games.
+
+### How It Works
+
+After each round, the AI records what decisions it made and whether it won or lost. Over time, it builds up statistics about which actions lead to wins.
+
+```
+After each round:
+    For each decision made this round:
+        Update win rate statistics for that action
+
+During decisions:
+    If sufficient data exists (20+ samples):
+        Use historical win rates to guide choice
+    Else:
+        Fall back to BasicAI logic
+```
+
+### What It Tracks
+
+**1. Card Discard Statistics** (52 entries, one per card):
+```json
+{
+  "card_index": {
+    "times": 34,      // times this card was discarded
+    "wins": 11,       // rounds won after discarding it
+    "points": -118    // net points from those rounds
+  }
+}
+```
+- Cards with high win rates when discarded are preferred
+- Cards with low win rates are kept longer
+
+**2. Draw Decision Statistics** (by deadwood bucket):
+```json
+{
+  "21-30": {
+    "deck_draws": 45,
+    "deck_wins": 18,
+    "discard_draws": 23,
+    "discard_wins": 12
+  }
+}
+```
+- Buckets: 0-10, 11-20, 21-30, 31+
+- Learns when drawing from discard is beneficial at different deadwood levels
+
+**3. Knock Decision Statistics** (by deadwood value 0-10):
+```json
+{
+  "5": {
+    "knocked": 20,
+    "knock_wins": 14,
+    "continued": 15,
+    "continue_wins": 8
+  }
+}
+```
+- Learns optimal knock threshold based on outcomes
+
+### Persistence
+
+Statistics are saved to a JSON file after each simulation run:
+
+```bash
+# Default location
+models/statistical_ai.json
+
+# Custom location
+uv run gin-simulate --ai1-type statistical --stats-file my_stats.json -n 100
+```
+
+The file is human-readable and can be inspected to see what the AI has learned.
+
+### Usage
+
+```bash
+# Train with 100 games (starts from scratch or continues learning)
+uv run gin-simulate --ai1-type statistical --ai2-type basic -n 100
+
+# Train more (stats accumulate)
+uv run gin-simulate --ai1-type statistical --ai2-type basic -n 500
+
+# Check stats file
+cat models/statistical_ai.json | head -50
+```
+
+### Learning Curve
+
+The AI improves gradually as it accumulates more data:
+
+| Games Played | Samples | Expected Behavior |
+|--------------|---------|-------------------|
+| 10 | ~900 | Mostly BasicAI fallback |
+| 100 | ~11,000 | Starting to use learned stats |
+| 500 | ~55,000 | Most decisions use statistics |
+| 1000+ | 100,000+ | Refined strategy based on experience |
+
+### Why Statistical Learning Works
+
+- **Fast**: No simulation overhead, just table lookups
+- **Improves over time**: Gets smarter with more games
+- **Persistent**: Learning carries across sessions
+- **Interpretable**: Can inspect the JSON to see what it learned
+- **Adapts**: If you change opponents, it learns new patterns
+
+### Limitations
+
+- **Slow to learn**: Needs many games to build reliable statistics
+- **No generalization**: Learns specific cards, not abstract concepts
+- **Context-limited**: Doesn't consider game state combinations (e.g., score, deck position)
+
+---
 
 ## Example Output
 
