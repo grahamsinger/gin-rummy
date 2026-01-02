@@ -215,8 +215,10 @@ class OutsCalculator:
         )
 
         # Find partial outs (pairs, run extensions) - weighted by game phase
+        # Exclude cards already counted as meld-completing to avoid double-counting
+        meld_completing_cards = {o.card for o in analysis.meld_completing_outs}
         analysis.partial_outs = self._find_partial_outs(
-            hand_cards, dead_cards, deck_position_pct
+            hand_cards, dead_cards, deck_position_pct, meld_completing_cards
         )
 
         return analysis
@@ -277,13 +279,21 @@ class OutsCalculator:
         hand_cards: set[Card],
         dead_cards: set[Card],
         deck_position_pct: float,
+        exclude_cards: set[Card] | None = None,
     ) -> list[OutInfo]:
         """Find cards that build toward melds (pairs, run extensions).
 
         These are less valuable than meld-completing outs, especially
         late in the game.
+
+        Args:
+            hand_cards: Cards in hand.
+            dead_cards: Cards known to be unavailable.
+            deck_position_pct: Game progress (0.0 = early, 1.0 = late).
+            exclude_cards: Cards to skip (e.g., already counted as meld-completing).
         """
         outs: list[OutInfo] = []
+        exclude = exclude_cards or set()
 
         # Calculate game phase multiplier
         if deck_position_pct < (1 - self.early_game_threshold):
@@ -304,7 +314,7 @@ class OutsCalculator:
                 # We have a pair - find the other two cards of this rank
                 for suit in Suit:
                     card = Card(rank, suit)
-                    if card not in hand_cards:
+                    if card not in hand_cards and card not in exclude:
                         is_dead = card in dead_cards
                         weight = self.set_building_weight * phase_mult
                         outs.append(
@@ -334,7 +344,7 @@ class OutsCalculator:
                     if c1.rank.value > 1:  # Not an ace
                         lower_rank = Rank(c1.rank.value - 1)
                         card = Card(lower_rank, suit)
-                        if card not in hand_cards:
+                        if card not in hand_cards and card not in exclude:
                             is_dead = card in dead_cards
                             weight = self.run_extending_weight * phase_mult
                             outs.append(
@@ -351,7 +361,7 @@ class OutsCalculator:
                     if c2.rank.value < 13:  # Not a king
                         upper_rank = Rank(c2.rank.value + 1)
                         card = Card(upper_rank, suit)
-                        if card not in hand_cards:
+                        if card not in hand_cards and card not in exclude:
                             is_dead = card in dead_cards
                             weight = self.run_extending_weight * phase_mult
                             outs.append(
@@ -368,7 +378,7 @@ class OutsCalculator:
                     # Gap of 1 - middle card completes run
                     middle_rank = Rank(c1.rank.value + 1)
                     card = Card(middle_rank, suit)
-                    if card not in hand_cards:
+                    if card not in hand_cards and card not in exclude:
                         is_dead = card in dead_cards
                         # This is actually meld-completing, but caught here as partial
                         # The meld-completing check should find it too

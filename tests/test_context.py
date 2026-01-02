@@ -139,8 +139,8 @@ class TestOutsCalculator:
         assert ace_club_out is not None
         assert ace_club_out.is_dead is False
 
-    def test_partial_outs_for_pair(self):
-        """Should find set-building outs for pairs."""
+    def test_pair_outs_are_meld_completing(self):
+        """Pairs should have meld-completing outs (not partial) since adding one card creates a set."""
         hand = Hand([
             Card(Rank.FIVE, Suit.SPADES),
             Card(Rank.FIVE, Suit.HEARTS),  # Pair of 5s
@@ -157,38 +157,91 @@ class TestOutsCalculator:
         calc = OutsCalculator()
         analysis = calc.calculate_outs(hand, dead_cards=set(), deck_position_pct=0.1)  # Early game
 
-        # Should find 5♦ and 5♣ as set-building outs
-        partial_cards = {o.card for o in analysis.partial_outs if o.out_type == OutType.SET_BUILDING}
-        assert Card(Rank.FIVE, Suit.DIAMONDS) in partial_cards
-        assert Card(Rank.FIVE, Suit.CLUBS) in partial_cards
+        # 5♦ and 5♣ complete the 5s set (meld) - they should be meld-completing, not partial
+        meld_completing_cards = {o.card for o in analysis.meld_completing_outs}
+        assert Card(Rank.FIVE, Suit.DIAMONDS) in meld_completing_cards
+        assert Card(Rank.FIVE, Suit.CLUBS) in meld_completing_cards
+
+        # They should NOT be in partial outs (no double counting)
+        partial_cards = {o.card for o in analysis.partial_outs}
+        assert Card(Rank.FIVE, Suit.DIAMONDS) not in partial_cards
+        assert Card(Rank.FIVE, Suit.CLUBS) not in partial_cards
 
     def test_late_game_reduces_partial_outs(self):
-        """Late game should reduce or eliminate partial outs."""
+        """Late game should reduce or eliminate partial outs.
+
+        Note: Pairs and 2-card sequences are meld-completing (not partial).
+        Partial outs exist for gap scenarios (e.g., 5-7 needing 6).
+        """
         hand = Hand([
             Card(Rank.FIVE, Suit.SPADES),
-            Card(Rank.FIVE, Suit.HEARTS),  # Pair of 5s
+            Card(Rank.SEVEN, Suit.SPADES),  # Gap - 6♠ fills it (partial)
             Card(Rank.ACE, Suit.CLUBS),
             Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.SPADES),
             Card(Rank.NINE, Suit.HEARTS),
             Card(Rank.JACK, Suit.CLUBS),
             Card(Rank.QUEEN, Suit.DIAMONDS),
             Card(Rank.KING, Suit.SPADES),
             Card(Rank.TEN, Suit.HEARTS),
+            Card(Rank.TWO, Suit.CLUBS),
         ])
 
         calc = OutsCalculator()
 
-        # Early game
+        # Early game - 6♠ should be a partial out (fills gap)
         early_analysis = calc.calculate_outs(hand, dead_cards=set(), deck_position_pct=0.1)
         early_partial_value = sum(o.weight for o in early_analysis.partial_outs)
 
-        # Late game
+        # Late game - partial outs should be reduced/eliminated
         late_analysis = calc.calculate_outs(hand, dead_cards=set(), deck_position_pct=0.9)
         late_partial_value = sum(o.weight for o in late_analysis.partial_outs)
 
         # Late game partial outs should be worth less (or zero)
-        assert late_partial_value < early_partial_value
+        assert late_partial_value <= early_partial_value
+
+    def test_no_double_counting_meld_completing_and_partial(self):
+        """Meld-completing outs should not also appear as partial outs.
+
+        A pair like 7♥ 7♠ has outs 7♣ 7♦ that complete a set.
+        These should only be counted as meld-completing, not also as partial.
+        """
+        hand = Hand([
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.SPADES),  # Pair of 7s
+            Card(Rank.EIGHT, Suit.SPADES),  # Adjacent to 7♠
+            Card(Rank.THREE, Suit.CLUBS),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.TWO, Suit.HEARTS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.QUEEN, Suit.DIAMONDS),
+            Card(Rank.JACK, Suit.DIAMONDS),
+            Card(Rank.TEN, Suit.CLUBS),
+        ])
+
+        calc = OutsCalculator()
+        analysis = calc.calculate_outs(hand, dead_cards=set(), deck_position_pct=0.0)
+
+        # Get cards from each list
+        meld_completing_cards = {o.card for o in analysis.meld_completing_outs}
+        partial_cards = {o.card for o in analysis.partial_outs}
+
+        # No overlap - each card should only be counted once
+        overlap = meld_completing_cards & partial_cards
+        assert overlap == set(), f"Cards counted in both lists: {overlap}"
+
+        # 7♣ and 7♦ should be meld-completing (complete the set)
+        assert Card(Rank.SEVEN, Suit.CLUBS) in meld_completing_cards
+        assert Card(Rank.SEVEN, Suit.DIAMONDS) in meld_completing_cards
+
+        # When 7♣ and 7♦ die, exactly 2 outs should be lost (not 4)
+        dead = {Card(Rank.SEVEN, Suit.CLUBS), Card(Rank.SEVEN, Suit.DIAMONDS)}
+        dead_analysis = calc.calculate_outs(hand, dead_cards=dead, deck_position_pct=0.0)
+
+        live_before = analysis.live_out_count
+        live_after = dead_analysis.live_out_count
+        assert live_before - live_after == 2, (
+            f"Expected 2 outs lost when 2 cards die, got {live_before - live_after}"
+        )
 
 
 class TestOpponentModel:

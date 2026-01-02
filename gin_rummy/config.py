@@ -97,6 +97,11 @@ class ContextAwareAIConfig:
     danger_card_penalty: int = 3  # Penalty for cards that complete opponent's inferred melds
     denial_probability_threshold: float = 0.7  # Opponent want probability to trigger
 
+    # Live outs consideration for discards
+    # Weight given to live outs when choosing discards (higher = prefer keeping cards with live outs)
+    # This acts as a tiebreaker when deadwood is similar - prefer keeping cards with live meld potential
+    live_outs_discard_weight: float = 0.1  # Points per live out count
+
     # Opponent modeling
     track_opponent_patterns: bool = True
 

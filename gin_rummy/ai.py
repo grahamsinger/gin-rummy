@@ -442,6 +442,7 @@ class ContextAwareAI(BasicAI):
         - Bonus for discarding "safe" ranks (opponent discarded same rank)
         - Penalty for discarding "dangerous" ranks (opponent picked up same rank)
         - Penalty for discarding "dangerous" suits (opponent picked up same suit)
+        - Consideration of live outs (prefer keeping cards with live potential melds)
 
         Args:
             hand: Current hand (should have 11 cards after drawing).
@@ -454,6 +455,11 @@ class ContextAwareAI(BasicAI):
         best_score = float('inf')  # Lower is better
         discard_options: list[tuple[Card, float, int, str]] = []
 
+        # Get context for dead cards calculation
+        ctx = self._current_context
+        dead_cards = ctx.dead_cards if ctx else set()
+        deck_position = ctx.deck_position_pct if ctx else 0.0
+
         for i, card in enumerate(cards):
             remaining = cards[:i] + cards[i + 1 :]
             analysis = analyze_hand(remaining)
@@ -462,6 +468,24 @@ class ContextAwareAI(BasicAI):
             deadwood = analysis.deadwood_value
             score = float(deadwood)
             flags: list[str] = []
+
+            # Calculate live outs for the remaining hand
+            # Prefer discards that leave more live outs (cards with meld potential)
+            if self.context_config.live_outs_discard_weight > 0:
+                remaining_hand = Hand(remaining)
+                outs_analysis = self.outs_calculator.calculate_outs(
+                    remaining_hand, dead_cards, deck_position
+                )
+                # Lower score is better, so subtract based on live out count
+                # More live outs = lower score = better to keep that hand
+                # Use count (not weighted_value) for more predictable behavior
+                live_outs_bonus = (
+                    outs_analysis.live_out_count
+                    * self.context_config.live_outs_discard_weight
+                )
+                score -= live_outs_bonus
+                if outs_analysis.live_out_count > 0:
+                    flags.append(f"outs={outs_analysis.live_out_count}")
 
             # Apply safety bonus (reduce score for safe discards)
             if self.opponent_model.is_rank_safe(card.rank):
