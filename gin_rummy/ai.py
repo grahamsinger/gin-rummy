@@ -402,16 +402,6 @@ class ContextAwareAI(BasicAI):
                     best_new_deadwood = analysis.deadwood_value
             improvement = current_deadwood - best_new_deadwood
 
-        # Key out bonus: meld-completing cards get bonus (only if they also help)
-        is_key_out = discard_top in outs_analysis.live_meld_completing_cards
-        if is_key_out and improvement > 0:
-            improvement += self.context_config.key_out_bonus
-            logger.debug(
-                "Key out bonus: +%d for meld-completing card %s",
-                self.context_config.key_out_bonus,
-                discard_top,
-            )
-
         # Denial bonus: take if opponent wants it badly
         opponent_want_prob = self.opponent_model.predict_will_take(discard_top)
         if opponent_want_prob >= self.context_config.denial_probability_threshold:
@@ -426,11 +416,10 @@ class ContextAwareAI(BasicAI):
         if improvement >= threshold:
             logger.info(
                 "Draw decision: DISCARD - taking %s (improvement=%.1f >= threshold=%d, "
-                "key_out=%s, outs=%d live)",
+                "outs=%d live)",
                 discard_top,
                 improvement,
                 threshold,
-                is_key_out,
                 outs_analysis.live_out_count,
             )
             return DrawChoice.DISCARD

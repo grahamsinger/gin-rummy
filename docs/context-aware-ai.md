@@ -188,18 +188,15 @@ trailing_aggressive_threshold = 40
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `key_out_bonus` | `int` | `3` | Added to improvement value for meld-completing cards |
 | `denial_bonus` | `int` | `2` | Added when opponent likely wants the card |
 | `denial_probability_threshold` | `float` | `0.7` | Opponent want probability to trigger denial bonus |
 
 **Tuning:**
-- `key_out_bonus`: **Likely needs reduction**. Try `1` or `2`. Current value of `3` means AI will take a meld-completing card even if it only improves hand by -2 (net +1).
 - `denial_bonus`: **Likely needs reduction**. Try `1` or `0`. Current value may cause AI to take cards just to deny opponent.
 - `denial_probability_threshold`: Increase to `0.8` or `0.9` to make denial less frequent.
 
 ```toml
 # More conservative bonuses (recommended for tuning)
-key_out_bonus = 1
 denial_bonus = 1
 denial_probability_threshold = 0.8
 ```
@@ -245,7 +242,6 @@ The AI is taking from the discard pile much more often (54% vs 18%), but those c
 base_draw_threshold = 2
 
 # Reduce bonuses significantly
-key_out_bonus = 1
 denial_bonus = 1
 
 # Make denial harder to trigger

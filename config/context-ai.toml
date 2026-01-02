@@ -58,10 +58,6 @@ leading_conservative_threshold = 30
 
 # --- Bonus Adjustments ---
 
-# Extra "improvement" points for taking a meld-completing out.
-# This is the key advantage over BasicAI - prioritize cards that complete melds.
-key_out_bonus = 3
-
 # Extra "improvement" points for denying opponent a card they likely want.
 denial_bonus = 0
 

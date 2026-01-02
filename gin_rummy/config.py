@@ -90,7 +90,6 @@ class ContextAwareAIConfig:
     leading_conservative_threshold: int = 30  # Points ahead to get conservative
 
     # Bonus adjustments
-    key_out_bonus: int = 3  # Bonus for meld-completing outs
     denial_bonus: int = 2  # Bonus for denying opponent
     safe_rank_discard_bonus: int = 1  # Bonus for discarding safe ranks
     dangerous_rank_penalty: int = 2  # Penalty for discarding ranks opponent picked up

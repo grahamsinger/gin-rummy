@@ -155,9 +155,6 @@ trailing_aggressive_threshold = 50
 leading_conservative_threshold = 30
 
 # Bonus adjustments for special situations.
-# Extra "improvement" points for taking a meld-completing out.
-key_out_bonus = 3
-
 # Extra "improvement" points for denying opponent a card they likely want.
 denial_bonus = 2
 

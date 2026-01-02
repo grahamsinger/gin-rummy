@@ -20,8 +20,8 @@ uv run python -m gin_rummy.simulator -n 200 -s 42 \
 
 | File | Description |
 |------|-------------|
-| `aggressive-draw.toml` | Low draw threshold (1), high key out bonus (3) |
-| `conservative-draw.toml` | High draw threshold (5), low key out bonus (1) |
+| `aggressive-draw.toml` | Low draw threshold (1) - take cards more readily |
+| `conservative-draw.toml` | High draw threshold (5) - be more selective |
 | `aggressive-knock.toml` | Knock whenever possible (deadwood <= 10) |
 | `conservative-knock.toml` | Only knock at very low deadwood (<= 3) |
 | `no-bonuses.toml` | Disable all bonuses, pure deadwood minimization |
