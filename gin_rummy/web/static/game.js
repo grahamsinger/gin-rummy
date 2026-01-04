@@ -90,38 +90,57 @@ function sortCards(cards) {
         });
     } else if (sortMode === 'rank') {
         // Run-aware sorting: keep consecutive same-suit cards together
-        // Build a map of suit -> ranks for quick lookup
+        // Group cards by rank
+        const rankGroups = {};
+        cards.forEach(card => {
+            const rank = RANK_ORDER[card.rank];
+            if (!rankGroups[rank]) rankGroups[rank] = [];
+            rankGroups[rank].push(card);
+        });
+
+        // Build a map of suit -> ranks for looking ahead
         const suitRanks = {};
         cards.forEach(card => {
-            if (!suitRanks[card.suit]) suitRanks[card.suit] = new Set();
-            suitRanks[card.suit].add(RANK_ORDER[card.rank]);
+            const suit = card.suit;
+            if (!suitRanks[suit]) suitRanks[suit] = new Set();
+            suitRanks[suit].add(RANK_ORDER[card.rank]);
         });
 
-        // Calculate sequence score: how many adjacent same-suit cards this card has
-        const getSequenceScore = (card) => {
-            const rank = RANK_ORDER[card.rank];
-            const sameSuitRanks = suitRanks[card.suit];
-            let score = 0;
+        // Process ranks in order, placing cards to keep sequences together
+        const sortedRanks = Object.keys(rankGroups).map(Number).sort((a, b) => a - b);
+        const result = [];
+        const placedSuits = new Map(); // Track last rank placed for each suit
 
-            // Check for adjacent cards in same suit (forming potential runs)
-            if (sameSuitRanks.has(rank - 1)) score += 10; // has card below
-            if (sameSuitRanks.has(rank + 1)) score += 10; // has card above
+        sortedRanks.forEach(rank => {
+            const cardsInRank = rankGroups[rank];
 
-            return score;
-        };
+            // Sort cards to keep same-suit sequences together
+            cardsInRank.sort((a, b) => {
+                const aExtendsBackward = placedSuits.has(a.suit) && placedSuits.get(a.suit) === rank - 1;
+                const bExtendsBackward = placedSuits.has(b.suit) && placedSuits.get(b.suit) === rank - 1;
+                const aExtendsForward = suitRanks[a.suit]?.has(rank + 1);
+                const bExtendsForward = suitRanks[b.suit]?.has(rank + 1);
 
-        sorted.sort((a, b) => {
-            // Primary: sort by rank
-            const rankDiff = RANK_ORDER[a.rank] - RANK_ORDER[b.rank];
-            if (rankDiff !== 0) return rankDiff;
+                // Priority 1: Cards that extend existing sequences (backward) come first
+                if (aExtendsBackward && !bExtendsBackward) return -1;
+                if (!aExtendsBackward && bExtendsBackward) return 1;
 
-            // Secondary: prioritize cards that are part of same-suit sequences
-            const scoreDiff = getSequenceScore(b) - getSequenceScore(a);
-            if (scoreDiff !== 0) return scoreDiff;
+                // Priority 2: Cards that will continue into future sequences come last (next to their continuations)
+                if (aExtendsForward && !bExtendsForward) return 1;
+                if (!aExtendsForward && bExtendsForward) return -1;
 
-            // Tertiary: suit order
-            return SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
+                // Priority 3: If tied, use suit order
+                return SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
+            });
+
+            // Add cards and update tracking
+            cardsInRank.forEach(card => {
+                result.push(card);
+                placedSuits.set(card.suit, rank);
+            });
         });
+
+        return result;
     } else if (sortMode === 'value') {
         // Sort by deadwood value (highest first), then by suit
         sorted.sort((a, b) => {
