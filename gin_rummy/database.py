@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 def card_to_db_str(card: Card) -> str:
     """Serialize a Card to database format (ASCII, e.g., 'AS', '10H')."""
-    from gin_rummy.card import Rank, Suit
+    from gin_rummy.models.card import Rank, Suit
 
     rank_map = {
         Rank.ACE: "A", Rank.TWO: "2", Rank.THREE: "3", Rank.FOUR: "4",

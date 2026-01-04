@@ -130,6 +130,18 @@ Undercuts made                             98            102
 
 For custom AI development, programmatic usage, and detailed metrics, see [docs/ai-simulation.md](docs/ai-simulation.md).
 
+## Web UI
+
+Play in your browser with a visual interface:
+
+```bash
+uv run uvicorn gin_rummy.web.app:app --reload
+```
+
+Then open http://127.0.0.1:8000
+
+Click cards to draw/discard, no typing required.
+
 ## Type Checking
 
 ```bash

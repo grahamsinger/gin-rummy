@@ -89,10 +89,37 @@ function sortCards(cards) {
             return RANK_ORDER[a.rank] - RANK_ORDER[b.rank];
         });
     } else if (sortMode === 'rank') {
-        // Sort by rank first, then by suit within rank
+        // Run-aware sorting: keep consecutive same-suit cards together
+        // Build a map of suit -> ranks for quick lookup
+        const suitRanks = {};
+        cards.forEach(card => {
+            if (!suitRanks[card.suit]) suitRanks[card.suit] = new Set();
+            suitRanks[card.suit].add(RANK_ORDER[card.rank]);
+        });
+
+        // Calculate sequence score: how many adjacent same-suit cards this card has
+        const getSequenceScore = (card) => {
+            const rank = RANK_ORDER[card.rank];
+            const sameSuitRanks = suitRanks[card.suit];
+            let score = 0;
+
+            // Check for adjacent cards in same suit (forming potential runs)
+            if (sameSuitRanks.has(rank - 1)) score += 10; // has card below
+            if (sameSuitRanks.has(rank + 1)) score += 10; // has card above
+
+            return score;
+        };
+
         sorted.sort((a, b) => {
+            // Primary: sort by rank
             const rankDiff = RANK_ORDER[a.rank] - RANK_ORDER[b.rank];
             if (rankDiff !== 0) return rankDiff;
+
+            // Secondary: prioritize cards that are part of same-suit sequences
+            const scoreDiff = getSequenceScore(b) - getSequenceScore(a);
+            if (scoreDiff !== 0) return scoreDiff;
+
+            // Tertiary: suit order
             return SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
         });
     } else if (sortMode === 'value') {
@@ -393,6 +420,12 @@ async function discardCard(cardId, knock = null) {
     if (state) {
         // Check if we need to ask about knocking
         if (state.needs_knock_decision) {
+            // If gin (0 deadwood), automatically knock without confirmation
+            if (state.post_discard_deadwood === 0) {
+                await discardCard(state.discard_card, true);
+                return;
+            }
+
             pendingDiscardCard = state.discard_card;
             elements.knockModalText.textContent =
                 `Discarding leaves you with ${state.post_discard_deadwood} deadwood. Knock?`;
