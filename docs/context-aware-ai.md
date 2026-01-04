@@ -31,7 +31,7 @@ The `GameContext` dataclass is a snapshot of the game state passed to the AI eac
 | `discard_history` | `list[Card]` | All cards discarded this hand (oldest first) |
 | `opponent_pickups` | `list[Card]` | Cards opponent has taken from discard pile |
 | `my_pickups` | `list[Card]` | Cards I have taken from discard pile |
-| `dead_cards` | `set[Card]` | All known unavailable cards (= `discard_history` as a set) |
+| `dead_cards` | `set[Card]` | Buried discards (cards in discard pile that can't be drawn) |
 | `my_score` | `int` | My current game score |
 | `opponent_score` | `int` | Opponent's current game score |
 | `target_score` | `int` | Points needed to win (default: 100) |
@@ -62,8 +62,9 @@ An "out" is a card that would help your hand. There are two types:
 - Weighted higher in early game, nearly worthless in late game
 
 ### Dead Cards
-Cards that are no longer available:
-- Everything in the discard history
+Cards in the discard pile that are buried (can't be drawn):
+- Does NOT include the top of the discard pile (that's available to draw)
+- Does NOT include opponent's known cards (tracked separately)
 - Used to mark outs as "dead" (unavailable)
 
 ### Opponent Model

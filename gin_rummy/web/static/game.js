@@ -1,0 +1,789 @@
+// Gin Rummy Web UI
+
+const API_BASE = '/api/game';
+
+// Game state
+let gameState = null;
+let pendingDiscardCard = null;  // Card waiting for knock confirmation
+let pendingMeldDiscardCard = null;  // Card waiting for meld confirmation
+let sortMode = localStorage.getItem('sortMode') || 'value';  // 'suit', 'rank', or 'value'
+let drawnCardId = null;  // ID of the card just drawn (for highlighting)
+
+// DOM elements
+const elements = {
+    playerHand: document.getElementById('player-hand'),
+    opponentHand: document.getElementById('opponent-hand'),
+    opponentCardCount: document.getElementById('opponent-card-count'),
+    discardTop: document.getElementById('discard-top'),
+    discardPile: document.getElementById('discard-pile'),
+    deck: document.getElementById('deck'),
+    deckCount: document.getElementById('deck-count'),
+    deadwood: document.getElementById('deadwood'),
+    playerScore: document.getElementById('player-score'),
+    opponentScore: document.getElementById('opponent-score'),
+    knockBtn: document.getElementById('knock-btn'),
+    statusMessage: document.getElementById('status-message'),
+    newGameBtn: document.getElementById('new-game-btn'),
+    assistMode: document.getElementById('assist-mode'),
+    assistPanel: document.getElementById('assist-panel'),
+    deadCards: document.getElementById('dead-cards'),
+    opponentKnown: document.getElementById('opponent-known'),
+    roundModal: document.getElementById('round-modal'),
+    roundResultTitle: document.getElementById('round-result-title'),
+    roundResultDetails: document.getElementById('round-result-details'),
+    modalPlayerHand: document.getElementById('modal-player-hand'),
+    modalOpponentHand: document.getElementById('modal-opponent-hand'),
+    nextRoundBtn: document.getElementById('next-round-btn'),
+    knockModal: document.getElementById('knock-modal'),
+    knockModalText: document.getElementById('knock-modal-text'),
+    knockYesBtn: document.getElementById('knock-yes-btn'),
+    knockNoBtn: document.getElementById('knock-no-btn'),
+    meldConfirmModal: document.getElementById('meld-confirm-modal'),
+    meldConfirmText: document.getElementById('meld-confirm-text'),
+    meldConfirmYesBtn: document.getElementById('meld-confirm-yes-btn'),
+    meldConfirmNoBtn: document.getElementById('meld-confirm-no-btn'),
+    sortSuitBtn: document.getElementById('sort-suit'),
+    sortRankBtn: document.getElementById('sort-rank'),
+    sortValueBtn: document.getElementById('sort-value'),
+    cardTracker: document.getElementById('card-tracker'),
+};
+
+// Suit symbols
+const SUIT_SYMBOLS = {
+    spades: '♠',
+    hearts: '♥',
+    diamonds: '♦',
+    clubs: '♣',
+};
+
+// Suit order for sorting
+const SUIT_ORDER = {
+    spades: 0,
+    hearts: 1,
+    diamonds: 2,
+    clubs: 3,
+};
+
+// Rank order for sorting
+const RANK_ORDER = {
+    'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
+    '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13,
+};
+
+// Card deadwood value
+function getCardValue(card) {
+    if (card.rank === 'A') return 1;
+    if (['J', 'Q', 'K'].includes(card.rank)) return 10;
+    return parseInt(card.rank);
+}
+
+// Sort cards based on current sort mode
+function sortCards(cards) {
+    const sorted = [...cards];
+
+    if (sortMode === 'suit') {
+        // Sort by suit first, then by rank within suit
+        sorted.sort((a, b) => {
+            const suitDiff = SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
+            if (suitDiff !== 0) return suitDiff;
+            return RANK_ORDER[a.rank] - RANK_ORDER[b.rank];
+        });
+    } else if (sortMode === 'rank') {
+        // Sort by rank first, then by suit within rank
+        sorted.sort((a, b) => {
+            const rankDiff = RANK_ORDER[a.rank] - RANK_ORDER[b.rank];
+            if (rankDiff !== 0) return rankDiff;
+            return SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
+        });
+    } else if (sortMode === 'value') {
+        // Sort by deadwood value (highest first), then by suit
+        sorted.sort((a, b) => {
+            const valueDiff = getCardValue(b) - getCardValue(a);
+            if (valueDiff !== 0) return valueDiff;
+            return SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
+        });
+    }
+
+    return sorted;
+}
+
+// Create a card element
+function createCardElement(card, faceDown = false) {
+    const div = document.createElement('div');
+
+    if (faceDown) {
+        div.className = 'card card-back';
+        return div;
+    }
+
+    if (!card) {
+        div.className = 'card empty';
+        return div;
+    }
+
+    div.className = `card ${card.suit}`;
+    div.dataset.cardId = card.id;
+
+    const rank = document.createElement('span');
+    rank.className = 'rank';
+    rank.textContent = card.rank;
+
+    const suit = document.createElement('span');
+    suit.className = 'suit';
+    suit.textContent = SUIT_SYMBOLS[card.suit];
+
+    div.appendChild(rank);
+    div.appendChild(suit);
+
+    return div;
+}
+
+// Render opponent's hand (face down)
+function renderOpponentHand(count) {
+    elements.opponentHand.innerHTML = '';
+    elements.opponentCardCount.textContent = count;
+
+    for (let i = 0; i < count; i++) {
+        elements.opponentHand.appendChild(createCardElement(null, true));
+    }
+}
+
+// Render player's hand with melds grouped
+function renderPlayerHand(hand, melds, phase) {
+    elements.playerHand.innerHTML = '';
+
+    // Build a set of melded card IDs
+    const meldedCards = new Set();
+    const cardToMeld = new Map();
+
+    if (melds) {
+        melds.forEach((meld, meldIdx) => {
+            meld.cards.forEach(cardId => {
+                meldedCards.add(cardId);
+                cardToMeld.set(cardId, meldIdx);
+            });
+        });
+    }
+
+    // Group cards by meld
+    const meldGroups = new Map();
+    const ungroupedCards = [];
+
+    hand.forEach(card => {
+        if (cardToMeld.has(card.id)) {
+            const meldIdx = cardToMeld.get(card.id);
+            if (!meldGroups.has(meldIdx)) {
+                meldGroups.set(meldIdx, []);
+            }
+            meldGroups.get(meldIdx).push(card);
+        } else {
+            ungroupedCards.push(card);
+        }
+    });
+
+    // Render meld groups first (sort cards within each meld by rank)
+    meldGroups.forEach((cards, meldIdx) => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'meld-group';
+
+        // Sort cards by rank within meld (for runs to be in order)
+        const sortedCards = [...cards].sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+
+        sortedCards.forEach(card => {
+            const cardEl = createCardElement(card);
+            cardEl.classList.add('melded');
+
+            // Highlight the card that was just drawn (even if it's in a meld)
+            if (drawnCardId && card.id === drawnCardId) {
+                cardEl.classList.add('drawn-card');
+            }
+
+            if (phase === 'discarding') {
+                cardEl.classList.add('clickable');
+                cardEl.addEventListener('click', () => handleCardClick(card));
+            }
+            groupDiv.appendChild(cardEl);
+        });
+
+        elements.playerHand.appendChild(groupDiv);
+    });
+
+    // Sort and render ungrouped (deadwood) cards
+    const sortedDeadwood = sortCards(ungroupedCards);
+    sortedDeadwood.forEach(card => {
+        const cardEl = createCardElement(card);
+
+        // Highlight the card that was just drawn
+        if (drawnCardId && card.id === drawnCardId) {
+            cardEl.classList.add('drawn-card');
+        }
+
+        if (phase === 'discarding') {
+            cardEl.classList.add('clickable');
+            cardEl.addEventListener('click', () => handleCardClick(card));
+        }
+        elements.playerHand.appendChild(cardEl);
+    });
+}
+
+// Render discard pile top card
+function renderDiscardTop(card) {
+    elements.discardTop.innerHTML = '';
+
+    if (card) {
+        const cardEl = createCardElement(card);
+        elements.discardTop.className = `card ${card.suit}`;
+        elements.discardTop.appendChild(cardEl.querySelector('.rank').cloneNode(true));
+        elements.discardTop.appendChild(cardEl.querySelector('.suit').cloneNode(true));
+    } else {
+        elements.discardTop.className = 'card empty';
+    }
+}
+
+// Update clickable states based on phase
+function updateClickableStates(phase, yourTurn) {
+    // Reset all clickable states
+    elements.deck.classList.remove('clickable');
+    elements.discardPile.classList.remove('clickable');
+
+    if (!yourTurn) return;
+
+    if (phase === 'drawing') {
+        elements.deck.classList.add('clickable');
+        if (gameState.discard_top) {
+            elements.discardPile.classList.add('clickable');
+        }
+    }
+}
+
+// Render the full game state
+function renderGameState(state) {
+    gameState = state;
+
+    // Scores
+    if (state.scores) {
+        elements.playerScore.textContent = state.scores.You || 0;
+        elements.opponentScore.textContent = state.scores.Computer || 0;
+    }
+
+    // Deck
+    elements.deckCount.textContent = state.deck_remaining;
+
+    // Discard pile
+    renderDiscardTop(state.discard_top);
+
+    // Opponent's hand
+    renderOpponentHand(state.opponent_card_count);
+
+    // Player's hand
+    renderPlayerHand(state.hand, state.melds, state.your_turn ? state.phase : null);
+
+    // Deadwood
+    elements.deadwood.textContent = state.deadwood;
+
+    // Hide knock button - knock is now prompted after selecting a card to discard
+    elements.knockBtn.classList.add('hidden');
+
+    // Clickable states
+    updateClickableStates(state.phase, state.your_turn);
+
+    // Status message
+    elements.statusMessage.textContent = state.message || '';
+    elements.statusMessage.classList.remove('thinking');
+
+    // Assist info
+    if (elements.assistMode.checked && state.assist) {
+        elements.assistPanel.classList.remove('hidden');
+
+        // Dead cards with tooltip
+        elements.deadCards.textContent = `Dead cards: ${state.assist.dead_cards.length}`;
+        if (state.assist.dead_cards.length > 0) {
+            elements.deadCards.textContent += ` (${state.assist.dead_cards.join(', ')})`;
+        }
+        elements.deadCards.title = "Cards in the discard pile that are buried (can't be drawn)";
+
+        // Opponent known cards with tooltip
+        elements.opponentKnown.textContent = `Opponent known: ${state.assist.opponent_known.length}`;
+        if (state.assist.opponent_known.length > 0) {
+            elements.opponentKnown.textContent += ` (${state.assist.opponent_known.join(', ')})`;
+        }
+        elements.opponentKnown.title = "Cards in opponent's hand that you've seen (picked from discard minus cards they re-discarded)";
+
+        // Render card tracker grid
+        renderCardTracker(state);
+    } else {
+        elements.assistPanel.classList.add('hidden');
+    }
+
+    // Check for round over
+    if (state.round_over) {
+        showRoundResult(state.round_result);
+    }
+}
+
+// API calls
+async function apiCall(endpoint, method = 'GET', body = null) {
+    const options = {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+    };
+
+    if (body) {
+        options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, options);
+    const data = await response.json();
+
+    if (!response.ok) {
+        console.error('API error:', data);
+        elements.statusMessage.textContent = data.error || 'An error occurred';
+        return null;
+    }
+
+    return data;
+}
+
+async function newGame() {
+    elements.roundModal.classList.add('hidden');
+    const state = await apiCall('/new', 'POST');
+    if (state) {
+        renderGameState(state);
+    }
+}
+
+async function getState() {
+    const state = await apiCall('/state');
+    if (state) {
+        renderGameState(state);
+    }
+}
+
+async function drawCard(source) {
+    // Store hand before drawing to find the new card
+    const handBefore = gameState ? gameState.hand.map(c => c.id) : [];
+
+    const state = await apiCall('/draw', 'POST', { source });
+    if (state) {
+        // Find which card was drawn by comparing hands
+        if (source === 'discard' && gameState && gameState.discard_top) {
+            // If drawing from discard, we know which card it is
+            drawnCardId = gameState.discard_top.id;
+        } else {
+            // If drawing from deck, find the new card
+            const handAfter = state.hand.map(c => c.id);
+            const newCards = handAfter.filter(id => !handBefore.includes(id));
+            if (newCards.length > 0) {
+                drawnCardId = newCards[0];
+            }
+        }
+
+        renderGameState(state);
+
+        // If it's still our turn (discarding phase), wait for discard
+        // If it's AI's turn, trigger AI turn
+        if (!state.your_turn) {
+            await doAiTurn();
+        }
+    }
+}
+
+async function discardCard(cardId, knock = null) {
+    const state = await apiCall('/discard', 'POST', { card: cardId, knock: knock });
+    if (state) {
+        // Check if we need to ask about knocking
+        if (state.needs_knock_decision) {
+            pendingDiscardCard = state.discard_card;
+            elements.knockModalText.textContent =
+                `Discarding leaves you with ${state.post_discard_deadwood} deadwood. Knock?`;
+            elements.knockModal.classList.remove('hidden');
+            return;  // Wait for user to click Yes or No
+        }
+
+        // Clear drawn card highlight after discard
+        drawnCardId = null;
+
+        renderGameState(state);
+
+        // After discarding, it's AI's turn
+        if (!state.your_turn && !state.round_over) {
+            await doAiTurn();
+        }
+    }
+}
+
+async function knock() {
+    const state = await apiCall('/knock', 'POST');
+    if (state) {
+        renderGameState(state);
+    }
+}
+
+async function nextRound() {
+    elements.roundModal.classList.add('hidden');
+    const state = await apiCall('/new-round', 'POST');
+    if (state) {
+        renderGameState(state);
+
+        // Check if AI goes first
+        if (!state.your_turn) {
+            await doAiTurn();
+        }
+    }
+}
+
+async function doAiTurn() {
+    // Show thinking indicator
+    elements.statusMessage.textContent = "Computer is thinking...";
+    elements.statusMessage.classList.add('thinking');
+
+    // Small delay to show AI is "thinking"
+    await new Promise(resolve => setTimeout(resolve, 600));
+
+    // Get updated state (AI turn is executed server-side)
+    const state = await apiCall('/ai-turn', 'POST');
+    if (state) {
+        // Display AI actions sequentially if available
+        if (state.ai_action) {
+            await displayAiAction(state.ai_action, state);
+        } else {
+            renderGameState(state);
+        }
+
+        // If still AI's turn (shouldn't happen normally), continue
+        if (!state.your_turn && !state.round_over) {
+            await doAiTurn();
+        }
+    }
+}
+
+async function displayAiAction(action, state) {
+    // First, show the draw action
+    if (action.type === 'turn') {
+        // Highlight discard pile if drawing from it
+        if (action.draw_from === 'discard') {
+            elements.discardPile.classList.add('highlight-pickup');
+            elements.statusMessage.textContent = `Computer picked up ${action.drew_card} from discard pile`;
+            elements.statusMessage.classList.remove('thinking');
+            elements.statusMessage.classList.add('ai-pickup');
+        } else {
+            elements.statusMessage.textContent = "Computer drew from deck";
+            elements.statusMessage.classList.remove('thinking');
+            elements.statusMessage.classList.add('ai-draw');
+        }
+
+        // Wait to show the draw action
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Remove highlight
+        elements.discardPile.classList.remove('highlight-pickup');
+
+        // Show the discard action
+        elements.statusMessage.textContent = `Computer discarded ${action.discarded}`;
+        elements.statusMessage.classList.remove('ai-pickup', 'ai-draw');
+        elements.statusMessage.classList.add('ai-discard');
+
+        // Update the UI with the new state
+        renderGameState(state);
+
+        // Wait to show the discard action
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        // Clear status classes
+        elements.statusMessage.classList.remove('ai-discard');
+    } else if (action.type === 'first_discard') {
+        elements.statusMessage.textContent = `Computer discarded ${action.discarded}`;
+        elements.statusMessage.classList.remove('thinking');
+        renderGameState(state);
+        await new Promise(resolve => setTimeout(resolve, 800));
+    }
+}
+
+// Check if a card is part of a meld
+function isCardInMeld(cardId) {
+    if (!gameState || !gameState.melds) {
+        return false;
+    }
+    return gameState.melds.some(meld => meld.cards.includes(cardId));
+}
+
+// Render card tracker grid (all 52 cards with status)
+function renderCardTracker(state) {
+    if (!state.assist) {
+        elements.cardTracker.innerHTML = '';
+        return;
+    }
+
+    elements.cardTracker.innerHTML = '';
+
+    // Build sets for quick lookup
+    const myHandIds = new Set(state.hand.map(c => c.id));
+    const deadCardIds = new Set(state.assist.dead_cards.map(c => {
+        // Convert "A♣" format to "AC" format for comparison
+        return c.replace('♠', 'S').replace('♥', 'H').replace('♦', 'D').replace('♣', 'C');
+    }));
+    const opponentKnownIds = new Set(state.assist.opponent_known.map(c => {
+        return c.replace('♠', 'S').replace('♥', 'H').replace('♦', 'D').replace('♣', 'C');
+    }));
+    const discardTopId = state.discard_top ? state.discard_top.id : null;
+
+    // Card ranks and suits in order
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const suits = [
+        { name: 'spades', symbol: '♠' },
+        { name: 'hearts', symbol: '♥' },
+        { name: 'diamonds', symbol: '♦' },
+        { name: 'clubs', symbol: '♣' }
+    ];
+
+    // Create grid: 13 rows (ranks) × 4 columns (suits)
+    ranks.forEach(rank => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'tracker-row';
+
+        suits.forEach(suit => {
+            const cardId = `${rank}${suit.name[0].toUpperCase()}`;
+            const cellDiv = document.createElement('div');
+            cellDiv.className = 'tracker-cell';
+            cellDiv.textContent = `${rank}${suit.symbol}`;
+
+            // Color code based on location
+            if (myHandIds.has(cardId)) {
+                cellDiv.classList.add('in-my-hand');
+                cellDiv.title = 'In your hand';
+            } else if (deadCardIds.has(cardId)) {
+                cellDiv.classList.add('dead-card');
+                cellDiv.title = 'Dead (buried in discard pile)';
+            } else if (opponentKnownIds.has(cardId)) {
+                cellDiv.classList.add('opponent-known');
+                cellDiv.title = 'Opponent has this';
+            } else if (discardTopId === cardId) {
+                cellDiv.classList.add('discard-top');
+                cellDiv.title = 'Available on discard pile';
+            } else {
+                cellDiv.classList.add('unknown');
+                cellDiv.title = 'Unknown (in deck or opponent hand)';
+            }
+
+            // Red suits
+            if (suit.name === 'hearts' || suit.name === 'diamonds') {
+                cellDiv.classList.add('red-suit');
+            }
+
+            rowDiv.appendChild(cellDiv);
+        });
+
+        elements.cardTracker.appendChild(rowDiv);
+    });
+}
+
+// Event handlers
+function handleCardClick(card) {
+    if (!gameState || !gameState.your_turn || gameState.phase !== 'discarding') {
+        return;
+    }
+
+    // Check if card is in a meld - confirm before discarding
+    if (isCardInMeld(card.id)) {
+        pendingMeldDiscardCard = card.id;
+        elements.meldConfirmText.textContent = `${card.rank}${SUIT_SYMBOLS[card.suit]} is part of a meld. Discard anyway?`;
+        elements.meldConfirmModal.classList.remove('hidden');
+        return;
+    }
+
+    // Single click to discard
+    discardCard(card.id);
+}
+
+// Render a hand with melds grouped for the modal
+function renderModalHand(container, handData) {
+    container.innerHTML = '';
+
+    if (!handData || !handData.cards) return;
+
+    // Build set of melded card IDs and map to meld index
+    const cardToMeld = new Map();
+    if (handData.melds) {
+        handData.melds.forEach((meld, idx) => {
+            meld.cards.forEach(cardId => cardToMeld.set(cardId, idx));
+        });
+    }
+
+    // Group cards by meld
+    const meldGroups = new Map();
+    const deadwoodCards = [];
+
+    handData.cards.forEach(card => {
+        if (cardToMeld.has(card.id)) {
+            const meldIdx = cardToMeld.get(card.id);
+            if (!meldGroups.has(meldIdx)) {
+                meldGroups.set(meldIdx, []);
+            }
+            meldGroups.get(meldIdx).push(card);
+        } else {
+            deadwoodCards.push(card);
+        }
+    });
+
+    // Render meld groups (sort cards within each meld by rank)
+    meldGroups.forEach((cards) => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'meld-group';
+
+        // Sort cards by rank within meld (for runs to be in order)
+        const sortedCards = [...cards].sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+
+        sortedCards.forEach(card => {
+            const cardEl = createCardElement(card);
+            cardEl.classList.add('melded');
+            groupDiv.appendChild(cardEl);
+        });
+        container.appendChild(groupDiv);
+    });
+
+    // Render deadwood cards
+    deadwoodCards.forEach(card => {
+        container.appendChild(createCardElement(card));
+    });
+
+    // Add deadwood label
+    const deadwoodLabel = document.createElement('div');
+    deadwoodLabel.className = 'deadwood-label';
+    deadwoodLabel.textContent = `Deadwood: ${handData.deadwood}`;
+    container.appendChild(deadwoodLabel);
+}
+
+// Show round result modal
+function showRoundResult(result) {
+    if (!result) return;
+
+    elements.roundResultTitle.textContent = result.is_draw ? 'Round Draw' : 'Round Over';
+
+    let details = '';
+    if (result.is_draw) {
+        details = 'Deck exhausted - no winner this round';
+    } else if (result.winner === 'You') {
+        if (result.is_gin) {
+            details = `GIN! You win ${result.points} points!`;
+        } else {
+            details = `You win ${result.points} points!`;
+        }
+    } else {
+        if (result.is_undercut) {
+            details = `Undercut! Computer wins ${result.points} points!`;
+        } else if (result.is_gin) {
+            details = `Computer gets GIN! Wins ${result.points} points!`;
+        } else {
+            details = `Computer wins ${result.points} points`;
+        }
+    }
+    elements.roundResultDetails.textContent = details;
+
+    // Render hands in modal with melds grouped
+    renderModalHand(elements.modalPlayerHand, result.player_hand);
+    renderModalHand(elements.modalOpponentHand, result.opponent_hand);
+
+    elements.roundModal.classList.remove('hidden');
+}
+
+// Initialize event listeners
+function init() {
+    // Deck click
+    elements.deck.addEventListener('click', () => {
+        if (gameState && gameState.your_turn && gameState.phase === 'drawing') {
+            drawCard('deck');
+        }
+    });
+
+    // Discard pile click
+    elements.discardPile.addEventListener('click', () => {
+        if (gameState && gameState.your_turn && gameState.phase === 'drawing' && gameState.discard_top) {
+            drawCard('discard');
+        }
+    });
+
+    // Knock button (legacy - now using modal)
+    elements.knockBtn.addEventListener('click', () => {
+        if (gameState && gameState.your_turn && gameState.can_knock) {
+            knock();
+        }
+    });
+
+    // Knock modal - Yes button
+    elements.knockYesBtn.addEventListener('click', async () => {
+        elements.knockModal.classList.add('hidden');
+        if (pendingDiscardCard) {
+            await discardCard(pendingDiscardCard, true);
+            pendingDiscardCard = null;
+        }
+    });
+
+    // Knock modal - No button
+    elements.knockNoBtn.addEventListener('click', async () => {
+        elements.knockModal.classList.add('hidden');
+        if (pendingDiscardCard) {
+            await discardCard(pendingDiscardCard, false);
+            pendingDiscardCard = null;
+        }
+    });
+
+    // New game button
+    elements.newGameBtn.addEventListener('click', newGame);
+
+    // Next round button
+    elements.nextRoundBtn.addEventListener('click', nextRound);
+
+    // Assist mode toggle
+    elements.assistMode.addEventListener('change', () => {
+        if (gameState) {
+            renderGameState(gameState);
+        }
+    });
+
+    // Meld confirmation modal - Yes button
+    elements.meldConfirmYesBtn.addEventListener('click', async () => {
+        elements.meldConfirmModal.classList.add('hidden');
+        if (pendingMeldDiscardCard) {
+            await discardCard(pendingMeldDiscardCard);
+            pendingMeldDiscardCard = null;
+        }
+    });
+
+    // Meld confirmation modal - No button
+    elements.meldConfirmNoBtn.addEventListener('click', () => {
+        elements.meldConfirmModal.classList.add('hidden');
+        pendingMeldDiscardCard = null;
+        // User can now click another card
+    });
+
+    // Sort buttons
+    elements.sortSuitBtn.addEventListener('click', () => setSortMode('suit'));
+    elements.sortRankBtn.addEventListener('click', () => setSortMode('rank'));
+    elements.sortValueBtn.addEventListener('click', () => setSortMode('value'));
+
+    // Initialize sort button active state
+    updateSortButtonStates();
+
+    // Start new game
+    newGame();
+}
+
+// Set sort mode and re-render
+function setSortMode(mode) {
+    sortMode = mode;
+    localStorage.setItem('sortMode', mode);
+    updateSortButtonStates();
+    if (gameState) {
+        renderGameState(gameState);
+    }
+}
+
+// Update active state of sort buttons
+function updateSortButtonStates() {
+    elements.sortSuitBtn.classList.toggle('active', sortMode === 'suit');
+    elements.sortRankBtn.classList.toggle('active', sortMode === 'rank');
+    elements.sortValueBtn.classList.toggle('active', sortMode === 'value');
+}
+
+// Start the game when page loads
+document.addEventListener('DOMContentLoaded', init);

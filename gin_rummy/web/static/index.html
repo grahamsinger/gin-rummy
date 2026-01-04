@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gin Rummy</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="header">
+            <h1>Gin Rummy</h1>
+            <div class="scores">
+                <span class="score">You: <span id="player-score">0</span></span>
+                <span class="score-divider">|</span>
+                <span class="score">Computer: <span id="opponent-score">0</span></span>
+            </div>
+        </header>
+
+        <main class="game-board">
+            <!-- Opponent's hand (face down) -->
+            <div class="opponent-area">
+                <div class="label">Computer (<span id="opponent-card-count">10</span> cards)</div>
+                <div id="opponent-hand" class="card-row opponent-hand">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+
+            <!-- Center area: deck and discard -->
+            <div class="center-area">
+                <div class="pile deck" id="deck">
+                    <div class="card card-back">
+                        <span class="deck-count" id="deck-count">31</span>
+                    </div>
+                    <div class="pile-label">Deck</div>
+                </div>
+                <div class="pile discard" id="discard-pile">
+                    <div class="card empty" id="discard-top">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div class="pile-label">Discard</div>
+                </div>
+            </div>
+
+            <!-- Player's hand -->
+            <div class="player-area">
+                <div class="sort-controls">
+                    <span class="sort-label">Sort:</span>
+                    <button id="sort-suit" class="sort-btn">By Suit</button>
+                    <button id="sort-rank" class="sort-btn">By Rank</button>
+                    <button id="sort-value" class="sort-btn active">By Value</button>
+                </div>
+                <div id="player-hand" class="card-row player-hand">
+                    <!-- Filled by JS -->
+                </div>
+                <div class="hand-info">
+                    <span>Deadwood: <span id="deadwood">0</span></span>
+                    <button id="knock-btn" class="knock-btn hidden">Knock!</button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="status-bar">
+            <div id="status-message" class="status-message">Starting game...</div>
+            <div class="controls">
+                <label class="assist-toggle">
+                    <input type="checkbox" id="assist-mode"> Show assist info
+                </label>
+                <button id="new-game-btn" class="new-game-btn">New Game</button>
+            </div>
+        </footer>
+
+        <!-- Assist panel (hidden by default) -->
+        <div id="assist-panel" class="assist-panel hidden">
+            <div class="assist-title">Assist Info</div>
+            <div id="dead-cards" class="assist-info"></div>
+            <div id="opponent-known" class="assist-info"></div>
+
+            <div class="card-tracker-title">Card Tracker</div>
+            <div id="card-tracker" class="card-tracker"></div>
+        </div>
+
+        <!-- Round result modal -->
+        <div id="round-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2 id="round-result-title">Round Over</h2>
+                <div id="round-result-details"></div>
+                <div class="modal-hands">
+                    <div class="modal-hand">
+                        <h3>Your Hand</h3>
+                        <div id="modal-player-hand" class="card-row"></div>
+                    </div>
+                    <div class="modal-hand">
+                        <h3>Computer's Hand</h3>
+                        <div id="modal-opponent-hand" class="card-row"></div>
+                    </div>
+                </div>
+                <button id="next-round-btn" class="next-round-btn">Next Round</button>
+            </div>
+        </div>
+
+        <!-- Knock confirmation modal -->
+        <div id="knock-modal" class="modal hidden">
+            <div class="modal-content knock-modal-content">
+                <h2>Knock?</h2>
+                <p id="knock-modal-text">You can knock with X deadwood.</p>
+                <div class="knock-modal-buttons">
+                    <button id="knock-yes-btn" class="knock-yes-btn">Yes, Knock!</button>
+                    <button id="knock-no-btn" class="knock-no-btn">No, Just Discard</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Meld discard confirmation modal -->
+        <div id="meld-confirm-modal" class="modal hidden">
+            <div class="modal-content meld-confirm-modal-content">
+                <h2>⚠️ Warning</h2>
+                <p id="meld-confirm-text">This card is part of a meld. Discard anyway?</p>
+                <div class="meld-confirm-buttons">
+                    <button id="meld-confirm-yes-btn" class="meld-confirm-yes-btn">Yes, Discard</button>
+                    <button id="meld-confirm-no-btn" class="meld-confirm-no-btn">No, Choose Another</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/game.js"></script>
+</body>
+</html>

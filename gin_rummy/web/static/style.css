@@ -1,0 +1,694 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a5f2a;
+    color: #fff;
+    min-height: 100vh;
+}
+
+/* Game container */
+.game-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.scores {
+    font-size: 1.1rem;
+}
+
+.score-divider {
+    margin: 0 1rem;
+    opacity: 0.5;
+}
+
+/* Game board */
+.game-board {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 1.5rem;
+}
+
+/* Card styling */
+.card {
+    width: 60px;
+    height: 84px;
+    background: #fff;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    user-select: none;
+    position: relative;
+}
+
+.card .rank {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.card .suit {
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+/* Red suits */
+.card.hearts .suit,
+.card.hearts .rank,
+.card.diamonds .suit,
+.card.diamonds .rank {
+    color: #d32f2f;
+}
+
+/* Card back */
+.card-back {
+    background: linear-gradient(135deg, #1565c0 25%, #0d47a1 25%, #0d47a1 50%, #1565c0 50%, #1565c0 75%, #0d47a1 75%);
+    background-size: 10px 10px;
+    border: 3px solid #fff;
+}
+
+.card-back .deck-count {
+    background: rgba(255, 255, 255, 0.9);
+    color: #0d47a1;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+/* Empty card slot */
+.card.empty {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    box-shadow: none;
+}
+
+/* Card rows */
+.card-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* Opponent area */
+.opponent-area {
+    text-align: center;
+}
+
+.opponent-area .label {
+    margin-bottom: 0.5rem;
+    opacity: 0.8;
+}
+
+.opponent-hand .card {
+    width: 45px;
+    height: 63px;
+}
+
+/* Center area */
+.center-area {
+    display: flex;
+    justify-content: center;
+    gap: 3rem;
+    padding: 1rem 0;
+}
+
+.pile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pile-label {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+/* Clickable states */
+.card.clickable {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.card.clickable:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+.pile.clickable .card {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.pile.clickable:hover .card {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Selected card */
+.card.selected {
+    transform: translateY(-12px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5), 0 0 0 3px #ffd700;
+}
+
+/* Melded cards */
+.card.melded {
+    border: 2px solid #4caf50;
+}
+
+.meld-group {
+    display: flex;
+    gap: 0.25rem;
+    background: rgba(76, 175, 80, 0.2);
+    padding: 0.25rem;
+    border-radius: 8px;
+    margin: 0 0.25rem;
+}
+
+/* Drawn card highlight */
+.card.drawn-card {
+    box-shadow: 0 0 15px rgba(255, 235, 59, 0.8), 0 4px 8px rgba(0, 0, 0, 0.3);
+    animation: drawPulse 0.8s ease-in-out;
+}
+
+@keyframes drawPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* Player area */
+.player-area {
+    text-align: center;
+}
+
+/* Sort controls */
+.sort-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.sort-label {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    margin-right: 0.25rem;
+}
+
+.sort-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    border: 2px solid transparent;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.sort-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.sort-btn.active {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: #4caf50;
+    font-weight: bold;
+}
+
+.hand-info {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+}
+
+/* Knock button */
+.knock-btn {
+    background: #ff9800;
+    color: #000;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.knock-btn:hover {
+    background: #ffa726;
+    transform: scale(1.05);
+}
+
+.knock-btn:active {
+    transform: scale(0.98);
+}
+
+.knock-btn:disabled {
+    background: #666;
+    color: #999;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Status bar */
+.status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+.status-message {
+    font-size: 1.1rem;
+}
+
+.controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.assist-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.assist-toggle:hover {
+    opacity: 1;
+}
+
+.new-game-btn {
+    background: #555;
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.new-game-btn:hover {
+    background: #666;
+}
+
+/* Assist panel */
+.assist-panel {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 1rem;
+    border-radius: 8px;
+    min-width: 200px;
+    max-width: 350px;
+    font-size: 0.9rem;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.assist-title {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 0.5rem;
+}
+
+.assist-info {
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
+/* Card Tracker */
+.card-tracker-title {
+    font-weight: bold;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 0.5rem;
+}
+
+.card-tracker {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tracker-row {
+    display: flex;
+    gap: 2px;
+}
+
+.tracker-cell {
+    flex: 1;
+    min-width: 32px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    border-radius: 3px;
+    cursor: help;
+    font-weight: 500;
+}
+
+/* Color coding for card locations */
+.tracker-cell.in-my-hand {
+    background: rgba(76, 175, 80, 0.4);
+    border: 1px solid #4caf50;
+    color: #fff;
+}
+
+.tracker-cell.dead-card {
+    background: rgba(100, 100, 100, 0.3);
+    color: #666;
+    text-decoration: line-through;
+}
+
+.tracker-cell.opponent-known {
+    background: rgba(255, 167, 38, 0.4);
+    border: 1px solid #ffa726;
+    color: #fff;
+}
+
+.tracker-cell.discard-top {
+    background: rgba(33, 150, 243, 0.4);
+    border: 1px solid #2196f3;
+    color: #fff;
+}
+
+.tracker-cell.unknown {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ddd;
+}
+
+.tracker-cell.red-suit {
+    color: #f88;
+}
+
+.tracker-cell.red-suit.dead-card {
+    color: #844;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.modal-content {
+    background: #2e7d32;
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    max-width: 90%;
+    max-height: 90%;
+    overflow-y: auto;
+}
+
+.modal-content h2 {
+    margin-bottom: 1rem;
+}
+
+#round-result-details {
+    font-size: 1.2rem;
+    margin-bottom: 1.5rem;
+}
+
+.modal-hands {
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.modal-hand {
+    text-align: center;
+}
+
+.modal-hand h3 {
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+.modal-hand .card-row {
+    justify-content: center;
+}
+
+.modal-hand .card {
+    width: 50px;
+    height: 70px;
+    font-size: 1rem;
+}
+
+.modal-hand .card .suit {
+    font-size: 1.3rem;
+}
+
+.modal-hand .deadwood-label {
+    width: 100%;
+    text-align: center;
+    margin-top: 0.5rem;
+    font-weight: bold;
+    color: #ffeb3b;
+}
+
+.modal-hand .meld-group {
+    display: inline-flex;
+    gap: 0.15rem;
+    background: rgba(76, 175, 80, 0.3);
+    padding: 0.2rem;
+    border-radius: 6px;
+    margin: 0.15rem;
+}
+
+/* Knock confirmation modal */
+.knock-modal-content {
+    max-width: 400px;
+}
+
+.knock-modal-content p {
+    font-size: 1.2rem;
+    margin-bottom: 1.5rem;
+}
+
+.knock-modal-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.knock-yes-btn {
+    background: #ff9800;
+    color: #000;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.knock-yes-btn:hover {
+    background: #ffa726;
+}
+
+.knock-no-btn {
+    background: #666;
+    color: #fff;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.knock-no-btn:hover {
+    background: #777;
+}
+
+/* Meld discard confirmation modal */
+.meld-confirm-modal-content {
+    max-width: 400px;
+}
+
+.meld-confirm-modal-content h2 {
+    color: #ffa726;
+}
+
+.meld-confirm-modal-content p {
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
+}
+
+.meld-confirm-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.meld-confirm-yes-btn {
+    background: #f44336;
+    color: #fff;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.meld-confirm-yes-btn:hover {
+    background: #e53935;
+}
+
+.meld-confirm-no-btn {
+    background: #4caf50;
+    color: #fff;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.meld-confirm-no-btn:hover {
+    background: #43a047;
+}
+
+.next-round-btn {
+    background: #fff;
+    color: #2e7d32;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.next-round-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Utility */
+.hidden {
+    display: none !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal {
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-content {
+    animation: slideUp 0.3s ease-out;
+}
+
+/* AI thinking indicator */
+.thinking {
+    opacity: 0.7;
+}
+
+.thinking::after {
+    content: '';
+    animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: ''; }
+    40% { content: '.'; }
+    60% { content: '..'; }
+    80%, 100% { content: '...'; }
+}
+
+/* AI action message styling */
+.ai-pickup {
+    color: #ffa726;
+    font-weight: bold;
+}
+
+.ai-draw {
+    color: #81c784;
+}
+
+.ai-discard {
+    color: #e0e0e0;
+}
+
+/* Discard pile highlight when AI picks from it */
+.pile.highlight-pickup {
+    animation: pulse 0.5s ease-in-out;
+}
+
+.pile.highlight-pickup .card {
+    box-shadow: 0 0 20px rgba(255, 167, 38, 0.8), 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
