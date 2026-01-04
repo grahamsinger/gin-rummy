@@ -113,11 +113,11 @@ class KnownCards:
 
     @property
     def dead_cards(self) -> frozenset[Card]:
-        """Cards unavailable to draw: opponent's known hand + buried discards.
+        """Cards in the discard pile (buried, not available to draw).
 
         Note: Does NOT include discard_top (that's available) or my_hand.
         """
-        return self.opponent_hand_known | self.discard_buried
+        return self.discard_buried
 
 
 @dataclass

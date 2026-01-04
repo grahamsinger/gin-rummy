@@ -234,11 +234,11 @@ def execute_ai_turn(
         current.hand.remove(discard)
         game.discard_pile.append(discard)
 
-        # Callback: knock
-        callbacks.on_knock(current, discard, deadwood_after)
-
         # Execute knock and capture result
         round_result = game.knock()
+
+        # Callback: knock (called after knock so round result is available)
+        callbacks.on_knock(current, discard, deadwood_after)
 
         # Build actions record
         actions = TurnActions(

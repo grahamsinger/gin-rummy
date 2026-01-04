@@ -9,7 +9,7 @@ from enum import Enum, auto
 from pathlib import Path
 
 from gin_rummy.ai import BasicAI, DrawChoice, ContextAwareAI
-from gin_rummy.models import Card, Suit, Rank, Hand, MeldType, HandAnalysis, Player
+from gin_rummy.models import Card, Suit, Rank, Hand, MeldType, HandAnalysis, Player, analyze_hand
 from gin_rummy.config import get_config, load_config
 from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list
 from gin_rummy.game import Game, GamePhase, InvalidActionError
@@ -63,7 +63,7 @@ def get_assist_show_values() -> bool:
 
 
 def display_assist_info(game: Game, human_player_idx: int) -> None:
-    """Display assist information (opponent known cards and dead cards).
+    """Display assist information (opponent known cards and buried discards).
 
     Args:
         game: The game instance.
@@ -88,7 +88,7 @@ def display_assist_info(game: Game, human_player_idx: int) -> None:
             count = len(opponent_known)
             print(f"Opponent has: {count} known card{'s' if count != 1 else ''}")
 
-        # Dead cards (opponent's known cards + buried discards)
+        # Dead cards (buried discards - cards in discard pile that can't be drawn)
         dead = context.dead_cards
         if show_values and dead:
             cards_str = ", ".join(str(c) for c in sorted(dead, key=lambda c: (c.suit.value, c.rank.value)))
@@ -360,8 +360,11 @@ def play_human_first_discard(game: Game, human_player_idx: int) -> None:
     current = game.current_player
     display_game_state(game, human_player_idx, turn_player_name=current.name)
     print(f"Discard one card to start the game.")
-    idx = get_card_choice(game.current_player.hand, "Card to discard (1-11): ")
-    card = game.current_player.hand[idx]
+    # Show hand with numbers for selection
+    print(f"\nSelect a card to discard:")
+    display_cards = display_hand_by_suit(current.hand, show_numbers=True)
+    idx = get_card_choice(game.current_player.hand, "\nCard to discard: ")
+    card = display_cards[idx]
     game.discard_to_start(card)
     print(f"\nDiscarded {card}")
 
@@ -444,13 +447,9 @@ def play_human_turn(
     print(f"\nYour hand:")
     display_cards = display_hand_by_suit(current.hand, show_numbers=True)
 
-    # Discard phase (with optional knock)
-    if game.can_knock:
-        print(f"\n  [K] Knock! (deadwood: {current.hand.deadwood_total})")
-
+    # Discard phase - select card first, then optionally knock
     while True:
-        prompt = "Card # to discard (or 'k' to knock): " if game.can_knock else "Card # to discard: "
-        choice = input(f"\n{prompt}").strip().lower()
+        choice = input(f"\nCard # to discard: ").strip().lower()
 
         if choice == "q":
             print("Thanks for playing!")
@@ -461,32 +460,60 @@ def play_human_turn(
             print(f"\nAssist card values: {'ON' if new_state else 'OFF'}")
             continue
 
-        if choice == "k" and game.can_knock:
-            # Record turn before knock
-            if tracker and card:
-                cards_after = cards_to_db_list(list(current.hand))
-                deadwood_after = current.hand.deadwood_total
-                tracker.record_turn(
-                    player_name=current.name,
-                    drew_from=drew_from,
-                    card_drawn=card_to_db_str(card),
-                    card_discarded=None,
-                    did_knock=True,
-                    cards_before=cards_before,
-                    cards_after=cards_after,
-                    deadwood_before=deadwood_before,
-                    deadwood_after=deadwood_after
-                )
-
-            result = game.knock()
-            display_round_result(game)
-            return TurnResult.KNOCKED
-
         # Try to parse as card number
         try:
             idx = int(choice)
             if 1 <= idx <= len(display_cards):
                 discard_card = display_cards[idx - 1]
+
+                # Check if discarding from a meld (potential mistake)
+                current_analysis = current.hand.analyze()
+                is_in_meld = any(discard_card in meld.cards for meld in current_analysis.melds)
+
+                if is_in_meld:
+                    confirm = input(f"\n⚠️  {discard_card} is part of a meld. Discard anyway? (y/n): ").strip().lower()
+                    if confirm != "y":
+                        print("Choose a different card.")
+                        continue
+
+                # Calculate deadwood AFTER discarding this card
+                remaining_cards = [c for c in current.hand if c != discard_card]
+                post_discard_analysis = analyze_hand(remaining_cards)
+                post_discard_deadwood = post_discard_analysis.deadwood_value
+
+                # Check if can knock with the 10-card hand
+                can_knock_after = post_discard_deadwood <= game.knock_threshold
+
+                if can_knock_after:
+                    print(f"\nDiscarding {discard_card} leaves you with {post_discard_deadwood} deadwood.")
+                    knock_choice = input("Knock? (y/n): ").strip().lower()
+
+                    if knock_choice == "y":
+                        # Discard the card first, then knock
+                        current.hand.remove(discard_card)
+                        game.discard_pile.append(discard_card)
+                        game._discard_history.append(discard_card)
+
+                        # Record turn before knock
+                        if tracker and card:
+                            cards_after = cards_to_db_list(list(current.hand))
+                            tracker.record_turn(
+                                player_name=current.name,
+                                drew_from=drew_from,
+                                card_drawn=card_to_db_str(card),
+                                card_discarded=card_to_db_str(discard_card),
+                                did_knock=True,
+                                cards_before=cards_before,
+                                cards_after=cards_after,
+                                deadwood_before=deadwood_before,
+                                deadwood_after=post_discard_deadwood
+                            )
+
+                        result = game.knock()
+                        display_round_result(game)
+                        return TurnResult.KNOCKED
+
+                # Just discard (no knock or declined knock)
                 game.discard(discard_card)
                 print(f"\nDiscarded {discard_card}")
 
@@ -509,10 +536,7 @@ def play_human_turn(
                 return TurnResult.CONTINUE
             print(f"Please enter a number between 1 and {len(display_cards)}")
         except ValueError:
-            if game.can_knock:
-                print("Enter a card number or 'k' to knock")
-            else:
-                print("Please enter a valid card number")
+            print("Please enter a valid card number")
 
 
 class CLITurnCallbacks:
@@ -826,7 +850,6 @@ def main() -> None:
 
     if vs_ai:
         p2_name = "Computer"
-        ai = BasicAI()
         ai = ContextAwareAI()
         human_player_idx = 0
     else:
