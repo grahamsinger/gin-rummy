@@ -99,8 +99,9 @@ class ContextAwareAIConfig:
 
     # Live outs consideration for discards
     # Weight given to live outs when choosing discards (higher = prefer keeping cards with live outs)
-    # This acts as a tiebreaker when deadwood is similar - prefer keeping cards with live meld potential
-    live_outs_discard_weight: float = 0.1  # Points per live out count
+    # Applied to weighted_value (not just count), so strategic importance matters
+    # Pairs worth 4.0, run extensions 5.0, meld completions 10.0
+    live_outs_discard_weight: float = 0.5  # Multiplier for weighted outs value
 
     # Opponent modeling
     track_opponent_patterns: bool = True

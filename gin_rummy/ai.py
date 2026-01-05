@@ -460,6 +460,15 @@ class ContextAwareAI(BasicAI):
         dead_cards = ctx.dead_cards if ctx else set()
         deck_position = ctx.deck_position_pct if ctx else 0.0
 
+        # Find cards in melds - only penalize if discarding would break a 3-card meld
+        current_analysis = hand.analyze()
+        cards_in_3card_melds = set()
+        for meld in current_analysis.melds:
+            if len(meld.cards) == 3:
+                # 3-card meld: discarding would break it entirely
+                cards_in_3card_melds.update(meld.cards)
+            # 4+ card melds: OK to discard (still leaves valid 3-card meld)
+
         for i, card in enumerate(cards):
             remaining = cards[:i] + cards[i + 1 :]
             analysis = analyze_hand(remaining)
@@ -476,16 +485,16 @@ class ContextAwareAI(BasicAI):
                 outs_analysis = self.outs_calculator.calculate_outs(
                     remaining_hand, dead_cards, deck_position
                 )
-                # Lower score is better, so subtract based on live out count
-                # More live outs = lower score = better to keep that hand
-                # Use count (not weighted_value) for more predictable behavior
+                # Lower score is better, so subtract based on weighted out value
+                # More/better outs = lower score = better to keep that hand
+                # Use weighted_value to account for strategic importance of different out types
                 live_outs_bonus = (
-                    outs_analysis.live_out_count
+                    outs_analysis.weighted_value
                     * self.context_config.live_outs_discard_weight
                 )
                 score -= live_outs_bonus
                 if outs_analysis.live_out_count > 0:
-                    flags.append(f"outs={outs_analysis.live_out_count}")
+                    flags.append(f"outs={outs_analysis.live_out_count},wv={outs_analysis.weighted_value:.1f}")
 
             # Apply safety bonus (reduce score for safe discards)
             if self.opponent_model.is_rank_safe(card.rank):
@@ -506,6 +515,12 @@ class ContextAwareAI(BasicAI):
                 if self.opponent_model.is_suit_dangerous(card.suit):
                     score += self.context_config.dangerous_suit_penalty
                     flags.append("dangerous_suit")
+
+            # MASSIVE penalty for discarding from 3-card melds (would break them)
+            # 4+ card melds are allowed (strategic play for gin attempts)
+            if card in cards_in_3card_melds:
+                score += 100  # Huge penalty for breaking 3-card melds
+                flags.append("IN_3CARD_MELD!")
 
             flag_str = ",".join(flags) if flags else ""
             discard_options.append((card, score, deadwood, flag_str))
