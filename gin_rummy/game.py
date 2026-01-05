@@ -147,8 +147,10 @@ class Game:
         opponent_hand_known = opponent_pickups - opponent_rediscards
 
         # Discard pile: top card is available, rest are buried
+        # Exclude cards opponent picked up (they're in opponent's hand, not buried)
         discard_top = self.discard_pile[-1] if self.discard_pile else None
-        discard_buried = frozenset(self._discard_history[:-1]) if len(self._discard_history) > 1 else frozenset()
+        discard_buried_candidates = frozenset(self._discard_history[:-1]) if len(self._discard_history) > 1 else frozenset()
+        discard_buried = discard_buried_candidates - opponent_hand_known
 
         known_cards = KnownCards(
             my_hand=frozenset(player.hand),

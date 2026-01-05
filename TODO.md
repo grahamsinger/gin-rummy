@@ -4,6 +4,15 @@
 ## Active TODOs
 ---
 
+## Bugs
+- [ ] **CRITICAL: AI picking up card and immediately discarding it** (High Priority)
+  - Fundamental strategy error: AI picks up face-up card, then discards same card
+  - This WASTES the turn - should NEVER pick up unless you plan to keep it
+  - Root cause: decide_draw and decide_discard logic are not coordinated
+  - Fix: decide_draw should simulate "if I pick this up, what would I discard?"
+  - Only pick up from discard if the card you'd discard is DIFFERENT and WORSE
+  - Also creates infinite loop: player discards → AI picks up → AI discards → player picks up...
+
 ## AI Tuning
 - [ ] Tune ContextAwareAI parameters (currently ~53% win rate vs BasicAI)
   - Best config so far: threshold=3, key_out=2, denial=0
@@ -139,6 +148,12 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
 - [ ] Highlight the card just drawn in the hand display
   - Make it easier to identify which card was added to hand
   - Options: bold, underline, background color, or marker (e.g., asterisk/arrow)
+- [ ] **Web UI: Manual card arrangement (drag & drop)**
+  - Allow players to manually reorder cards in their hand via drag and drop
+  - Use HTML5 drag and drop API (no library needed)
+  - Should work alongside existing sort buttons (suit/rank/value)
+  - Add "Reset" button to return to last sort mode
+  - See docs/web_ui_spec.md for detailed implementation notes
 
 ## Future Ideas
 - [ ] Web UI version

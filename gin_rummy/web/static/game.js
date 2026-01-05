@@ -634,19 +634,19 @@ function renderCardTracker(state) {
             cellDiv.className = 'tracker-cell';
             cellDiv.textContent = `${rank}${suit.symbol}`;
 
-            // Color code based on location
+            // Color code based on location (prioritize opponent known over dead)
             if (myHandIds.has(cardId)) {
                 cellDiv.classList.add('in-my-hand');
                 cellDiv.title = 'In your hand';
-            } else if (deadCardIds.has(cardId)) {
-                cellDiv.classList.add('dead-card');
-                cellDiv.title = 'Dead (buried in discard pile)';
             } else if (opponentKnownIds.has(cardId)) {
                 cellDiv.classList.add('opponent-known');
                 cellDiv.title = 'Opponent has this';
             } else if (discardTopId === cardId) {
                 cellDiv.classList.add('discard-top');
                 cellDiv.title = 'Available on discard pile';
+            } else if (deadCardIds.has(cardId)) {
+                cellDiv.classList.add('dead-card');
+                cellDiv.title = 'Dead (buried in discard pile)';
             } else {
                 cellDiv.classList.add('unknown');
                 cellDiv.title = 'Unknown (in deck or opponent hand)';
