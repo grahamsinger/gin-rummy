@@ -5,13 +5,7 @@
 ---
 
 ## Bugs
-- [ ] **CRITICAL: AI picking up card and immediately discarding it** (High Priority)
-  - Fundamental strategy error: AI picks up face-up card, then discards same card
-  - This WASTES the turn - should NEVER pick up unless you plan to keep it
-  - Root cause: decide_draw and decide_discard logic are not coordinated
-  - Fix: decide_draw should simulate "if I pick this up, what would I discard?"
-  - Only pick up from discard if the card you'd discard is DIFFERENT and WORSE
-  - Also creates infinite loop: player discards → AI picks up → AI discards → player picks up...
+(none currently)
 
 ## AI Tuning
 - [ ] Tune ContextAwareAI parameters (currently ~53% win rate vs BasicAI)
@@ -164,6 +158,16 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
 ---
 ## Completed
 ---
+
+## Bug Fix: AI Pickup-Then-Discard (COMPLETED)
+- [x] **FIXED: AI picking up card and immediately discarding it**
+  - Root cause: `decide_draw` and `decide_discard` were not coordinated
+  - `_card_helps_hand` used simple deadwood simulation, but `decide_discard` (especially in ContextAwareAI) used additional scoring factors (safety, danger, live outs)
+  - This mismatch caused AI to think a card helps, then discard it immediately
+  - **Fix**: Modified `_card_helps_hand` to call `self.decide_discard()` to see what would ACTUALLY be discarded
+  - Added explicit check: reject taking card if we would immediately discard it
+  - Added regression test `test_never_pickup_and_immediately_discard` with 100 random scenarios
+  - Verified with simulation: no infinite loops, normal discard pile pickup rates
 
 ## Meld Detection (COMPLETED)
 - [x] Implement run detection (3+ consecutive cards of same suit)

@@ -97,3 +97,39 @@ class TestBasicAI:
         assert discard in hand
         # With a set of aces and one king, deadwood is 10 - can knock
         assert isinstance(should_knock, bool)
+
+    def test_never_pickup_and_immediately_discard(self):
+        """Regression test for bug: AI picking up card and immediately discarding it.
+
+        This bug occurred when decide_draw and decide_discard were not coordinated.
+        decide_draw would think a card helps, but decide_discard would choose to
+        discard that same card, wasting the turn and creating infinite loops.
+        """
+        ai = BasicAI()
+
+        # Test many random hands to ensure the bug doesn't occur
+        import random
+        random.seed(42)
+
+        for _ in range(100):
+            # Generate random hand
+            all_cards = [Card(rank, suit) for rank in Rank for suit in Suit]
+            random.shuffle(all_cards)
+
+            hand_cards = all_cards[:10]
+            discard_top = all_cards[10]
+
+            hand = Hand(hand_cards)
+
+            # If AI decides to pick up from discard...
+            choice = ai.decide_draw(hand, discard_top)
+            if choice == DrawChoice.DISCARD:
+                # Simulate picking it up
+                test_hand = Hand(list(hand) + [discard_top])
+
+                # AI should NEVER discard the card it just picked up
+                discard = ai.decide_discard(test_hand)
+                assert discard != discard_top, (
+                    f"AI picked up {discard_top} and immediately discarded it! "
+                    f"This wastes the turn and can create infinite loops."
+                )

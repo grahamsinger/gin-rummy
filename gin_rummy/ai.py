@@ -95,6 +95,9 @@ class BasicAI:
     def _card_helps_hand(self, hand: Hand, card: Card) -> tuple[bool, str]:
         """Check if a card would help the hand form melds.
 
+        CRITICAL FIX: This method now coordinates with decide_discard to ensure
+        we don't pick up a card only to immediately discard it.
+
         Args:
             hand: Current hand.
             card: Card to evaluate.
@@ -105,30 +108,34 @@ class BasicAI:
         current_analysis = hand.analyze()
         current_deadwood = current_analysis.deadwood_value
 
-        # Add the card and find best discard
-        test_cards = list(hand) + [card]
+        # Add the card to simulate picking it up
+        test_hand = Hand(list(hand) + [card])
 
-        # Find what our deadwood would be with each possible discard
-        best_new_deadwood = float('inf')
-        best_discard_for_new: Card | None = None
-        for i, discard_candidate in enumerate(test_cards):
-            remaining = test_cards[:i] + test_cards[i+1:]
-            analysis = analyze_hand(remaining)
-            if analysis.deadwood_value < best_new_deadwood:
-                best_new_deadwood = analysis.deadwood_value
-                best_discard_for_new = discard_candidate
+        # Use decide_discard to see what we would ACTUALLY discard
+        # This ensures coordination between draw and discard decisions
+        would_discard = self.decide_discard(test_hand)
 
-        # Take the card if it reduces our best possible deadwood by enough
-        improvement = current_deadwood - best_new_deadwood
+        # CRITICAL CHECK: Never pick up a card if we'd immediately discard it!
+        if would_discard == card:
+            reason = f"would immediately discard {card} - wastes turn"
+            return False, reason
+
+        # Calculate the deadwood after discarding what we actually would discard
+        remaining = [c for c in test_hand if c != would_discard]
+        analysis = analyze_hand(remaining)
+        new_deadwood = analysis.deadwood_value
+
+        # Take the card if it reduces deadwood by enough
+        improvement = current_deadwood - new_deadwood
         if improvement >= self.min_deadwood_improvement:
             reason = (
-                f"reduces deadwood from {current_deadwood} to {int(best_new_deadwood)} "
-                f"by discarding {best_discard_for_new}"
+                f"reduces deadwood from {current_deadwood} to {new_deadwood} "
+                f"by discarding {would_discard}"
             )
             return True, reason
         else:
             reason = (
-                f"improvement {int(improvement)} < required {self.min_deadwood_improvement}"
+                f"improvement {improvement} < required {self.min_deadwood_improvement}"
             )
             return False, reason
 
