@@ -24,6 +24,11 @@ session = GameSession()
 
 
 # Request models
+class NewGameRequest(BaseModel):
+    player_name: str | None = None  # Player's name
+    ai_difficulty: str | None = None  # "easy", "medium", or "hard"
+
+
 class DrawRequest(BaseModel):
     source: str  # "deck" or "discard"
 
@@ -41,8 +46,14 @@ async def index():
 
 
 @app.post("/api/game/new")
-async def new_game():
-    """Start a new game."""
+async def new_game(request: NewGameRequest | None = None):
+    """Start a new game with optional settings.
+
+    Args:
+        request: Optional settings for player name and AI difficulty
+    """
+    if request:
+        return session.new_game(player_name=request.player_name, ai_difficulty=request.ai_difficulty)
     return session.new_game()
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from gin_rummy.ai import ContextAwareAI, DrawChoice
+from gin_rummy.ai import BasicAI, ContextAwareAI, StatisticalAI, DrawChoice
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.models import Card, Suit, Rank
@@ -91,15 +91,36 @@ class GameSession:
 
     def __init__(self) -> None:
         self.game: Game | None = None
-        self.ai: ContextAwareAI | None = None
+        self.ai: BasicAI | None = None
         self.human_idx: int = 0  # Human is always player 0
         self.last_round_result: RoundResultData | None = None
         self.last_ai_action: dict[str, Any] | None = None  # Structured action data
+        self.player_name: str = "You"
+        self.ai_difficulty: str = "medium"
 
-    def new_game(self) -> dict[str, Any]:
-        """Start a new game."""
-        self.game = Game("You", "Computer")
-        self.ai = ContextAwareAI()
+    def new_game(self, player_name: str | None = None, ai_difficulty: str | None = None) -> dict[str, Any]:
+        """Start a new game.
+
+        Args:
+            player_name: Player's name (default: "You")
+            ai_difficulty: AI difficulty - "easy", "medium", or "hard" (default: "medium")
+        """
+        # Save settings
+        if player_name:
+            self.player_name = player_name
+        if ai_difficulty:
+            self.ai_difficulty = ai_difficulty
+
+        # Create AI based on difficulty
+        ai_map = {
+            "easy": BasicAI,
+            "medium": ContextAwareAI,
+            "hard": StatisticalAI,
+        }
+        ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
+
+        self.game = Game(self.player_name, "Computer")
+        self.ai = ai_class()
         self.human_idx = 0
         self.last_round_result = None
         self.last_ai_action = None
@@ -198,8 +219,8 @@ class GameSession:
             'deck_remaining': len(self.game.deck),
             'opponent_card_count': len(opponent.hand),
             'scores': {
-                'You': human.score,
-                'Computer': opponent.score,
+                human.name: human.score,
+                opponent.name: opponent.score,
             },
             'can_knock': self.game.can_knock and your_turn and phase == 'discarding',
             'message': message,
@@ -432,7 +453,16 @@ class GameSession:
 
         self.game.new_round()
         self.game.deal()
-        self.ai = ContextAwareAI()  # Reset AI state
+
+        # Reset AI state with same difficulty
+        ai_map = {
+            "easy": BasicAI,
+            "medium": ContextAwareAI,
+            "hard": StatisticalAI,
+        }
+        ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
+        self.ai = ai_class()
+
         self.last_round_result = None
         self.last_ai_action = None
 

@@ -46,6 +46,10 @@ const elements = {
     sortRankBtn: document.getElementById('sort-rank'),
     sortValueBtn: document.getElementById('sort-value'),
     cardTracker: document.getElementById('card-tracker'),
+    settingsModal: document.getElementById('settings-modal'),
+    settingsForm: document.getElementById('settings-form'),
+    playerNameInput: document.getElementById('player-name'),
+    aiDifficultySelect: document.getElementById('ai-difficulty'),
 };
 
 // Suit symbols
@@ -306,10 +310,27 @@ function updateClickableStates(phase, yourTurn) {
 function renderGameState(state) {
     gameState = state;
 
-    // Scores
+    // Scores - dynamically determine player names from scores object
     if (state.scores) {
-        elements.playerScore.textContent = state.scores.You || 0;
-        elements.opponentScore.textContent = state.scores.Computer || 0;
+        const playerNames = Object.keys(state.scores);
+        if (playerNames.length === 2) {
+            // Assume first player is human, second is computer
+            const humanName = playerNames[0];
+            const opponentName = playerNames[1];
+
+            elements.playerScore.textContent = state.scores[humanName] || 0;
+            elements.opponentScore.textContent = state.scores[opponentName] || 0;
+
+            // Update header labels if they've changed
+            const playerLabel = document.querySelector('.scores .score:first-child');
+            const opponentLabel = document.querySelector('.scores .score:last-child');
+            if (playerLabel && !playerLabel.textContent.startsWith(humanName)) {
+                playerLabel.innerHTML = `${humanName}: <span id="player-score">${state.scores[humanName] || 0}</span>`;
+            }
+            if (opponentLabel && !opponentLabel.textContent.startsWith(opponentName)) {
+                opponentLabel.innerHTML = `${opponentName}: <span id="opponent-score">${state.scores[opponentName] || 0}</span>`;
+            }
+        }
     }
 
     // Deck
@@ -390,12 +411,17 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     return data;
 }
 
-async function newGame() {
+async function newGame(settings = null) {
     elements.roundModal.classList.add('hidden');
-    const state = await apiCall('/new', 'POST');
+    elements.settingsModal.classList.add('hidden');
+    const state = await apiCall('/new', 'POST', settings);
     if (state) {
         renderGameState(state);
     }
+}
+
+function showSettingsModal() {
+    elements.settingsModal.classList.remove('hidden');
 }
 
 async function getState() {
@@ -779,8 +805,20 @@ function init() {
         }
     });
 
+    // Settings form submission
+    elements.settingsForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const playerName = elements.playerNameInput.value.trim() || null;
+        const aiDifficulty = elements.aiDifficultySelect.value;
+        const settings = {
+            player_name: playerName,
+            ai_difficulty: aiDifficulty
+        };
+        newGame(settings);
+    });
+
     // New game button
-    elements.newGameBtn.addEventListener('click', newGame);
+    elements.newGameBtn.addEventListener('click', showSettingsModal);
 
     // Next round button
     elements.nextRoundBtn.addEventListener('click', nextRound);
@@ -816,8 +854,8 @@ function init() {
     // Initialize sort button active state
     updateSortButtonStates();
 
-    // Start new game
-    newGame();
+    // Show settings modal on page load
+    showSettingsModal();
 }
 
 // Set sort mode and re-render
