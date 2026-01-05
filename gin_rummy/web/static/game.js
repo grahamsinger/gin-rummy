@@ -9,6 +9,12 @@ let pendingMeldDiscardCard = null;  // Card waiting for meld confirmation
 let sortMode = localStorage.getItem('sortMode') || 'value';  // 'suit', 'rank', or 'value'
 let drawnCardId = null;  // ID of the card just drawn (for highlighting)
 
+// Settings persistence
+const savedSettings = {
+    playerName: localStorage.getItem('playerName') || null,
+    aiDifficulty: localStorage.getItem('aiDifficulty') || 'medium'
+};
+
 // DOM elements
 const elements = {
     playerHand: document.getElementById('player-hand'),
@@ -421,6 +427,9 @@ async function newGame(settings = null) {
 }
 
 function showSettingsModal() {
+    // Populate form with saved settings
+    elements.playerNameInput.value = savedSettings.playerName || '';
+    elements.aiDifficultySelect.value = savedSettings.aiDifficulty;
     elements.settingsModal.classList.remove('hidden');
 }
 
@@ -810,6 +819,19 @@ function init() {
         e.preventDefault();
         const playerName = elements.playerNameInput.value.trim() || null;
         const aiDifficulty = elements.aiDifficultySelect.value;
+
+        // Save to localStorage
+        if (playerName) {
+            localStorage.setItem('playerName', playerName);
+        } else {
+            localStorage.removeItem('playerName');
+        }
+        localStorage.setItem('aiDifficulty', aiDifficulty);
+
+        // Update savedSettings
+        savedSettings.playerName = playerName;
+        savedSettings.aiDifficulty = aiDifficulty;
+
         const settings = {
             player_name: playerName,
             ai_difficulty: aiDifficulty
@@ -854,8 +876,12 @@ function init() {
     // Initialize sort button active state
     updateSortButtonStates();
 
-    // Show settings modal on page load
-    showSettingsModal();
+    // Auto-start game with saved settings
+    const settings = {
+        player_name: savedSettings.playerName,
+        ai_difficulty: savedSettings.aiDifficulty
+    };
+    newGame(settings);
 }
 
 // Set sort mode and re-render

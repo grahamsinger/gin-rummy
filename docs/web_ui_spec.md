@@ -206,8 +206,8 @@ Before starting a game, show a settings modal:
 │  Your name: [__________]            │
 │                                     │
 │  AI Difficulty:                     │
-│    ○ Easy (StatisticalAI)           │
-│    ○ Normal (BasicAI)               │
+│    ○ Easy (BasicAI)                 │
+│    ○ Medium (BasicAI)               │
 │    ● Hard (ContextAwareAI)          │
 │                                     │
 │  [Start Game]                       │
@@ -220,7 +220,7 @@ POST /api/game/new
 {"player_name": "Alice", "ai_type": "context"}
 ```
 
-AI types: `"statistical"` (easy), `"basic"` (normal), `"context"` (hard)
+AI types: `"easy"` (BasicAI), `"medium"` (BasicAI), `"hard"` (ContextAwareAI)
 
 ### Hand Sorting
 
