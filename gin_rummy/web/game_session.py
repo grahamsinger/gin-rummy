@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, StatisticalAI, DrawChoice
+from gin_rummy.database import GameTracker
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.models import Card, Suit, Rank
@@ -97,6 +98,7 @@ class GameSession:
         self.last_ai_action: dict[str, Any] | None = None  # Structured action data
         self.player_name: str = "You"
         self.ai_difficulty: str = "medium"
+        self.tracker: GameTracker = GameTracker()
 
     def new_game(self, player_name: str | None = None, ai_difficulty: str | None = None) -> dict[str, Any]:
         """Start a new game.
@@ -125,7 +127,11 @@ class GameSession:
         self.last_round_result = None
         self.last_ai_action = None
 
+        # Start tracking
+        self.tracker.start_game(self.player_name, "Computer")
+
         self.game.deal()
+        self.tracker.start_hand(self.game.dealer.name)
 
         # Handle first discard phase
         # Non-dealer (human if dealer_idx=1, AI if dealer_idx=0) must discard first
@@ -394,6 +400,16 @@ class GameSession:
                 opponent_hand=self._build_hand_result(1 - self.human_idx),
             )
             self.game.phase = GamePhase.ROUND_OVER
+            # Record draw in database
+            self.tracker.end_hand(
+                winner_name=None,
+                loser_name=None,
+                points=0,
+                is_draw=True,
+                knocker_name=None,
+                winner_deadwood=0,
+                loser_deadwood=0
+            )
         elif turn_result == TurnResult.KNOCKED and round_result:
             self._save_round_result(round_result)
         elif actions:
@@ -435,6 +451,8 @@ class GameSession:
             return
 
         winner_name = result.winner.name if result.winner else None
+        loser_name = result.loser.name if result.loser else None
+        knocker_name = result.knocker.name if result.knocker else None
 
         self.last_round_result = RoundResultData(
             winner=winner_name,
@@ -446,6 +464,19 @@ class GameSession:
             opponent_hand=self._build_hand_result(1 - self.human_idx),
         )
 
+        # Record hand result in database
+        self.tracker.end_hand(
+            winner_name=winner_name,
+            loser_name=loser_name,
+            points=result.points,
+            is_gin=result.is_gin,
+            is_undercut=result.is_undercut,
+            is_draw=result.is_draw,
+            knocker_name=knocker_name,
+            winner_deadwood=result.winner_deadwood,
+            loser_deadwood=result.loser_deadwood,
+        )
+
     def new_round(self) -> dict[str, Any]:
         """Start a new round."""
         if self.game is None:
@@ -453,6 +484,7 @@ class GameSession:
 
         self.game.new_round()
         self.game.deal()
+        self.tracker.start_hand(self.game.dealer.name)
 
         # Reset AI state with same difficulty
         ai_map = {

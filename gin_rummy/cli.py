@@ -722,7 +722,15 @@ def play_round_vs_ai(
     # End hand tracking
     if tracker:
         if turn_result == TurnResult.DRAW:
-            tracker.end_hand(winner_name=None, points=0, is_draw=True)
+            tracker.end_hand(
+                winner_name=None,
+                loser_name=None,
+                points=0,
+                is_draw=True,
+                knocker_name=None,
+                winner_deadwood=0,
+                loser_deadwood=0
+            )
         elif turn_result == TurnResult.KNOCKED:
             # Determine winner from scores (the one who just gained points)
             p0_score_before = game.players[0].score
@@ -730,9 +738,11 @@ def play_round_vs_ai(
             # Winner is whoever has more points now (knock already applied)
             if game.players[0].score > game.players[1].score:
                 winner = game.players[0]
+                loser = game.players[1]
                 points = game.players[0].score - p0_score_before
             else:
                 winner = game.players[1]
+                loser = game.players[0]
                 points = game.players[1].score - p1_score_before
             # Check for gin/undercut based on deadwood
             p0_dw = game.players[0].hand.deadwood_total
@@ -740,12 +750,18 @@ def play_round_vs_ai(
             is_gin = min(p0_dw, p1_dw) == 0
             # Undercut if defender won
             knocker_idx = 1 - game.current_player_idx  # current switched after knock
-            is_undercut = winner != game.players[knocker_idx]
+            knocker = game.players[knocker_idx]
+            is_undercut = winner != knocker
             tracker.end_hand(
                 winner_name=winner.name,
+                loser_name=loser.name,
                 points=points,
                 is_gin=is_gin,
-                is_undercut=is_undercut
+                is_undercut=is_undercut,
+                is_draw=False,
+                knocker_name=knocker.name,
+                winner_deadwood=winner.hand.deadwood_total,
+                loser_deadwood=loser.hand.deadwood_total
             )
 
     if turn_result == TurnResult.DRAW:
@@ -785,26 +801,42 @@ def play_round_pvp(game: Game, tracker: GameTracker | None = None) -> None:
     # End hand tracking
     if tracker:
         if turn_result == TurnResult.DRAW:
-            tracker.end_hand(winner_name=None, points=0, is_draw=True)
+            tracker.end_hand(
+                winner_name=None,
+                loser_name=None,
+                points=0,
+                is_draw=True,
+                knocker_name=None,
+                winner_deadwood=0,
+                loser_deadwood=0
+            )
         elif turn_result == TurnResult.KNOCKED:
             if game.players[0].score > game.players[1].score:
                 winner = game.players[0]
+                loser = game.players[1]
             else:
                 winner = game.players[1]
+                loser = game.players[0]
             p0_dw = game.players[0].hand.deadwood_total
             p1_dw = game.players[1].hand.deadwood_total
             is_gin = min(p0_dw, p1_dw) == 0
             knocker_idx = 1 - game.current_player_idx
-            is_undercut = winner != game.players[knocker_idx]
+            knocker = game.players[knocker_idx]
+            is_undercut = winner != knocker
             # Calculate points from difference
             points = abs(p0_dw - p1_dw)
             if is_gin or is_undercut:
                 points += 25
             tracker.end_hand(
                 winner_name=winner.name,
+                loser_name=loser.name,
                 points=points,
                 is_gin=is_gin,
-                is_undercut=is_undercut
+                is_undercut=is_undercut,
+                is_draw=False,
+                knocker_name=knocker.name,
+                winner_deadwood=winner.hand.deadwood_total,
+                loser_deadwood=loser.hand.deadwood_total
             )
 
     if turn_result == TurnResult.DRAW:

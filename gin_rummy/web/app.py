@@ -106,3 +106,16 @@ async def new_round():
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
     return result
+
+
+@app.get("/api/stats/{player_name}")
+async def get_player_stats(player_name: str):
+    """Get lifetime statistics for a player."""
+    stats = session.tracker.get_player_stats(player_name)
+    if stats is None:
+        return {
+            'player_name': player_name,
+            'total_hands': 0,
+            'message': 'No stats available for this player yet'
+        }
+    return stats

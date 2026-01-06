@@ -67,6 +67,7 @@
                 <label class="assist-toggle">
                     <input type="checkbox" id="assist-mode"> Show assist info
                 </label>
+                <button id="view-stats-btn" class="view-stats-btn">View Stats</button>
                 <button id="new-game-btn" class="new-game-btn">New Game</button>
             </div>
         </footer>
@@ -143,6 +144,17 @@
                     <button id="meld-confirm-yes-btn" class="meld-confirm-yes-btn">Yes, Discard</button>
                     <button id="meld-confirm-no-btn" class="meld-confirm-no-btn">No, Choose Another</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Stats modal -->
+        <div id="stats-modal" class="modal hidden">
+            <div class="modal-content stats-modal-content">
+                <h2>Player Statistics</h2>
+                <div id="stats-content" class="stats-content">
+                    <div class="stats-loading">Loading stats...</div>
+                </div>
+                <button id="stats-close-btn" class="stats-close-btn">Close</button>
             </div>
         </div>
     </div>

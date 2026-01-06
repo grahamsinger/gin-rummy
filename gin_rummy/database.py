@@ -41,7 +41,7 @@ def cards_to_db_list(cards: list[Card]) -> list[str]:
 
 
 # Schema version for migrations
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 -- Track schema version for future migrations
@@ -104,6 +104,35 @@ CREATE TABLE IF NOT EXISTS ai_decisions (
     reasoning TEXT,               -- why it was chosen
     options_considered TEXT,      -- JSON array of alternatives
     FOREIGN KEY (turn_id) REFERENCES turns(id)
+);
+
+-- Lifetime player statistics
+CREATE TABLE IF NOT EXISTS player_stats (
+    player_name TEXT PRIMARY KEY,
+    -- Hand outcomes
+    total_hands INTEGER DEFAULT 0,
+    hands_won INTEGER DEFAULT 0,
+    hands_lost INTEGER DEFAULT 0,
+    hands_drawn INTEGER DEFAULT 0,
+    -- Special outcomes
+    gins INTEGER DEFAULT 0,                    -- Times went gin
+    undercuts_made INTEGER DEFAULT 0,          -- Times undercut opponent
+    undercuts_suffered INTEGER DEFAULT 0,      -- Times got undercut
+    -- Knocking stats
+    times_knocked INTEGER DEFAULT 0,           -- Times this player knocked
+    times_opponent_knocked INTEGER DEFAULT 0,  -- Times opponent knocked
+    -- Scoring
+    total_points_scored INTEGER DEFAULT 0,
+    total_deadwood INTEGER DEFAULT 0,          -- Sum of all final deadwoods
+    deadwood_count INTEGER DEFAULT 0,          -- Number of times deadwood was recorded
+    -- Draw source preference
+    draws_from_deck INTEGER DEFAULT 0,
+    draws_from_discard INTEGER DEFAULT 0,
+    -- Knock threshold
+    total_knock_deadwood INTEGER DEFAULT 0,    -- Sum of deadwood when knocking
+    knock_count INTEGER DEFAULT 0,             -- Number of times knocked (for avg)
+    -- Metadata
+    last_updated TEXT
 );
 
 -- Indexes for common queries
@@ -216,10 +245,14 @@ class GameTracker:
     def end_hand(
         self,
         winner_name: str | None,
+        loser_name: str | None,
         points: int,
         is_gin: bool = False,
         is_undercut: bool = False,
-        is_draw: bool = False
+        is_draw: bool = False,
+        knocker_name: str | None = None,
+        winner_deadwood: int = 0,
+        loser_deadwood: int = 0,
     ) -> None:
         """Record end of hand."""
         if self._hand_id is None:
@@ -236,6 +269,12 @@ class GameTracker:
                 )
             )
             conn.commit()
+
+        # Update player stats
+        self.update_player_stats(
+            winner_name, loser_name, points, is_gin, is_undercut,
+            is_draw, knocker_name, winner_deadwood, loser_deadwood
+        )
 
     def record_turn(
         self,
@@ -294,6 +333,185 @@ class GameTracker:
             conn.commit()
             assert cursor.lastrowid is not None
             return cursor.lastrowid
+
+    def update_player_stats(
+        self,
+        winner_name: str | None,
+        loser_name: str | None,
+        points: int,
+        is_gin: bool,
+        is_undercut: bool,
+        is_draw: bool,
+        knocker_name: str | None,
+        winner_deadwood: int,
+        loser_deadwood: int,
+    ) -> None:
+        """Update lifetime statistics for both players after a hand."""
+        if self._hand_id is None:
+            return
+
+        with get_connection(self.db_path) as conn:
+            # Get draw stats for this hand (from turns table)
+            draw_stats = conn.execute(
+                """SELECT player_name,
+                          SUM(CASE WHEN drew_from = 'deck' THEN 1 ELSE 0 END) as deck_draws,
+                          SUM(CASE WHEN drew_from = 'discard' THEN 1 ELSE 0 END) as discard_draws
+                   FROM turns
+                   WHERE hand_id = ?
+                   GROUP BY player_name""",
+                (self._hand_id,)
+            ).fetchall()
+
+            draw_stats_map = {
+                row['player_name']: {
+                    'deck': row['deck_draws'],
+                    'discard': row['discard_draws']
+                }
+                for row in draw_stats
+            }
+
+            # Get knock deadwood if someone knocked
+            knock_deadwood = None
+            if knocker_name:
+                knock_turn = conn.execute(
+                    """SELECT deadwood_after FROM turns
+                       WHERE hand_id = ? AND player_name = ? AND did_knock = 1
+                       ORDER BY turn_number DESC LIMIT 1""",
+                    (self._hand_id, knocker_name)
+                ).fetchone()
+                if knock_turn:
+                    knock_deadwood = knock_turn['deadwood_after']
+
+            # Update stats for both players
+            players = []
+            if is_draw:
+                # Both players in a draw
+                if winner_name:
+                    players.append(winner_name)
+                if loser_name:
+                    players.append(loser_name)
+            else:
+                # Winner and loser
+                if winner_name:
+                    players.append(winner_name)
+                if loser_name:
+                    players.append(loser_name)
+
+            for player_name in players:
+                is_winner = player_name == winner_name
+                is_knocker = player_name == knocker_name
+
+                # Initialize player stats if not exists
+                conn.execute(
+                    """INSERT OR IGNORE INTO player_stats (player_name, last_updated)
+                       VALUES (?, ?)""",
+                    (player_name, datetime.now().isoformat())
+                )
+
+                # Build update query
+                updates = {
+                    'total_hands': 1,
+                    'hands_won': 1 if is_winner and not is_draw else 0,
+                    'hands_lost': 1 if not is_winner and not is_draw else 0,
+                    'hands_drawn': 1 if is_draw else 0,
+                    'gins': 1 if is_winner and is_gin else 0,
+                    'undercuts_made': 1 if is_winner and is_undercut else 0,
+                    'undercuts_suffered': 1 if not is_winner and is_undercut else 0,
+                    'times_knocked': 1 if is_knocker else 0,
+                    'times_opponent_knocked': 1 if knocker_name and not is_knocker else 0,
+                    'total_points_scored': points if is_winner else 0,
+                }
+
+                # Add deadwood stats
+                if is_winner and not is_draw:
+                    updates['total_deadwood'] = winner_deadwood
+                    updates['deadwood_count'] = 1
+                elif not is_winner and not is_draw:
+                    updates['total_deadwood'] = loser_deadwood
+                    updates['deadwood_count'] = 1
+
+                # Add draw stats
+                if player_name in draw_stats_map:
+                    updates['draws_from_deck'] = draw_stats_map[player_name]['deck']
+                    updates['draws_from_discard'] = draw_stats_map[player_name]['discard']
+
+                # Add knock deadwood if this player knocked
+                if is_knocker and knock_deadwood is not None:
+                    updates['total_knock_deadwood'] = knock_deadwood
+                    updates['knock_count'] = 1
+
+                # Execute update
+                update_clauses = ', '.join(f"{k} = {k} + ?" for k in updates.keys())
+                update_clauses += ', last_updated = ?'
+                values = list(updates.values()) + [datetime.now().isoformat(), player_name]
+
+                conn.execute(
+                    f"""UPDATE player_stats
+                        SET {update_clauses}
+                        WHERE player_name = ?""",
+                    values
+                )
+
+            conn.commit()
+
+    def get_player_stats(self, player_name: str) -> dict | None:
+        """Get lifetime statistics for a player."""
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM player_stats WHERE player_name = ?",
+                (player_name,)
+            ).fetchone()
+
+            if not row:
+                return None
+
+            stats = dict(row)
+
+            # Calculate derived stats
+            if stats['total_hands'] > 0:
+                stats['win_rate'] = stats['hands_won'] / stats['total_hands']
+            else:
+                stats['win_rate'] = 0.0
+
+            if stats['deadwood_count'] > 0:
+                stats['avg_deadwood'] = stats['total_deadwood'] / stats['deadwood_count']
+            else:
+                stats['avg_deadwood'] = 0.0
+
+            if stats['total_hands'] > 0:
+                stats['avg_points_per_hand'] = stats['total_points_scored'] / stats['total_hands']
+            else:
+                stats['avg_points_per_hand'] = 0.0
+
+            if stats['hands_won'] > 0:
+                stats['gin_rate'] = stats['gins'] / stats['hands_won']
+            else:
+                stats['gin_rate'] = 0.0
+
+            if stats['times_opponent_knocked'] > 0:
+                stats['undercut_rate'] = stats['undercuts_made'] / stats['times_opponent_knocked']
+            else:
+                stats['undercut_rate'] = 0.0
+
+            if stats['total_hands'] > 0:
+                stats['knock_aggression'] = stats['times_knocked'] / stats['total_hands']
+            else:
+                stats['knock_aggression'] = 0.0
+
+            total_draws = stats['draws_from_deck'] + stats['draws_from_discard']
+            if total_draws > 0:
+                stats['deck_draw_rate'] = stats['draws_from_deck'] / total_draws
+                stats['discard_draw_rate'] = stats['draws_from_discard'] / total_draws
+            else:
+                stats['deck_draw_rate'] = 0.0
+                stats['discard_draw_rate'] = 0.0
+
+            if stats['knock_count'] > 0:
+                stats['avg_knock_deadwood'] = stats['total_knock_deadwood'] / stats['knock_count']
+            else:
+                stats['avg_knock_deadwood'] = 0.0
+
+            return stats
 
 
 # Query helpers for analysis

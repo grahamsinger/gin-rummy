@@ -56,6 +56,10 @@ const elements = {
     settingsForm: document.getElementById('settings-form'),
     playerNameInput: document.getElementById('player-name'),
     aiDifficultySelect: document.getElementById('ai-difficulty'),
+    viewStatsBtn: document.getElementById('view-stats-btn'),
+    statsModal: document.getElementById('stats-modal'),
+    statsContent: document.getElementById('stats-content'),
+    statsCloseBtn: document.getElementById('stats-close-btn'),
 };
 
 // Suit symbols
@@ -873,6 +877,12 @@ function init() {
     elements.sortRankBtn.addEventListener('click', () => setSortMode('rank'));
     elements.sortValueBtn.addEventListener('click', () => setSortMode('value'));
 
+    // Stats button and modal
+    elements.viewStatsBtn.addEventListener('click', showPlayerStats);
+    elements.statsCloseBtn.addEventListener('click', () => {
+        elements.statsModal.classList.add('hidden');
+    });
+
     // Initialize sort button active state
     updateSortButtonStates();
 
@@ -899,6 +909,102 @@ function updateSortButtonStates() {
     elements.sortSuitBtn.classList.toggle('active', sortMode === 'suit');
     elements.sortRankBtn.classList.toggle('active', sortMode === 'rank');
     elements.sortValueBtn.classList.toggle('active', sortMode === 'value');
+}
+
+// Fetch and display player stats
+async function showPlayerStats() {
+    const playerName = savedSettings.playerName || 'You';
+    elements.statsModal.classList.remove('hidden');
+    elements.statsContent.innerHTML = '<div class="stats-loading">Loading stats...</div>';
+
+    try {
+        const response = await fetch(`/api/stats/${encodeURIComponent(playerName)}`);
+        const stats = await response.json();
+
+        if (stats.total_hands === 0) {
+            elements.statsContent.innerHTML = `
+                <div class="stats-empty">
+                    <p>No statistics available yet for <strong>${playerName}</strong>.</p>
+                    <p>Play some hands to start tracking your stats!</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Render stats
+        const html = `
+            <div class="stats-player-name">
+                <h3>${playerName}</h3>
+            </div>
+            <div class="stats-list">
+                <div class="stat-row">
+                    <span class="stat-label">Total Hands</span>
+                    <span class="stat-value">${stats.total_hands}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Win Rate</span>
+                    <span class="stat-value">${(stats.win_rate * 100).toFixed(1)}%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Hands Won</span>
+                    <span class="stat-value">${stats.hands_won}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Hands Lost</span>
+                    <span class="stat-value">${stats.hands_lost}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Avg Deadwood</span>
+                    <span class="stat-value">${stats.avg_deadwood.toFixed(1)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Avg Points/Hand</span>
+                    <span class="stat-value">${stats.avg_points_per_hand.toFixed(1)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Gins</span>
+                    <span class="stat-value">${stats.gins}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Gin Rate</span>
+                    <span class="stat-value">${(stats.gin_rate * 100).toFixed(1)}%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Undercuts Made</span>
+                    <span class="stat-value">${stats.undercuts_made}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Undercut Rate</span>
+                    <span class="stat-value">${(stats.undercut_rate * 100).toFixed(1)}%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Knock Aggression</span>
+                    <span class="stat-value">${(stats.knock_aggression * 100).toFixed(1)}%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Avg Knock Deadwood</span>
+                    <span class="stat-value">${stats.avg_knock_deadwood.toFixed(1)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Deck Draw Rate</span>
+                    <span class="stat-value">${(stats.deck_draw_rate * 100).toFixed(1)}%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Discard Draw Rate</span>
+                    <span class="stat-value">${(stats.discard_draw_rate * 100).toFixed(1)}%</span>
+                </div>
+            </div>
+        `;
+        elements.statsContent.innerHTML = html;
+    } catch (error) {
+        console.error('Failed to load stats:', error);
+        elements.statsContent.innerHTML = `
+            <div class="stats-error">
+                <p>Failed to load statistics.</p>
+                <p>Please try again later.</p>
+            </div>
+        `;
+    }
 }
 
 // Start the game when page loads

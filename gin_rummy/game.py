@@ -40,6 +40,9 @@ class RoundResult:
     is_gin: bool
     is_undercut: bool
     is_draw: bool
+    knocker: Player | None = None  # Who knocked (None if draw)
+    winner_deadwood: int = 0
+    loser_deadwood: int = 0
 
 
 class Game:
@@ -378,6 +381,9 @@ class Game:
             is_gin=is_gin,
             is_undercut=is_undercut,
             is_draw=False,
+            knocker=knocker,
+            winner_deadwood=winner.hand.deadwood_total,
+            loser_deadwood=loser.hand.deadwood_total,
         )
 
     def new_round(self) -> None:
