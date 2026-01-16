@@ -604,6 +604,15 @@ async function displayAiAction(action, state) {
     }
 }
 
+// Format card ID (e.g., "KD") to display format (e.g., "K♦")
+function formatCardId(cardId) {
+    if (!cardId) return cardId;
+    const suitChar = cardId.slice(-1);
+    const rank = cardId.slice(0, -1);
+    const suitMap = { 'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣' };
+    return rank + (suitMap[suitChar] || suitChar);
+}
+
 // Update the persistent last AI move display
 function updateLastAiMove(action) {
     if (!action) {
@@ -614,14 +623,14 @@ function updateLastAiMove(action) {
     let moveText = '';
     if (action.type === 'turn') {
         if (action.draw_from === 'discard') {
-            moveText = `Last move: picked up ${action.drew_card}, discarded ${action.discarded}`;
+            moveText = `Last move: picked up ${formatCardId(action.drew_card)}, discarded ${formatCardId(action.discarded)}`;
         } else {
-            moveText = `Last move: drew from deck, discarded ${action.discarded}`;
+            moveText = `Last move: drew from deck, discarded ${formatCardId(action.discarded)}`;
         }
     } else if (action.type === 'first_discard') {
-        moveText = `Last move: discarded ${action.discarded}`;
+        moveText = `Last move: discarded ${formatCardId(action.discarded)}`;
     } else if (action.type === 'knock') {
-        moveText = `Last move: knocked with ${action.discarded}`;
+        moveText = `Last move: knocked with ${formatCardId(action.discarded)}`;
     }
 
     elements.lastAiMove.textContent = moveText;
