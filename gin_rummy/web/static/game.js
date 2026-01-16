@@ -20,6 +20,7 @@ const elements = {
     playerHand: document.getElementById('player-hand'),
     opponentHand: document.getElementById('opponent-hand'),
     opponentCardCount: document.getElementById('opponent-card-count'),
+    lastAiMove: document.getElementById('last-ai-move'),
     discardTop: document.getElementById('discard-top'),
     discardPile: document.getElementById('discard-pile'),
     deck: document.getElementById('deck'),
@@ -392,6 +393,11 @@ function renderGameState(state) {
         elements.assistPanel.classList.add('hidden');
     }
 
+    // Update last AI move from state (for page refresh scenarios)
+    if (state.ai_action) {
+        updateLastAiMove(state.ai_action);
+    }
+
     // Check for round over
     if (state.round_over) {
         showRoundResult(state.round_result);
@@ -424,6 +430,7 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 async function newGame(settings = null) {
     elements.roundModal.classList.add('hidden');
     elements.settingsModal.classList.add('hidden');
+    elements.lastAiMove.textContent = '';  // Clear last AI move
     const state = await apiCall('/new', 'POST', settings);
     if (state) {
         renderGameState(state);
@@ -512,6 +519,7 @@ async function knock() {
 
 async function nextRound() {
     elements.roundModal.classList.add('hidden');
+    elements.lastAiMove.textContent = '';  // Clear last AI move
     const state = await apiCall('/new-round', 'POST');
     if (state) {
         renderGameState(state);
@@ -582,12 +590,41 @@ async function displayAiAction(action, state) {
 
         // Clear status classes
         elements.statusMessage.classList.remove('ai-discard');
+
+        // Persist the last AI move summary
+        updateLastAiMove(action);
     } else if (action.type === 'first_discard') {
         elements.statusMessage.textContent = `Computer discarded ${action.discarded}`;
         elements.statusMessage.classList.remove('thinking');
         renderGameState(state);
         await new Promise(resolve => setTimeout(resolve, 800));
+
+        // Persist the last AI move summary
+        updateLastAiMove(action);
     }
+}
+
+// Update the persistent last AI move display
+function updateLastAiMove(action) {
+    if (!action) {
+        elements.lastAiMove.textContent = '';
+        return;
+    }
+
+    let moveText = '';
+    if (action.type === 'turn') {
+        if (action.draw_from === 'discard') {
+            moveText = `Last move: picked up ${action.drew_card}, discarded ${action.discarded}`;
+        } else {
+            moveText = `Last move: drew from deck, discarded ${action.discarded}`;
+        }
+    } else if (action.type === 'first_discard') {
+        moveText = `Last move: discarded ${action.discarded}`;
+    } else if (action.type === 'knock') {
+        moveText = `Last move: knocked with ${action.discarded}`;
+    }
+
+    elements.lastAiMove.textContent = moveText;
 }
 
 // Check if a card is part of a meld

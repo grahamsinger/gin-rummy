@@ -132,6 +132,18 @@ body {
     opacity: 0.8;
 }
 
+.last-ai-move {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #a0c4ff;
+    font-style: italic;
+    min-height: 1.2em;
+}
+
+.last-ai-move:empty {
+    display: none;
+}
+
 .opponent-hand .card {
     width: 45px;
     height: 63px;
