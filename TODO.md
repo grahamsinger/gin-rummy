@@ -8,21 +8,18 @@
 (none currently)
 
 ## AI Tuning
-- [ ] Tune ContextAwareAI parameters (currently ~53% win rate vs BasicAI)
+- [ ] Tune ContextAwareAI parameters (currently ~55% win rate vs BasicAI)
   - Best config so far: threshold=3, key_out=2, denial=0
   - See SIMULATION_HISTORY.md for detailed results
-- [ ] Investigate opponent modeling
-  - How are we determining if a card might be helpful for opponent?
-  - Current OpponentModel tracks pickup/discard patterns by rank/suit
-  - Denial bonus was hurting performance - predictions may be inaccurate
-  - Consider: track which melds opponent might be building based on pickups
+- [x] Investigate opponent modeling
+  - Implemented via Opponent Meld Inference (see below)
 
 ### ContextAwareAI Improvement Roadmap
-- [ ] **Opponent Meld Inference** (High Impact)
+- [x] **Opponent Meld Inference** (High Impact)
   - Track specific cards opponent picks up, not just rank/suit frequencies
   - Infer likely melds: if opponent picks 7♥ then 8♥ → likely building hearts run
   - Generate "danger cards" list: cards that would complete opponent's inferred melds
-  - Use danger cards in discard decisions (avoid discarding them)
+  - Use danger cards in discard decisions (danger_card_penalty config)
 - [ ] **Deadwood-Based Discard Safety** (Medium Impact)
   - Factor card deadwood value into safety calculation
   - High cards (K, Q, J) safer early game (less meld potential)
@@ -43,7 +40,9 @@
   - Current denial bonus hurts performance (predictions inaccurate)
   - Only apply when confidence high (2+ pickups of same rank)
   - Or remove entirely and focus on own hand optimization
-- [ ] AI difficulty levels (easy/medium/hard)
+- [x] AI difficulty levels (easy/medium/hard)
+  - Implemented in web UI settings modal
+  - Easy (BasicAI), Medium (ContextAwareAI), Hard (StatisticalAI)
 - [x] StatisticalAI implementation
   - Tracks win rates for draw/discard/knock decisions
   - Uses probabilistic selection weighted by historical outcomes
@@ -132,11 +131,19 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
 
 ## Game Tracking
 - [ ] Game history/replay viewer
-- [ ] Statistics dashboard/summary command
+- [x] Statistics dashboard/summary command
+  - Lifetime stats tracking in SQLite (player_stats table)
+  - Web UI stats modal with 14 statistics
+  - API endpoint `/api/stats/{player_name}`
 
-## Laying Off
-- [ ] Allow defender to lay off cards on knocker's melds after knock
-- [ ] Update scoring to account for laid off cards
+## Laying Off (COMPLETED)
+- [x] Allow defender to lay off cards on knocker's melds after knock
+  - Implemented `can_lay_off_on_meld()` for runs and sets
+  - Implemented `find_layoff_cards()` with chain layoff support
+  - Implemented `calculate_deadwood_after_layoff()`
+- [x] Update scoring to account for laid off cards
+  - `knock()` now uses laying off when knocker has deadwood > 0
+  - No laying off allowed on gin (knocker deadwood = 0)
 
 ## UI Improvements
 - [ ] Highlight the card just drawn in the hand display

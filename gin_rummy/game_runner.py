@@ -49,7 +49,7 @@ class TurnCallbacks(Protocol):
         """Called after a card is discarded (non-knock)."""
         ...
 
-    def on_knock(self, player: Player, discard: Card, deadwood: int) -> None:
+    def on_knock(self, player: Player, discard: Card, deadwood: int, result: RoundResult) -> None:
         """Called when player knocks."""
         ...
 
@@ -67,7 +67,7 @@ class NoOpCallbacks:
     def on_discard(self, player: Player, card: Card) -> None:
         pass
 
-    def on_knock(self, player: Player, discard: Card, deadwood: int) -> None:
+    def on_knock(self, player: Player, discard: Card, deadwood: int, result: RoundResult) -> None:
         pass
 
     def on_turn_complete(self, player: Player, actions: TurnActions) -> None:
@@ -238,7 +238,7 @@ def execute_ai_turn(
         round_result = game.knock()
 
         # Callback: knock (called after knock so round result is available)
-        callbacks.on_knock(current, discard, deadwood_after)
+        callbacks.on_knock(current, discard, deadwood_after, round_result)
 
         # Build actions record
         actions = TurnActions(

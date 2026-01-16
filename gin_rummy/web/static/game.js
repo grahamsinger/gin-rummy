@@ -768,6 +768,29 @@ function showRoundResult(result) {
             details = `Computer wins ${result.points} points`;
         }
     }
+
+    // Add layoff information if cards were laid off
+    if (result.layoff_cards && result.layoff_cards.length > 0) {
+        const layoffCardsStr = result.layoff_cards.join(' ');
+        const deadwoodAfter = result.defender_deadwood_before -
+            result.layoff_cards.reduce((sum, card) => {
+                // Calculate deadwood value from card id (e.g., "10H" -> 10, "KS" -> 10, "AS" -> 1)
+                const rankPart = card.slice(0, -1);
+                let value;
+                if (rankPart === 'A') value = 1;
+                else if (rankPart === 'J' || rankPart === 'Q' || rankPart === 'K') value = 10;
+                else value = parseInt(rankPart);
+                return sum + value;
+            }, 0);
+
+        // Determine who the defender is (opposite of winner in knock, same as winner in undercut)
+        const defenderName = result.is_undercut ? result.winner :
+            (result.winner === 'You' ? 'Computer' : 'You');
+
+        details += `\n\n${defenderName} laid off: ${layoffCardsStr}`;
+        details += `\n(Deadwood: ${result.defender_deadwood_before} → ${deadwoodAfter})`;
+    }
+
     elements.roundResultDetails.textContent = details;
 
     // Render hands in modal with melds grouped

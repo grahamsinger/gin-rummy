@@ -221,3 +221,150 @@ def analyze_hand(cards: list[Card]) -> HandAnalysis:
         deadwood_cards=deadwood_cards,
         deadwood_value=deadwood_value,
     )
+
+
+def can_lay_off_on_meld(card: Card, meld: Meld) -> bool:
+    """Check if a card can be laid off on an existing meld.
+
+    Args:
+        card: The card to potentially lay off.
+        meld: The meld to lay off on.
+
+    Returns:
+        True if the card can extend the meld, False otherwise.
+    """
+    if meld.meld_type == MeldType.RUN:
+        # For runs, card must be same suit and adjacent to either end
+        meld_cards = meld.cards
+        if card.suit != meld_cards[0].suit:
+            return False
+
+        # Get the rank values of the run endpoints
+        sorted_by_rank = sorted(meld_cards, key=lambda c: c.rank.value)
+        low_rank = sorted_by_rank[0].rank.value
+        high_rank = sorted_by_rank[-1].rank.value
+
+        # Card must be exactly one less than low or one more than high
+        return card.rank.value == low_rank - 1 or card.rank.value == high_rank + 1
+
+    elif meld.meld_type == MeldType.SET:
+        # For sets, card must be same rank and different suit (not already in set)
+        meld_cards = meld.cards
+        if len(meld_cards) >= 4:
+            # Set is full, can't add more
+            return False
+
+        # Must be same rank
+        if card.rank != meld_cards[0].rank:
+            return False
+
+        # Must be a different suit (not already in the set)
+        meld_suits = {c.suit for c in meld_cards}
+        return card.suit not in meld_suits
+
+    return False
+
+
+def find_layoff_cards(
+    defender_cards: list[Card], knocker_melds: list[Meld]
+) -> list[Card]:
+    """Find all cards from defender's hand that can be laid off on knocker's melds.
+
+    This handles chain layoffs where one card extends a run, enabling another
+    card to also be laid off.
+
+    Args:
+        defender_cards: Cards in defender's hand (typically deadwood cards).
+        knocker_melds: Melds from the knocker's hand.
+
+    Returns:
+        List of cards that can be laid off.
+    """
+    if not knocker_melds or not defender_cards:
+        return []
+
+    # We need to handle chain layoffs, so we iterate until no more cards can be laid off
+    layoff_cards: list[Card] = []
+    remaining_cards = list(defender_cards)
+
+    # Create mutable copies of melds that we can extend
+    # Store as lists of cards so we can extend them
+    extended_melds: list[tuple[MeldType, list[Card]]] = [
+        (meld.meld_type, list(meld.cards)) for meld in knocker_melds
+    ]
+
+    changed = True
+    while changed:
+        changed = False
+        for card in remaining_cards[:]:  # Copy to allow modification during iteration
+            for meld_type, meld_cards in extended_melds:
+                temp_meld = Meld(tuple(meld_cards), meld_type)
+                if can_lay_off_on_meld(card, temp_meld):
+                    layoff_cards.append(card)
+                    remaining_cards.remove(card)
+                    # Extend the meld for chain layoffs
+                    meld_cards.append(card)
+                    changed = True
+                    break
+
+    return layoff_cards
+
+
+@dataclass
+class LayoffResult:
+    """Result of laying off cards on knocker's melds."""
+    layoff_cards: list[Card]
+    deadwood_before: int
+    deadwood_after: int
+
+
+def calculate_layoff(
+    defender_cards: list[Card], knocker_melds: list[Meld]
+) -> LayoffResult:
+    """Calculate defender's layoff and deadwood after laying off on knocker's melds.
+
+    First analyzes defender's hand for their own melds, then allows layoff
+    of remaining deadwood cards on knocker's melds.
+
+    Args:
+        defender_cards: All cards in defender's hand.
+        knocker_melds: Melds from the knocker's hand.
+
+    Returns:
+        LayoffResult with layoff cards and deadwood before/after.
+    """
+    # First, find defender's own optimal melds
+    analysis = analyze_hand(defender_cards)
+    defender_deadwood_cards = analysis.deadwood_cards
+    deadwood_before = analysis.deadwood_value
+
+    # Find which deadwood cards can be laid off
+    layoff_cards = find_layoff_cards(defender_deadwood_cards, knocker_melds)
+
+    # Calculate remaining deadwood
+    remaining_deadwood = [c for c in defender_deadwood_cards if c not in layoff_cards]
+    deadwood_after = sum(c.deadwood_value for c in remaining_deadwood)
+
+    return LayoffResult(
+        layoff_cards=layoff_cards,
+        deadwood_before=deadwood_before,
+        deadwood_after=deadwood_after,
+    )
+
+
+def calculate_deadwood_after_layoff(
+    defender_cards: list[Card], knocker_melds: list[Meld]
+) -> int:
+    """Calculate defender's deadwood after laying off cards on knocker's melds.
+
+    First analyzes defender's hand for their own melds, then allows layoff
+    of remaining deadwood cards on knocker's melds.
+
+    Args:
+        defender_cards: All cards in defender's hand.
+        knocker_melds: Melds from the knocker's hand.
+
+    Returns:
+        Defender's deadwood value after optimal layoff.
+    """
+    return calculate_layoff(defender_cards, knocker_melds).deadwood_after

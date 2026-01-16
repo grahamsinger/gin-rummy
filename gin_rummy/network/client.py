@@ -401,9 +401,12 @@ class GinRummyClient:
         is_gin = payload.get("is_gin", False)
         is_undercut = payload.get("is_undercut", False)
         winner = payload.get("winner")
+        loser = payload.get("loser")
         points = payload.get("points", 0)
         scores = payload.get("scores", {})
         hands = payload.get("hands", {})
+        layoff_cards = payload.get("layoff_cards")
+        defender_deadwood_before = payload.get("defender_deadwood_before", 0)
 
         if is_draw:
             print("\nThe round ended in a DRAW (deck exhausted).")
@@ -415,6 +418,14 @@ class GinRummyClient:
             else:
                 print(f"\n{winner} wins the round!")
             print(f"Points awarded: {points}")
+
+            # Display layoff information
+            if layoff_cards:
+                defender = winner if is_undercut else loser
+                layoff_str = " ".join(layoff_cards)
+                layoff_value = sum(self._card_value(c) for c in layoff_cards)
+                print(f"\n{defender} laid off: {layoff_str}")
+                print(f"  (Deadwood: {defender_deadwood_before} → {defender_deadwood_before - layoff_value})")
 
         # Show both hands
         print("\nFinal hands:")
@@ -435,6 +446,21 @@ class GinRummyClient:
         """Calculate deadwood value for a list of cards."""
         analysis = analyze_hand(cards)
         return analysis.deadwood_value
+
+    def _card_value(self, card_str: str) -> int:
+        """Get deadwood value from card string like '10H', 'KS', 'A♠'."""
+        # Handle both ASCII (10H, KS) and Unicode (K♠) formats
+        # Strip the suit (last character or unicode suit symbol)
+        rank_part = card_str[:-1] if card_str[-1] in 'SHDC♠♥♦♣' else card_str[:-1]
+        if rank_part in ('A', 'a'):
+            return 1
+        elif rank_part in ('J', 'Q', 'K', 'j', 'q', 'k'):
+            return 10
+        else:
+            try:
+                return min(int(rank_part), 10)
+            except ValueError:
+                return 10  # Default to 10 for unrecognized
 
     def _display_game_over(self, payload: dict[str, Any]) -> None:
         """Display game over message."""

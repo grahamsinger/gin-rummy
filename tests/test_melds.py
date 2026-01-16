@@ -232,3 +232,256 @@ class TestMeld:
             meld_type=MeldType.RUN,
         )
         assert meld.size == 3
+
+
+class TestLayingOff:
+    """Tests for laying off cards onto opponent's melds."""
+
+    def test_can_extend_run_at_high_end(self):
+        """A card can extend a run at the high end."""
+        from gin_rummy.models.melds import can_lay_off_on_meld
+
+        run = Meld(
+            cards=(
+                Card(Rank.FIVE, Suit.HEARTS),
+                Card(Rank.SIX, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.HEARTS),
+            ),
+            meld_type=MeldType.RUN,
+        )
+        # 8♥ should extend the run
+        card = Card(Rank.EIGHT, Suit.HEARTS)
+        assert can_lay_off_on_meld(card, run) is True
+
+    def test_can_extend_run_at_low_end(self):
+        """A card can extend a run at the low end."""
+        from gin_rummy.models.melds import can_lay_off_on_meld
+
+        run = Meld(
+            cards=(
+                Card(Rank.FIVE, Suit.HEARTS),
+                Card(Rank.SIX, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.HEARTS),
+            ),
+            meld_type=MeldType.RUN,
+        )
+        # 4♥ should extend the run
+        card = Card(Rank.FOUR, Suit.HEARTS)
+        assert can_lay_off_on_meld(card, run) is True
+
+    def test_cannot_extend_run_wrong_suit(self):
+        """A card of wrong suit cannot extend a run."""
+        from gin_rummy.models.melds import can_lay_off_on_meld
+
+        run = Meld(
+            cards=(
+                Card(Rank.FIVE, Suit.HEARTS),
+                Card(Rank.SIX, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.HEARTS),
+            ),
+            meld_type=MeldType.RUN,
+        )
+        # 8♠ wrong suit
+        card = Card(Rank.EIGHT, Suit.SPADES)
+        assert can_lay_off_on_meld(card, run) is False
+
+    def test_cannot_extend_run_not_adjacent(self):
+        """A card not adjacent to the run cannot extend it."""
+        from gin_rummy.models.melds import can_lay_off_on_meld
+
+        run = Meld(
+            cards=(
+                Card(Rank.FIVE, Suit.HEARTS),
+                Card(Rank.SIX, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.HEARTS),
+            ),
+            meld_type=MeldType.RUN,
+        )
+        # 9♥ is not adjacent
+        card = Card(Rank.NINE, Suit.HEARTS)
+        assert can_lay_off_on_meld(card, run) is False
+
+    def test_can_add_to_set_of_three(self):
+        """The 4th card of a rank can be added to a set of 3."""
+        from gin_rummy.models.melds import can_lay_off_on_meld
+
+        set_meld = Meld(
+            cards=(
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.KING, Suit.HEARTS),
+                Card(Rank.KING, Suit.CLUBS),
+            ),
+            meld_type=MeldType.SET,
+        )
+        # K♦ should complete the set
+        card = Card(Rank.KING, Suit.DIAMONDS)
+        assert can_lay_off_on_meld(card, set_meld) is True
+
+    def test_cannot_add_to_set_of_four(self):
+        """Cannot add a 5th card to a set of 4."""
+        from gin_rummy.models.melds import can_lay_off_on_meld
+
+        set_meld = Meld(
+            cards=(
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.KING, Suit.HEARTS),
+                Card(Rank.KING, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+            ),
+            meld_type=MeldType.SET,
+        )
+        # No more kings to add - but let's test a different rank
+        card = Card(Rank.QUEEN, Suit.SPADES)
+        assert can_lay_off_on_meld(card, set_meld) is False
+
+    def test_cannot_add_wrong_rank_to_set(self):
+        """Cannot add a card of different rank to a set."""
+        from gin_rummy.models.melds import can_lay_off_on_meld
+
+        set_meld = Meld(
+            cards=(
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.KING, Suit.HEARTS),
+                Card(Rank.KING, Suit.CLUBS),
+            ),
+            meld_type=MeldType.SET,
+        )
+        card = Card(Rank.QUEEN, Suit.DIAMONDS)
+        assert can_lay_off_on_meld(card, set_meld) is False
+
+    def test_cannot_add_duplicate_suit_to_set(self):
+        """Cannot add a card with a suit already in the set."""
+        from gin_rummy.models.melds import can_lay_off_on_meld
+
+        set_meld = Meld(
+            cards=(
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.KING, Suit.HEARTS),
+                Card(Rank.KING, Suit.CLUBS),
+            ),
+            meld_type=MeldType.SET,
+        )
+        # K♠ is already in the set
+        card = Card(Rank.KING, Suit.SPADES)
+        assert can_lay_off_on_meld(card, set_meld) is False
+
+    def test_find_layoff_cards_single_card(self):
+        """Find a single card that can be laid off."""
+        from gin_rummy.models.melds import find_layoff_cards
+
+        knocker_melds = [
+            Meld(
+                cards=(
+                    Card(Rank.FIVE, Suit.HEARTS),
+                    Card(Rank.SIX, Suit.HEARTS),
+                    Card(Rank.SEVEN, Suit.HEARTS),
+                ),
+                meld_type=MeldType.RUN,
+            )
+        ]
+        defender_cards = [
+            Card(Rank.EIGHT, Suit.HEARTS),  # Can lay off
+            Card(Rank.KING, Suit.SPADES),   # Cannot lay off
+        ]
+        layoff_cards = find_layoff_cards(defender_cards, knocker_melds)
+        assert len(layoff_cards) == 1
+        assert Card(Rank.EIGHT, Suit.HEARTS) in layoff_cards
+
+    def test_find_layoff_cards_multiple_cards(self):
+        """Find multiple cards that can be laid off on different melds."""
+        from gin_rummy.models.melds import find_layoff_cards
+
+        knocker_melds = [
+            Meld(
+                cards=(
+                    Card(Rank.FIVE, Suit.HEARTS),
+                    Card(Rank.SIX, Suit.HEARTS),
+                    Card(Rank.SEVEN, Suit.HEARTS),
+                ),
+                meld_type=MeldType.RUN,
+            ),
+            Meld(
+                cards=(
+                    Card(Rank.KING, Suit.SPADES),
+                    Card(Rank.KING, Suit.HEARTS),
+                    Card(Rank.KING, Suit.CLUBS),
+                ),
+                meld_type=MeldType.SET,
+            ),
+        ]
+        defender_cards = [
+            Card(Rank.FOUR, Suit.HEARTS),    # Can lay off on run
+            Card(Rank.KING, Suit.DIAMONDS),  # Can lay off on set
+            Card(Rank.TWO, Suit.SPADES),     # Cannot lay off
+        ]
+        layoff_cards = find_layoff_cards(defender_cards, knocker_melds)
+        assert len(layoff_cards) == 2
+        assert Card(Rank.FOUR, Suit.HEARTS) in layoff_cards
+        assert Card(Rank.KING, Suit.DIAMONDS) in layoff_cards
+
+    def test_find_layoff_cards_chain_layoff(self):
+        """Cards can enable chain layoffs (e.g., 8♥ enables 9♥ to also lay off)."""
+        from gin_rummy.models.melds import find_layoff_cards
+
+        knocker_melds = [
+            Meld(
+                cards=(
+                    Card(Rank.FIVE, Suit.HEARTS),
+                    Card(Rank.SIX, Suit.HEARTS),
+                    Card(Rank.SEVEN, Suit.HEARTS),
+                ),
+                meld_type=MeldType.RUN,
+            )
+        ]
+        defender_cards = [
+            Card(Rank.EIGHT, Suit.HEARTS),  # Can lay off directly
+            Card(Rank.NINE, Suit.HEARTS),   # Can lay off after 8♥
+        ]
+        layoff_cards = find_layoff_cards(defender_cards, knocker_melds)
+        assert len(layoff_cards) == 2
+        assert Card(Rank.EIGHT, Suit.HEARTS) in layoff_cards
+        assert Card(Rank.NINE, Suit.HEARTS) in layoff_cards
+
+    def test_calculate_deadwood_after_layoff(self):
+        """Calculate defender's deadwood after laying off cards."""
+        from gin_rummy.models.melds import calculate_deadwood_after_layoff
+
+        knocker_melds = [
+            Meld(
+                cards=(
+                    Card(Rank.FIVE, Suit.HEARTS),
+                    Card(Rank.SIX, Suit.HEARTS),
+                    Card(Rank.SEVEN, Suit.HEARTS),
+                ),
+                meld_type=MeldType.RUN,
+            )
+        ]
+        defender_cards = [
+            Card(Rank.EIGHT, Suit.HEARTS),  # 8 points, can lay off
+            Card(Rank.KING, Suit.SPADES),   # 10 points, cannot lay off
+        ]
+        # Without layoff: 8 + 10 = 18
+        # With layoff: 10 (only K♠ remains as deadwood)
+        deadwood = calculate_deadwood_after_layoff(defender_cards, knocker_melds)
+        assert deadwood == 10
+
+    def test_calculate_deadwood_no_layoff_possible(self):
+        """Deadwood unchanged when no layoff is possible."""
+        from gin_rummy.models.melds import calculate_deadwood_after_layoff
+
+        knocker_melds = [
+            Meld(
+                cards=(
+                    Card(Rank.FIVE, Suit.HEARTS),
+                    Card(Rank.SIX, Suit.HEARTS),
+                    Card(Rank.SEVEN, Suit.HEARTS),
+                ),
+                meld_type=MeldType.RUN,
+            )
+        ]
+        defender_cards = [
+            Card(Rank.TWO, Suit.SPADES),   # 2 points
+            Card(Rank.KING, Suit.CLUBS),   # 10 points
+        ]
+        deadwood = calculate_deadwood_after_layoff(defender_cards, knocker_melds)
+        assert deadwood == 12

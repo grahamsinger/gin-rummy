@@ -7,6 +7,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from gin_rummy.models import Card, Deck, Player
+from gin_rummy.models.melds import calculate_layoff
 from gin_rummy.config import get_config
 
 if TYPE_CHECKING:
@@ -43,6 +44,8 @@ class RoundResult:
     knocker: Player | None = None  # Who knocked (None if draw)
     winner_deadwood: int = 0
     loser_deadwood: int = 0
+    layoff_cards: list[Card] | None = None  # Cards defender laid off (None if gin/draw)
+    defender_deadwood_before_layoff: int = 0  # Defender's deadwood before layoff
 
 
 class Game:
@@ -344,12 +347,28 @@ class Game:
             )
 
         knocker_deadwood = knocker.hand.deadwood_total
-        defender_deadwood = defender.hand.deadwood_total
 
         self.phase = GamePhase.KNOCKED
 
         # Determine outcome
         is_gin = knocker_deadwood == 0
+
+        # Track layoff information
+        layoff_cards: list[Card] | None = None
+        defender_deadwood_before_layoff = defender.hand.deadwood_total
+
+        if is_gin:
+            # No laying off allowed on gin - use defender's raw deadwood
+            defender_deadwood = defender_deadwood_before_layoff
+        else:
+            # Defender can lay off cards on knocker's melds
+            knocker_analysis = knocker.hand.analyze()
+            layoff_result = calculate_layoff(
+                list(defender.hand), knocker_analysis.melds
+            )
+            defender_deadwood = layoff_result.deadwood_after
+            layoff_cards = layoff_result.layoff_cards if layoff_result.layoff_cards else None
+
         is_undercut = not is_gin and defender_deadwood <= knocker_deadwood
 
         if is_gin:
@@ -384,6 +403,8 @@ class Game:
             knocker=knocker,
             winner_deadwood=winner.hand.deadwood_total,
             loser_deadwood=loser.hand.deadwood_total,
+            layoff_cards=layoff_cards,
+            defender_deadwood_before_layoff=defender_deadwood_before_layoff,
         )
 
     def new_round(self) -> None:

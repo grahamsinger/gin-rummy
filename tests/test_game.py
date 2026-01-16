@@ -282,6 +282,221 @@ class TestGinAndUndercut:
         assert result.points == 25 + (8 - 5)  # bonus + difference
 
 
+class TestLayingOff:
+    """Tests for laying off cards on knocker's melds."""
+
+    def test_defender_can_lay_off_on_knocker_run(self):
+        """Defender's deadwood is reduced by laying off on knocker's run."""
+        game = Game("Alice", "Bob")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+        game.draw_from_deck()
+
+        knocker = game.current_player
+        defender = game.opponent
+
+        # Knocker has a run 5-6-7♥ and 5 deadwood
+        knocker.hand._cards = [
+            Card(Rank.FIVE, Suit.HEARTS),
+            Card(Rank.SIX, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.TWO, Suit.SPADES),   # 2 deadwood
+            Card(Rank.THREE, Suit.CLUBS),  # 3 deadwood
+        ]  # Total deadwood: 5
+
+        # Defender has 8♥ (can lay off) + K♠ (cannot)
+        # Without layoff: 8 + 10 = 18 deadwood
+        # With layoff: 10 deadwood (only K♠)
+        defender.hand._cards = [
+            Card(Rank.EIGHT, Suit.HEARTS),  # 8 points, can lay off
+            Card(Rank.KING, Suit.SPADES),   # 10 points, cannot lay off
+        ]
+
+        result = game.knock()
+
+        # Knocker has 5 deadwood, defender has 10 after layoff
+        # Knocker wins by 5 points
+        assert result.winner == knocker
+        assert result.points == 5  # 10 - 5
+
+    def test_defender_can_lay_off_on_knocker_set(self):
+        """Defender's deadwood is reduced by laying off on knocker's set."""
+        game = Game("Alice", "Bob")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+        game.draw_from_deck()
+
+        knocker = game.current_player
+        defender = game.opponent
+
+        # Knocker has a set of Kings and some deadwood
+        knocker.hand._cards = [
+            Card(Rank.KING, Suit.SPADES),
+            Card(Rank.KING, Suit.HEARTS),
+            Card(Rank.KING, Suit.CLUBS),
+            Card(Rank.TWO, Suit.SPADES),   # 2 deadwood
+            Card(Rank.THREE, Suit.CLUBS),  # 3 deadwood
+        ]  # Total deadwood: 5
+
+        # Defender has K♦ (can lay off) + 9♠ (cannot)
+        # Without layoff: 10 + 9 = 19 deadwood
+        # With layoff: 9 deadwood (only 9♠)
+        defender.hand._cards = [
+            Card(Rank.KING, Suit.DIAMONDS),  # 10 points, can lay off
+            Card(Rank.NINE, Suit.SPADES),    # 9 points, cannot lay off
+        ]
+
+        result = game.knock()
+
+        # Knocker has 5 deadwood, defender has 9 after layoff
+        # Knocker wins by 4 points
+        assert result.winner == knocker
+        assert result.points == 4  # 9 - 5
+
+    def test_layoff_causes_undercut(self):
+        """Laying off can cause an undercut when it reduces defender's deadwood below knocker's."""
+        game = Game("Alice", "Bob")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+        game.draw_from_deck()
+
+        knocker = game.current_player
+        defender = game.opponent
+
+        # Knocker has a run and 8 deadwood
+        knocker.hand._cards = [
+            Card(Rank.FIVE, Suit.HEARTS),
+            Card(Rank.SIX, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.THREE, Suit.SPADES),  # 3 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),    # 5 deadwood
+        ]  # Total deadwood: 8
+
+        # Defender has 8♥ + 4♥ (both can lay off) + 2♠ (cannot)
+        # Without layoff: 8 + 4 + 2 = 14 deadwood (knocker would win)
+        # With layoff: 2 deadwood (only 2♠) - UNDERCUT!
+        defender.hand._cards = [
+            Card(Rank.EIGHT, Suit.HEARTS),  # 8 points, can lay off
+            Card(Rank.FOUR, Suit.HEARTS),   # 4 points, can lay off
+            Card(Rank.TWO, Suit.SPADES),    # 2 points, cannot lay off
+        ]
+
+        result = game.knock()
+
+        # With layoff, defender has 2 deadwood vs knocker's 8
+        # This is an undercut!
+        assert result.is_undercut
+        assert result.winner == defender
+        assert result.points == 25 + (8 - 2)  # undercut bonus + difference
+
+    def test_chain_layoff_extends_run(self):
+        """Chain laying off: 8♥ extends run, then 9♥ can also lay off."""
+        game = Game("Alice", "Bob")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+        game.draw_from_deck()
+
+        knocker = game.current_player
+        defender = game.opponent
+
+        # Knocker has a run 5-6-7♥ and 10 deadwood
+        knocker.hand._cards = [
+            Card(Rank.FIVE, Suit.HEARTS),
+            Card(Rank.SIX, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.TEN, Suit.SPADES),   # 10 deadwood
+        ]
+
+        # Defender has 8♥, 9♥ (both can chain lay off) + 3♠
+        # Without layoff: 8 + 9 + 3 = 20 deadwood
+        # With chain layoff: 3 deadwood (only 3♠)
+        defender.hand._cards = [
+            Card(Rank.EIGHT, Suit.HEARTS),  # Can lay off directly
+            Card(Rank.NINE, Suit.HEARTS),   # Can lay off after 8♥
+            Card(Rank.THREE, Suit.SPADES),  # Cannot lay off
+        ]
+
+        result = game.knock()
+
+        # Knocker has 10 deadwood, defender has 3 after chain layoff
+        # Undercut!
+        assert result.is_undercut
+        assert result.winner == defender
+        assert result.points == 25 + (10 - 3)
+
+    def test_no_layoff_on_gin(self):
+        """Cannot lay off when knocker has gin (0 deadwood)."""
+        game = Game("Alice", "Bob")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+        game.draw_from_deck()
+
+        knocker = game.current_player
+        defender = game.opponent
+
+        # Knocker has gin (all melds, 0 deadwood)
+        knocker.hand._cards = [
+            Card(Rank.FIVE, Suit.HEARTS),
+            Card(Rank.SIX, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.KING, Suit.SPADES),
+            Card(Rank.KING, Suit.HEARTS),
+            Card(Rank.KING, Suit.CLUBS),
+        ]  # 0 deadwood - gin!
+
+        # Defender has 8♥ which would normally lay off, plus K♦
+        # But no layoff allowed on gin
+        defender.hand._cards = [
+            Card(Rank.EIGHT, Suit.HEARTS),  # Would lay off, but gin prevents it
+            Card(Rank.KING, Suit.DIAMONDS), # Would lay off, but gin prevents it
+        ]
+
+        result = game.knock()
+
+        # Gin - no layoff allowed
+        # Defender's deadwood is 8 + 10 = 18 (no layoff)
+        assert result.is_gin
+        assert result.winner == knocker
+        assert result.points == 25 + 18  # gin bonus + full defender deadwood
+
+    def test_layoff_with_defender_melds(self):
+        """Defender's own melds are calculated first, then layoff on remaining deadwood."""
+        game = Game("Alice", "Bob")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+        game.draw_from_deck()
+
+        knocker = game.current_player
+        defender = game.opponent
+
+        # Knocker has a run and 5 deadwood
+        knocker.hand._cards = [
+            Card(Rank.FIVE, Suit.HEARTS),
+            Card(Rank.SIX, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.TWO, Suit.SPADES),   # 2 deadwood
+            Card(Rank.THREE, Suit.CLUBS),  # 3 deadwood
+        ]  # Total deadwood: 5
+
+        # Defender has their own set of Aces (meld) + 8♥ (can lay off) + K♠ (deadwood)
+        defender.hand._cards = [
+            Card(Rank.ACE, Suit.SPADES),    # Part of defender's meld
+            Card(Rank.ACE, Suit.HEARTS),    # Part of defender's meld
+            Card(Rank.ACE, Suit.CLUBS),     # Part of defender's meld
+            Card(Rank.EIGHT, Suit.HEARTS),  # Can lay off on knocker's run
+            Card(Rank.KING, Suit.SPADES),   # Deadwood: 10
+        ]
+        # Defender's own melds: set of Aces (0 deadwood from those)
+        # Remaining deadwood cards: 8♥ (8) + K♠ (10) = 18
+        # After layoff: K♠ = 10 deadwood
+
+        result = game.knock()
+
+        # Knocker: 5 deadwood, Defender: 10 deadwood after layoff
+        assert result.winner == knocker
+        assert result.points == 5  # 10 - 5
+
+
 class TestNewRound:
     def test_new_round_alternates_dealer(self):
         game = Game("Alice", "Bob")

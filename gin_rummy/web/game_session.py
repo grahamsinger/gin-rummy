@@ -85,6 +85,8 @@ class RoundResultData:
     is_draw: bool
     player_hand: HandResultData
     opponent_hand: HandResultData
+    layoff_cards: list[str] | None = None  # Cards laid off (formatted as strings)
+    defender_deadwood_before: int = 0  # Defender's deadwood before layoff
 
 
 class GameSession:
@@ -262,6 +264,8 @@ class GameSession:
             'is_draw': self.last_round_result.is_draw,
             'player_hand': hand_data_to_dict(self.last_round_result.player_hand),
             'opponent_hand': hand_data_to_dict(self.last_round_result.opponent_hand),
+            'layoff_cards': self.last_round_result.layoff_cards,
+            'defender_deadwood_before': self.last_round_result.defender_deadwood_before,
         }
 
     def draw(self, source: str) -> dict[str, Any]:
@@ -454,6 +458,11 @@ class GameSession:
         loser_name = result.loser.name if result.loser else None
         knocker_name = result.knocker.name if result.knocker else None
 
+        # Convert layoff cards to string format
+        layoff_cards_str = None
+        if result.layoff_cards:
+            layoff_cards_str = [card_to_id(c) for c in result.layoff_cards]
+
         self.last_round_result = RoundResultData(
             winner=winner_name,
             points=result.points,
@@ -462,6 +471,8 @@ class GameSession:
             is_draw=result.is_draw,
             player_hand=self._build_hand_result(self.human_idx),
             opponent_hand=self._build_hand_result(1 - self.human_idx),
+            layoff_cards=layoff_cards_str,
+            defender_deadwood_before=result.defender_deadwood_before_layoff,
         )
 
         # Record hand result in database

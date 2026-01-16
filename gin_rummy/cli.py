@@ -12,7 +12,7 @@ from gin_rummy.ai import BasicAI, DrawChoice, ContextAwareAI
 from gin_rummy.models import Card, Suit, Rank, Hand, MeldType, HandAnalysis, Player, analyze_hand
 from gin_rummy.config import get_config, load_config
 from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list
-from gin_rummy.game import Game, GamePhase, InvalidActionError
+from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import (
     TurnResult,
     TurnActions,
@@ -510,7 +510,7 @@ def play_human_turn(
                             )
 
                         result = game.knock()
-                        display_round_result(game)
+                        display_round_result(game, result)
                         return TurnResult.KNOCKED
 
                 # Just discard (no knock or declined knock)
@@ -571,11 +571,11 @@ class CLITurnCallbacks:
         print(f"{player.name} discarded {card}")
         time.sleep(self.delay)
 
-    def on_knock(self, player: Player, discard: Card, deadwood: int) -> None:
+    def on_knock(self, player: Player, discard: Card, deadwood: int, result: RoundResult) -> None:
         """Print knock message, display round result, and add delay."""
         print(f"{player.name} knocks!")
         time.sleep(self.delay)
-        display_round_result(self.game)
+        display_round_result(self.game, result)
 
     def on_turn_complete(self, player: Player, actions: TurnActions) -> None:
         """Record turn to database tracker if enabled."""
@@ -661,7 +661,7 @@ def play_ai_turn(
     return result
 
 
-def display_round_result(game: Game) -> None:
+def display_round_result(game: Game, result: RoundResult | None = None) -> None:
     """Display the result of a round."""
     print("\n" + "=" * 50)
     print("           ROUND OVER")
@@ -671,6 +671,26 @@ def display_round_result(game: Game) -> None:
     for player in game.players:
         print(f"\n{player.name}'s hand:")
         display_hand_by_suit(player.hand, show_numbers=False)
+
+    # Display layoff information if cards were laid off
+    if result and result.layoff_cards:
+        defender = result.loser if result.winner == result.knocker else result.winner
+        layoff_str = " ".join(str(c) for c in result.layoff_cards)
+        print(f"\n{defender.name} laid off: {layoff_str}")
+        print(f"  (Deadwood: {result.defender_deadwood_before_layoff} → "
+              f"{result.defender_deadwood_before_layoff - sum(c.deadwood_value for c in result.layoff_cards)})")
+
+    # Show result summary
+    if result:
+        if result.is_gin:
+            print(f"\n{result.knocker.name} gets GIN!")
+        elif result.is_undercut:
+            print(f"\n{result.winner.name} UNDERCUTS!")
+        elif result.knocker:
+            print(f"\n{result.knocker.name} knocks.")
+
+        if result.winner:
+            print(f"{result.winner.name} wins {result.points} points!")
 
     print(f"\nScores: {game.players[0].name}: {game.players[0].score}  |  "
           f"{game.players[1].name}: {game.players[1].score}")

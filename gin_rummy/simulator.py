@@ -193,7 +193,7 @@ class SimulatorTurnCallbacks:
         """No-op for discard in simulator."""
         pass
 
-    def on_knock(self, player: Player, discard: Card, deadwood: int) -> None:
+    def on_knock(self, player: Player, discard: Card, deadwood: int, result: RoundResult) -> None:
         """Track knock statistics."""
         self.player_metrics.knocks += 1
         self.player_metrics.total_knock_deadwood += deadwood

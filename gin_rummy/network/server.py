@@ -443,6 +443,11 @@ class GinRummyServer:
         else:
             payload["winner"] = None
 
+        # Include layoff information
+        if result.layoff_cards:
+            payload["layoff_cards"] = [str(c) for c in result.layoff_cards]
+            payload["defender_deadwood_before"] = result.defender_deadwood_before_layoff
+
         # Include both hands for display
         payload["hands"] = {
             self.session.player_names[0]: cards_to_str_list(sorted(game.players[0].hand)),
