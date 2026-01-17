@@ -845,7 +845,7 @@ function showRoundResult(result) {
 
     // Add layoff information if cards were laid off
     if (result.layoff_cards && result.layoff_cards.length > 0) {
-        const layoffCardsStr = result.layoff_cards.join(' ');
+        const layoffCardsStr = result.layoff_cards.map(formatCardId).join(' ');
         const deadwoodAfter = result.defender_deadwood_before -
             result.layoff_cards.reduce((sum, card) => {
                 // Calculate deadwood value from card id (e.g., "10H" -> 10, "KS" -> 10, "AS" -> 1)
