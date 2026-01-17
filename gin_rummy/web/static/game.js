@@ -38,7 +38,9 @@ const elements = {
     roundModal: document.getElementById('round-modal'),
     roundResultTitle: document.getElementById('round-result-title'),
     roundResultDetails: document.getElementById('round-result-details'),
+    modalPlayerLabel: document.getElementById('modal-player-label'),
     modalPlayerHand: document.getElementById('modal-player-hand'),
+    modalOpponentLabel: document.getElementById('modal-opponent-label'),
     modalOpponentHand: document.getElementById('modal-opponent-hand'),
     nextRoundBtn: document.getElementById('next-round-btn'),
     knockModal: document.getElementById('knock-modal'),
@@ -864,6 +866,10 @@ function showRoundResult(result) {
     }
 
     elements.roundResultDetails.textContent = details;
+
+    // Update modal labels with actual player names
+    elements.modalPlayerLabel.textContent = `${humanName}'s Hand`;
+    elements.modalOpponentLabel.textContent = `${opponentName}'s Hand`;
 
     // Render hands in modal with melds grouped
     renderModalHand(elements.modalPlayerHand, result.player_hand);
