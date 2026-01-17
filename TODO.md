@@ -169,11 +169,17 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - **Rules Options (toggleable):**
     - Standard Gin: Fixed knock threshold (10 deadwood)
     - Oklahoma Gin Rules: Upcard determines knock threshold
+      - **IMPORTANT: Different dealing procedure:**
+        - Deal 10 cards to EACH player (not 11 to one, 10 to the other)
+        - Turn over next card as upcard (determines knock threshold)
+        - Non-dealer goes first
+        - No initial discard phase
       - Ace upcard: Must gin (0 deadwood required)
       - 2-10 upcard: Can knock with that value or less
       - J/Q/K upcard: Can knock with 10 or less (standard)
       - Spade upcard: All points doubled for that hand
   - Settings modal should allow selecting format and rules variant
+  - **Implementation Note:** Will need to refactor deal() to support both dealing modes
 - [ ] Tournament mode with multiple rounds/scoring
 - [ ] Undo last move (within same turn)
 
