@@ -163,12 +163,17 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
 
 ## Game Variants & Modes
 - [ ] **Oklahoma Gin / Match Play Format**
-  - Play best of 3 games (3 "streets")
-  - Each game plays to a target score (e.g., 100 or 150 points)
-  - Winner of 2 out of 3 games wins the match
-  - Optional: Implement full Oklahoma Gin rules (upcard determines knock threshold)
-  - Optional: Spades double the points
-- [ ] Oklahoma Gin variant (variable knock threshold based on upcard)
+  - **Game Format Options:**
+    - Match Play: Best of 3 games ("3 streets"), first to win 2 games wins
+    - Total Points: Single continuous game to target score (e.g., 250, 500 points)
+  - **Rules Options (toggleable):**
+    - Standard Gin: Fixed knock threshold (10 deadwood)
+    - Oklahoma Gin Rules: Upcard determines knock threshold
+      - Ace upcard: Must gin (0 deadwood required)
+      - 2-10 upcard: Can knock with that value or less
+      - J/Q/K upcard: Can knock with 10 or less (standard)
+      - Spade upcard: All points doubled for that hand
+  - Settings modal should allow selecting format and rules variant
 - [ ] Tournament mode with multiple rounds/scoring
 - [ ] Undo last move (within same turn)
 
