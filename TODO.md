@@ -146,14 +146,21 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - No laying off allowed on gin (knocker deadwood = 0)
 
 ## UI Improvements
+- [ ] **PRIORITY: Highlight drawn card in hand display**
+  - Make it MUCH CLEARER which card was just drawn
+  - Current issue: Card blends in immediately after being added to hand
+  - Suggested approaches:
+    - Background highlight (yellow/gold glow or border)
+    - Pulsing/animated indicator
+    - "NEW" badge or marker above card
+    - Different border style (thicker, colored)
+  - Should persist until player discards or takes another action
+  - Important for strategy - helps player quickly evaluate the new card
 - [ ] **Score History Display**
   - Show round-by-round score progression for current game
   - Display who won each round and points awarded
   - Accessible via button or modal in web UI
   - Could include mini-visualization (bar chart, timeline, etc.)
-- [ ] Highlight the card just drawn in the hand display
-  - Make it easier to identify which card was added to hand
-  - Options: bold, underline, background color, or marker (e.g., asterisk/arrow)
 - [ ] **Web UI: Manual card arrangement (drag & drop)**
   - Allow players to manually reorder cards in their hand via drag and drop
   - Use HTML5 drag and drop API (no library needed)
