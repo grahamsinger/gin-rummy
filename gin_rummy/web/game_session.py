@@ -118,7 +118,7 @@ class GameSession:
         # Create AI based on difficulty
         ai_map = {
             "easy": BasicAI,
-            "medium": BasicAI,
+            "medium": ContextAwareAI,
             "hard": ContextAwareAI,
         }
         ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
@@ -500,7 +500,7 @@ class GameSession:
         # Reset AI state with same difficulty
         ai_map = {
             "easy": BasicAI,
-            "medium": BasicAI,
+            "medium": ContextAwareAI,
             "hard": ContextAwareAI,
         }
         ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)

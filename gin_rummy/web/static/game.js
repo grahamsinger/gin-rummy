@@ -329,18 +329,23 @@ function renderGameState(state) {
             const humanName = playerNames[0];
             const opponentName = playerNames[1];
 
-            elements.playerScore.textContent = state.scores[humanName] || 0;
-            elements.opponentScore.textContent = state.scores[opponentName] || 0;
-
-            // Update header labels if they've changed
+            // Update header labels if they've changed (must do this BEFORE updating scores)
             const playerLabel = document.querySelector('.scores .score:first-child');
             const opponentLabel = document.querySelector('.scores .score:last-child');
             if (playerLabel && !playerLabel.textContent.startsWith(humanName)) {
                 playerLabel.innerHTML = `${humanName}: <span id="player-score">${state.scores[humanName] || 0}</span>`;
+                // Re-capture the element reference after innerHTML update
+                elements.playerScore = document.getElementById('player-score');
             }
             if (opponentLabel && !opponentLabel.textContent.startsWith(opponentName)) {
                 opponentLabel.innerHTML = `${opponentName}: <span id="opponent-score">${state.scores[opponentName] || 0}</span>`;
+                // Re-capture the element reference after innerHTML update
+                elements.opponentScore = document.getElementById('opponent-score');
             }
+
+            // Now update the scores (using potentially refreshed element references)
+            elements.playerScore.textContent = state.scores[humanName] || 0;
+            elements.opponentScore.textContent = state.scores[opponentName] || 0;
         }
     }
 
@@ -796,10 +801,16 @@ function showRoundResult(result) {
 
     elements.roundResultTitle.textContent = result.is_draw ? 'Round Draw' : 'Round Over';
 
+    // Get player names from game state scores
+    const playerNames = gameState && gameState.scores ? Object.keys(gameState.scores) : ['You', 'Computer'];
+    const humanName = playerNames[0] || 'You';
+    const opponentName = playerNames[1] || 'Computer';
+    const humanWon = result.winner === humanName;
+
     let details = '';
     if (result.is_draw) {
         details = 'Deck exhausted - no winner this round';
-    } else if (result.winner === 'You') {
+    } else if (humanWon) {
         if (result.is_gin) {
             details = `GIN! You win ${result.points} points!`;
         } else {
@@ -807,11 +818,11 @@ function showRoundResult(result) {
         }
     } else {
         if (result.is_undercut) {
-            details = `Undercut! Computer wins ${result.points} points!`;
+            details = `Undercut! ${opponentName} wins ${result.points} points!`;
         } else if (result.is_gin) {
-            details = `Computer gets GIN! Wins ${result.points} points!`;
+            details = `${opponentName} gets GIN! Wins ${result.points} points!`;
         } else {
-            details = `Computer wins ${result.points} points`;
+            details = `${opponentName} wins ${result.points} points`;
         }
     }
 
@@ -831,7 +842,7 @@ function showRoundResult(result) {
 
         // Determine who the defender is (opposite of winner in knock, same as winner in undercut)
         const defenderName = result.is_undercut ? result.winner :
-            (result.winner === 'You' ? 'Computer' : 'You');
+            (humanWon ? opponentName : humanName);
 
         details += `\n\n${defenderName} laid off: ${layoffCardsStr}`;
         details += `\n(Deadwood: ${result.defender_deadwood_before} → ${deadwoodAfter})`;
