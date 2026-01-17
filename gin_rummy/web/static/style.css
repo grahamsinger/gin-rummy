@@ -270,33 +270,30 @@ body {
     gap: 2rem;
 }
 
-/* Knock button */
-.knock-btn {
-    background: #ff9800;
-    color: #000;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    font-size: 1.1rem;
-    font-weight: bold;
-    border-radius: 6px;
+/* Knock checkbox toggle */
+.knock-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
+    font-weight: 500;
+    color: #ff9800;
+    user-select: none;
 }
 
-.knock-btn:hover {
-    background: #ffa726;
-    transform: scale(1.05);
+.knock-toggle:hover {
+    color: #ffa726;
 }
 
-.knock-btn:active {
-    transform: scale(0.98);
+.knock-toggle input[type="checkbox"] {
+    cursor: pointer;
+    width: 1.2rem;
+    height: 1.2rem;
 }
 
-.knock-btn:disabled {
-    background: #666;
-    color: #999;
+.knock-toggle input[type="checkbox"]:disabled {
     cursor: not-allowed;
-    transform: none;
+    opacity: 0.4;
 }
 
 /* Status bar */

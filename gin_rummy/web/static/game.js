@@ -28,7 +28,7 @@ const elements = {
     deadwood: document.getElementById('deadwood'),
     playerScore: document.getElementById('player-score'),
     opponentScore: document.getElementById('opponent-score'),
-    knockBtn: document.getElementById('knock-btn'),
+    knockCheckbox: document.getElementById('knock-checkbox'),
     statusMessage: document.getElementById('status-message'),
     newGameBtn: document.getElementById('new-game-btn'),
     assistMode: document.getElementById('assist-mode'),
@@ -364,8 +364,13 @@ function renderGameState(state) {
     // Deadwood
     elements.deadwood.textContent = state.deadwood;
 
-    // Hide knock button - knock is now prompted after selecting a card to discard
-    elements.knockBtn.classList.add('hidden');
+    // Disable knock checkbox if not in discarding phase or not your turn
+    elements.knockCheckbox.disabled = !(state.your_turn && state.phase === 'discarding');
+
+    // Auto-uncheck if deadwood is too high to knock
+    if (state.deadwood > 10) {
+        elements.knockCheckbox.checked = false;
+    }
 
     // Clickable states
     updateClickableStates(state.phase, state.your_turn);
@@ -436,6 +441,7 @@ async function newGame(settings = null) {
     elements.roundModal.classList.add('hidden');
     elements.settingsModal.classList.add('hidden');
     elements.lastAiMove.textContent = '';  // Clear last AI move
+    elements.knockCheckbox.checked = false;  // Reset knock checkbox
     const state = await apiCall('/new', 'POST', settings);
     if (state) {
         renderGameState(state);
@@ -486,9 +492,14 @@ async function drawCard(source) {
 }
 
 async function discardCard(cardId, knock = null) {
+    // If knock not explicitly set, use the checkbox state
+    if (knock === null) {
+        knock = elements.knockCheckbox.checked;
+    }
+
     const state = await apiCall('/discard', 'POST', { card: cardId, knock: knock });
     if (state) {
-        // Check if we need to ask about knocking
+        // Check if we need to ask about knocking (for gin auto-knock)
         if (state.needs_knock_decision) {
             // If gin (0 deadwood), automatically knock without confirmation
             if (state.post_discard_deadwood === 0) {
@@ -496,15 +507,18 @@ async function discardCard(cardId, knock = null) {
                 return;
             }
 
-            pendingDiscardCard = state.discard_card;
-            elements.knockModalText.textContent =
-                `Discarding leaves you with ${state.post_discard_deadwood} deadwood. Knock?`;
-            elements.knockModal.classList.remove('hidden');
-            return;  // Wait for user to click Yes or No
+            // This shouldn't happen with the checkbox approach, but handle it anyway
+            // by treating it as a regular discard
+            knock = false;
+            await discardCard(state.discard_card, knock);
+            return;
         }
 
         // Clear drawn card highlight after discard
         drawnCardId = null;
+
+        // Uncheck the knock checkbox after use
+        elements.knockCheckbox.checked = false;
 
         renderGameState(state);
 
@@ -525,6 +539,7 @@ async function knock() {
 async function nextRound() {
     elements.roundModal.classList.add('hidden');
     elements.lastAiMove.textContent = '';  // Clear last AI move
+    elements.knockCheckbox.checked = false;  // Reset knock checkbox
     const state = await apiCall('/new-round', 'POST');
     if (state) {
         renderGameState(state);
@@ -870,13 +885,6 @@ function init() {
     elements.discardPile.addEventListener('click', () => {
         if (gameState && gameState.your_turn && gameState.phase === 'drawing' && gameState.discard_top) {
             drawCard('discard');
-        }
-    });
-
-    // Knock button (legacy - now using modal)
-    elements.knockBtn.addEventListener('click', () => {
-        if (gameState && gameState.your_turn && gameState.can_knock) {
-            knock();
         }
     });
 
