@@ -42,7 +42,7 @@
   - Or remove entirely and focus on own hand optimization
 - [x] AI difficulty levels (easy/medium/hard)
   - Implemented in web UI settings modal
-  - Easy (BasicAI), Medium (ContextAwareAI), Hard (StatisticalAI)
+  - Easy (BasicAI), Medium (ContextAwareAI), Hard (ContextAwareAI)
 - [x] StatisticalAI implementation
   - Tracks win rates for draw/discard/knock decisions
   - Uses probabilistic selection weighted by historical outcomes
@@ -146,6 +146,11 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - No laying off allowed on gin (knocker deadwood = 0)
 
 ## UI Improvements
+- [ ] **Score History Display**
+  - Show round-by-round score progression for current game
+  - Display who won each round and points awarded
+  - Accessible via button or modal in web UI
+  - Could include mini-visualization (bar chart, timeline, etc.)
 - [ ] Highlight the card just drawn in the hand display
   - Make it easier to identify which card was added to hand
   - Options: bold, underline, background color, or marker (e.g., asterisk/arrow)
@@ -156,15 +161,31 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Add "Reset" button to return to last sort mode
   - See docs/web_ui_spec.md for detailed implementation notes
 
-## Future Ideas
-- [ ] Web UI version
-- [ ] Oklahoma Gin variant (variable knock threshold)
+## Game Variants & Modes
+- [ ] **Oklahoma Gin / Match Play Format**
+  - Play best of 3 games (3 "streets")
+  - Each game plays to a target score (e.g., 100 or 150 points)
+  - Winner of 2 out of 3 games wins the match
+  - Optional: Implement full Oklahoma Gin rules (upcard determines knock threshold)
+  - Optional: Spades double the points
+- [ ] Oklahoma Gin variant (variable knock threshold based on upcard)
 - [ ] Tournament mode with multiple rounds/scoring
 - [ ] Undo last move (within same turn)
 
 ---
 ## Completed
 ---
+
+## Web UI (COMPLETED)
+- [x] FastAPI-based web interface
+- [x] Real-time game play against AI
+- [x] Settings modal for player name and AI difficulty
+- [x] Statistics viewer for lifetime stats
+- [x] Card tracker and assist mode
+- [x] Responsive design with card animations
+- [x] Knock checkbox for better UX (no more prompts)
+- [x] Custom player name support throughout UI
+- [x] Layoff display with suit symbols
 
 ## Bug Fix: AI Pickup-Then-Discard (COMPLETED)
 - [x] **FIXED: AI picking up card and immediately discarding it**
