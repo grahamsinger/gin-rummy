@@ -329,6 +329,10 @@ class GameSession:
             post_discard_deadwood = post_analysis.deadwood_value
             can_knock_after = post_discard_deadwood <= self.game.knock_threshold
 
+            # Automatic gin detection: 0 deadwood always knocks
+            if knock is None and post_discard_deadwood == 0:
+                knock = True
+
             # If knock decision not yet made and can knock, ask user
             if knock is None and can_knock_after:
                 state = self.get_state()
