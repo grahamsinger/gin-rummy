@@ -63,6 +63,16 @@ const elements = {
     statsModal: document.getElementById('stats-modal'),
     statsContent: document.getElementById('stats-content'),
     statsCloseBtn: document.getElementById('stats-close-btn'),
+    statsPlayerSelect: document.getElementById('stats-player-select'),
+    clearStatsBtn: document.getElementById('clear-stats-btn'),
+    clearStatsModal: document.getElementById('clear-stats-modal'),
+    clearStatsPlayerName: document.getElementById('clear-stats-player-name'),
+    clearStatsConfirmBtn: document.getElementById('clear-stats-confirm-btn'),
+    clearStatsCancelBtn: document.getElementById('clear-stats-cancel-btn'),
+    scoreHistoryBtn: document.getElementById('score-history-btn'),
+    scoreHistoryModal: document.getElementById('score-history-modal'),
+    scoreHistoryContent: document.getElementById('score-history-content'),
+    scoreHistoryCloseBtn: document.getElementById('score-history-close-btn'),
 };
 
 // Suit symbols
@@ -977,6 +987,22 @@ function init() {
         elements.statsModal.classList.add('hidden');
     });
 
+    // Player selection - auto-load on change
+    elements.statsPlayerSelect.addEventListener('change', loadSelectedPlayerStats);
+
+    // Clear stats
+    elements.clearStatsBtn.addEventListener('click', showClearStatsConfirmation);
+    elements.clearStatsConfirmBtn.addEventListener('click', confirmClearStats);
+    elements.clearStatsCancelBtn.addEventListener('click', () => {
+        elements.clearStatsModal.classList.add('hidden');
+    });
+
+    // Score History button and modal
+    elements.scoreHistoryBtn.addEventListener('click', showScoreHistory);
+    elements.scoreHistoryCloseBtn.addEventListener('click', () => {
+        elements.scoreHistoryModal.classList.add('hidden');
+    });
+
     // Initialize sort button active state
     updateSortButtonStates();
 
@@ -1005,10 +1031,65 @@ function updateSortButtonStates() {
     elements.sortValueBtn.classList.toggle('active', sortMode === 'value');
 }
 
+// Track currently viewed player stats
+let currentViewedPlayer = null;
+
 // Fetch and display player stats
 async function showPlayerStats() {
     const playerName = savedSettings.playerName || 'You';
     elements.statsModal.classList.remove('hidden');
+
+    // Load player list
+    await loadPlayerList();
+
+    // Set current player in selector
+    elements.statsPlayerSelect.value = playerName;
+    currentViewedPlayer = playerName;
+
+    // Load stats for current player
+    await loadStatsForPlayer(playerName);
+
+    // Enable clear button for current player
+    elements.clearStatsBtn.disabled = false;
+}
+
+async function loadPlayerList() {
+    try {
+        const response = await fetch('/api/players');
+        const players = await response.json();
+
+        // Populate select dropdown with all players
+        elements.statsPlayerSelect.innerHTML = players.map(p =>
+            `<option value="${p.name}">${p.name} (${p.total_hands} hands, ${(p.win_rate * 100).toFixed(0)}% wins)</option>`
+        ).join('');
+
+        // If current player not in list, add them
+        const currentPlayerName = savedSettings.playerName || 'You';
+        const playerExists = players.some(p => p.name === currentPlayerName);
+        if (!playerExists) {
+            elements.statsPlayerSelect.innerHTML =
+                `<option value="${currentPlayerName}">${currentPlayerName} (0 hands)</option>` +
+                elements.statsPlayerSelect.innerHTML;
+        }
+    } catch (error) {
+        console.error('Failed to load player list:', error);
+        elements.statsPlayerSelect.innerHTML = '<option value="">Error loading players</option>';
+    }
+}
+
+async function loadSelectedPlayerStats() {
+    const playerName = elements.statsPlayerSelect.value.trim();
+    if (!playerName) return;
+
+    currentViewedPlayer = playerName;
+    await loadStatsForPlayer(playerName);
+
+    // Enable/disable clear button based on whether viewing current player
+    const isCurrentPlayer = playerName === (savedSettings.playerName || 'You');
+    elements.clearStatsBtn.disabled = !isCurrentPlayer;
+}
+
+async function loadStatsForPlayer(playerName) {
     elements.statsContent.innerHTML = '<div class="stats-loading">Loading stats...</div>';
 
     try {
@@ -1019,7 +1100,7 @@ async function showPlayerStats() {
             elements.statsContent.innerHTML = `
                 <div class="stats-empty">
                     <p>No statistics available yet for <strong>${playerName}</strong>.</p>
-                    <p>Play some hands to start tracking your stats!</p>
+                    <p>Play some hands to start tracking stats!</p>
                 </div>
             `;
             return;
@@ -1027,9 +1108,6 @@ async function showPlayerStats() {
 
         // Render stats
         const html = `
-            <div class="stats-player-name">
-                <h3>${playerName}</h3>
-            </div>
             <div class="stats-list">
                 <div class="stat-row">
                     <span class="stat-label">Total Hands</span>
@@ -1096,6 +1174,108 @@ async function showPlayerStats() {
             <div class="stats-error">
                 <p>Failed to load statistics.</p>
                 <p>Please try again later.</p>
+            </div>
+        `;
+    }
+}
+
+function showClearStatsConfirmation() {
+    const playerName = currentViewedPlayer;
+    if (!playerName) return;
+
+    elements.clearStatsPlayerName.textContent = playerName;
+    elements.clearStatsModal.classList.remove('hidden');
+}
+
+async function confirmClearStats() {
+    const playerName = currentViewedPlayer;
+    if (!playerName) return;
+
+    try {
+        const response = await fetch(`/api/stats/${encodeURIComponent(playerName)}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Failed to delete stats');
+
+        // Close confirmation modal
+        elements.clearStatsModal.classList.add('hidden');
+
+        // Reload stats (will show "no stats" message)
+        await loadStatsForPlayer(playerName);
+
+        // Reload player list
+        await loadPlayerList();
+
+    } catch (error) {
+        console.error('Failed to clear stats:', error);
+        alert('Failed to clear statistics. Please try again.');
+    }
+}
+
+async function showScoreHistory() {
+    elements.scoreHistoryModal.classList.remove('hidden');
+    elements.scoreHistoryContent.innerHTML = '<div class="score-loading">Loading history...</div>';
+
+    try {
+        const response = await fetch('/api/game/score-history');
+        if (!response.ok) throw new Error('Failed to load history');
+
+        const history = await response.json();
+
+        if (!history.rounds || history.rounds.length === 0) {
+            elements.scoreHistoryContent.innerHTML = `
+                <div class="score-empty" style="text-align: center; padding: 20px; color: rgba(255,255,255,0.6);">
+                    No rounds played yet in this game.
+                </div>
+            `;
+            return;
+        }
+
+        // Render table
+        let html = `
+            <table class="score-history-table">
+                <thead>
+                    <tr>
+                        <th>Round</th>
+                        <th>Winner</th>
+                        <th>Points</th>
+                        <th>${history.player1_name}</th>
+                        <th>${history.player2_name}</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        history.rounds.forEach(round => {
+            const badges = [];
+            if (round.is_gin) badges.push('<span class="score-badge score-badge-gin">GIN</span>');
+            if (round.is_undercut) badges.push('<span class="score-badge score-badge-undercut">UNDERCUT</span>');
+            if (round.is_draw) badges.push('<span class="score-badge score-badge-draw">DRAW</span>');
+
+            html += `
+                <tr>
+                    <td>${round.hand_number}</td>
+                    <td>${round.winner || 'Draw'}${badges.join('')}</td>
+                    <td>${round.points}</td>
+                    <td>${round.cumulative_p1}</td>
+                    <td>${round.cumulative_p2}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                </tbody>
+            </table>
+        `;
+
+        elements.scoreHistoryContent.innerHTML = html;
+
+    } catch (error) {
+        console.error('Failed to load score history:', error);
+        elements.scoreHistoryContent.innerHTML = `
+            <div class="score-error" style="text-align: center; padding: 20px; color: #f44336;">
+                Failed to load score history. Please try again.
             </div>
         `;
     }

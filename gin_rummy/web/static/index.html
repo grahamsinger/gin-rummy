@@ -71,6 +71,7 @@
                     <input type="checkbox" id="assist-mode"> Show assist info
                 </label>
                 <button id="view-stats-btn" class="view-stats-btn">View Stats</button>
+                <button id="score-history-btn" class="score-history-btn">Score History</button>
                 <button id="new-game-btn" class="new-game-btn">New Game</button>
             </div>
         </footer>
@@ -154,10 +155,48 @@
         <div id="stats-modal" class="modal hidden">
             <div class="modal-content stats-modal-content">
                 <h2>Player Statistics</h2>
+
+                <!-- Player Selection -->
+                <div class="stats-player-selector">
+                    <label for="stats-player-select">Player:</label>
+                    <select id="stats-player-select" class="stats-player-select">
+                        <option value="">Loading players...</option>
+                    </select>
+                </div>
+
                 <div id="stats-content" class="stats-content">
                     <div class="stats-loading">Loading stats...</div>
                 </div>
-                <button id="stats-close-btn" class="stats-close-btn">Close</button>
+
+                <!-- Action buttons -->
+                <div class="stats-actions">
+                    <button id="clear-stats-btn" class="clear-stats-btn">Clear Stats for This Player</button>
+                    <button id="stats-close-btn" class="stats-close-btn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clear Stats Confirmation Modal -->
+        <div id="clear-stats-modal" class="modal hidden">
+            <div class="modal-content clear-stats-modal-content">
+                <h2>⚠️ Clear Statistics?</h2>
+                <p id="clear-stats-text">Are you sure you want to permanently delete all statistics for <strong id="clear-stats-player-name"></strong>?</p>
+                <p style="color: #ff9800; font-size: 0.9em;">This action cannot be undone.</p>
+                <div class="clear-stats-buttons">
+                    <button id="clear-stats-confirm-btn" class="clear-stats-confirm-btn">Yes, Clear Stats</button>
+                    <button id="clear-stats-cancel-btn" class="clear-stats-cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Score History modal -->
+        <div id="score-history-modal" class="modal hidden">
+            <div class="modal-content score-history-modal-content">
+                <h2>Score History</h2>
+                <div id="score-history-content" class="score-history-content">
+                    <div class="score-loading">Loading history...</div>
+                </div>
+                <button id="score-history-close-btn" class="score-history-close-btn">Close</button>
             </div>
         </div>
     </div>
