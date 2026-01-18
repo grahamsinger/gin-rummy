@@ -589,3 +589,37 @@ def get_ai_stats(db_path: Path | None = None) -> dict:
             stats['avg_knock_deadwood'] = row['avg_knock_deadwood']
 
         return stats
+
+
+def get_all_players(db_path: Path | None = None) -> list[dict]:
+    """Get list of all players who have stats."""
+    with get_connection(db_path) as conn:
+        cursor = conn.execute(
+            """SELECT
+                player_name,
+                total_hands,
+                CAST(hands_won AS REAL) / NULLIF(total_hands, 0) as win_rate
+               FROM player_stats
+               WHERE total_hands > 0
+               ORDER BY player_name"""
+        )
+        rows = cursor.fetchall()
+        return [
+            {
+                'name': row['player_name'],
+                'total_hands': row['total_hands'],
+                'win_rate': row['win_rate'] or 0.0
+            }
+            for row in rows
+        ]
+
+
+def delete_player_stats(player_name: str, db_path: Path | None = None) -> bool:
+    """Delete all stats for a player. Returns True if deleted, False if player not found."""
+    with get_connection(db_path) as conn:
+        cursor = conn.execute(
+            "DELETE FROM player_stats WHERE player_name = ?",
+            (player_name,)
+        )
+        conn.commit()
+        return cursor.rowcount > 0

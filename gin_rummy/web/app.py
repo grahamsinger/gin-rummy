@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from gin_rummy.web.game_session import GameSession
+from gin_rummy.database import get_game_hands, get_all_players, delete_player_stats
 
 
 # Create FastAPI app
@@ -119,3 +120,79 @@ async def get_player_stats(player_name: str):
             'message': 'No stats available for this player yet'
         }
     return stats
+
+
+@app.get("/api/players")
+async def get_all_players_endpoint():
+    """Get list of all players with stats."""
+    players = get_all_players()
+    return players
+
+
+@app.delete("/api/stats/{player_name}")
+async def delete_player_stats_endpoint(player_name: str):
+    """Delete all statistics for a specific player."""
+    success = delete_player_stats(player_name)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Player '{player_name}' not found")
+    return {"message": f"Stats deleted for player '{player_name}'", "success": True}
+
+
+@app.get("/api/game/score-history")
+async def get_score_history():
+    """Get round-by-round score history for current game."""
+    # Check if a game is in progress
+    if not hasattr(session, 'tracker') or session.tracker.game_id is None:
+        return {
+            'player1_name': '',
+            'player2_name': '',
+            'rounds': []
+        }
+
+    # Get player names
+    player1_name = session.game.players[0].name
+    player2_name = session.game.players[1].name
+
+    # Get all hands for this game
+    hands = get_game_hands(session.tracker.game_id)
+
+    if not hands:
+        return {
+            'player1_name': player1_name,
+            'player2_name': player2_name,
+            'rounds': []
+        }
+
+    # Calculate cumulative scores
+    cumulative_p1 = 0
+    cumulative_p2 = 0
+    rounds = []
+
+    for hand in hands:
+        # Skip incomplete hands (in-progress rounds)
+        if hand['points_awarded'] is None:
+            continue
+
+        # Add points to winner
+        if hand['winner_name'] == player1_name:
+            cumulative_p1 += hand['points_awarded']
+        elif hand['winner_name'] == player2_name:
+            cumulative_p2 += hand['points_awarded']
+        # else: draw, no points awarded
+
+        rounds.append({
+            'hand_number': hand['hand_number'],
+            'winner': hand['winner_name'],
+            'points': hand['points_awarded'],
+            'cumulative_p1': cumulative_p1,
+            'cumulative_p2': cumulative_p2,
+            'is_gin': hand['is_gin'],
+            'is_undercut': hand['is_undercut'],
+            'is_draw': hand['is_draw']
+        })
+
+    return {
+        'player1_name': player1_name,
+        'player2_name': player2_name,
+        'rounds': rounds
+    }
