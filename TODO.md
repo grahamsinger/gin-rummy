@@ -157,11 +157,17 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Accessible via button or modal in web UI
   - Shows badges for GIN, UNDERCUT, and DRAW outcomes
   - Filters out incomplete rounds in progress
-- [ ] **Player Management & Stats Control**
+- [x] **Player Management & Stats Control**
   - Store all past players in a dropdown or searchable list
   - Allow viewing stats for any previously played player
   - Allow clearing stats for the current player
   - Clearing stats must be confirmed with a confirmation dialog to avoid accidental deletion
+- [ ] **Player Selection in New Game Modal**
+  - Add dropdown/autocomplete to select from existing players when starting a new game
+  - Show player list with their stats (e.g., "Sarah (7 hands, 86% wins)")
+  - Allow typing a new name or selecting an existing player
+  - Pre-fill last used player name by default
+  - Makes it easy to switch between players without retyping names
 - [ ] **Web UI: Manual card arrangement (drag & drop)**
   - Allow players to manually reorder cards in their hand via drag and drop
   - Use HTML5 drag and drop API (no library needed)
