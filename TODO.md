@@ -169,6 +169,13 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Pre-fill last used player name by default (as placeholder)
   - Filter out "Computer" from player list and prevent using it as name
   - Added Cancel button to close modal without starting game
+- [ ] **Fix Game Over Modal Flow - Show Round Result First**
+  - **CRITICAL BUG:** When game ends (target score reached), game over modal shows immediately
+  - Player never sees the final round result (hands, melds, deadwood, who knocked, points)
+  - The final round is the most important - need to see those details!
+  - **Fix:** Show round result modal FIRST, then game over modal after user dismisses it
+  - Flow should be: Round ends → Show round result → User clicks "Next Round" → Show game over
+  - Or add final round summary to game over modal itself
 - [ ] **Show Computer's Final Move in Round Result Modal**
   - When round ends quickly, hard to see what computer's last action was
   - Add computer's last move info to round result modal
