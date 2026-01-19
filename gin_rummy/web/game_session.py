@@ -420,6 +420,15 @@ class GameSession:
         # Execute AI turn
         turn_result, actions, round_result = execute_ai_turn(self.game, self.ai)
 
+        # Build AI action first (before checking result type) so it's available for round result modal
+        if actions:
+            self.last_ai_action = {
+                'type': 'turn',
+                'draw_from': 'discard' if actions.draw_source == DrawChoice.DISCARD else 'deck',
+                'drew_card': card_to_id(actions.drawn_card) if actions.draw_source == DrawChoice.DISCARD else None,
+                'discarded': card_to_id(actions.discarded_card),
+            }
+
         if turn_result == TurnResult.DRAW:
             # Deck exhausted
             self.last_round_result = RoundResultData(
@@ -444,14 +453,6 @@ class GameSession:
             )
         elif turn_result == TurnResult.KNOCKED and round_result:
             self._save_round_result(round_result)
-        elif actions:
-            # Build structured action data for frontend to display sequentially
-            self.last_ai_action = {
-                'type': 'turn',
-                'draw_from': 'discard' if actions.draw_source == DrawChoice.DISCARD else 'deck',
-                'drew_card': card_to_id(actions.drawn_card) if actions.draw_source == DrawChoice.DISCARD else None,
-                'discarded': card_to_id(actions.discarded_card),
-            }
 
         return self.get_state()
 

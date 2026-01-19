@@ -169,20 +169,18 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Pre-fill last used player name by default (as placeholder)
   - Filter out "Computer" from player list and prevent using it as name
   - Added Cancel button to close modal without starting game
-- [ ] **Fix Game Over Modal Flow - Show Round Result First**
-  - **CRITICAL BUG:** When game ends (target score reached), game over modal shows immediately
-  - Player never sees the final round result (hands, melds, deadwood, who knocked, points)
-  - The final round is the most important - need to see those details!
-  - **Fix:** Show round result modal FIRST, then game over modal after user dismisses it
-  - Flow should be: Round ends → Show round result → User clicks "Next Round" → Show game over
-  - Or add final round summary to game over modal itself
-- [ ] **Show Computer's Final Move in Round Result Modal**
-  - When round ends quickly, hard to see what computer's last action was
-  - Add computer's last move info to round result modal
-  - Show: "Computer drew from [deck/discard pile] and discarded [card]"
-  - Or show the discard pile top card to help player infer the action
-  - Important for learning and understanding game flow
-  - Especially helpful when computer knocks or goes gin
+- [x] **Fix Game Over Modal Flow - Show Round Result First**
+  - **FIXED:** Removed early return that skipped round result modal
+  - Now shows round result modal first, then game over modal after clicking "Next Round"
+  - Flow: Round ends → Show round result → User clicks "Next Round" → Check if game over → Show game over modal
+  - Backend: AI action is now always set before checking round result type
+  - Frontend: nextRound() checks if game is over before starting new round
+- [x] **Show Computer's Final Move in Round Result Modal**
+  - **FIXED:** Computer's last action now shown in round result modal
+  - Displays: "Computer drew [from deck/discard pile] and discarded [card]"
+  - Only shown when computer wins (not when human wins or draw)
+  - Backend fix: AI action is set even when AI knocks/gins
+  - Frontend: Added AI action display to showRoundResult() function
 - [ ] **Web UI: Manual card arrangement (drag & drop)**
   - Allow players to manually reorder cards in their hand via drag and drop
   - Use HTML5 drag and drop API (no library needed)

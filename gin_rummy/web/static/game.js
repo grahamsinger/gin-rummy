@@ -381,11 +381,8 @@ function renderGameState(state) {
         }
     }
 
-    // Check for game over
-    if (state.game_over && state.game_winner) {
-        showGameOver(state.game_winner, state.scores, state.target_score);
-        return;  // Don't show round result modal if game is over
-    }
+    // Note: Don't check for game over here - let round result modal show first
+    // The "Next Round" button will handle showing the game over modal
 
     // Deck
     elements.deckCount.textContent = state.deck_remaining;
@@ -615,6 +612,13 @@ async function knock() {
 
 async function nextRound() {
     elements.roundModal.classList.add('hidden');
+
+    // Check if game is over before starting new round
+    if (gameState && gameState.game_over && gameState.game_winner) {
+        showGameOver(gameState.game_winner, gameState.scores, gameState.target_score);
+        return;
+    }
+
     elements.lastAiMove.textContent = '';  // Clear last AI move
     elements.knockCheckbox.checked = false;  // Reset knock checkbox
     const state = await apiCall('/new-round', 'POST');
@@ -938,6 +942,18 @@ function showRoundResult(result) {
 
         details += `\n\n${defenderName} laid off: ${layoffCardsStr}`;
         details += `\n(Deadwood: ${result.defender_deadwood_before} → ${deadwoodAfter})`;
+    }
+
+    // Add computer's final action if available (helps understand what happened)
+    if (gameState && gameState.ai_action && !humanWon && !result.is_draw) {
+        const action = gameState.ai_action;
+        details += '\n\n';
+        if (action.draw_from === 'discard' && action.drew_card) {
+            details += `${opponentName} drew ${formatCardId(action.drew_card)} from discard pile`;
+        } else {
+            details += `${opponentName} drew from deck`;
+        }
+        details += ` and discarded ${formatCardId(action.discarded)}`;
     }
 
     elements.roundResultDetails.textContent = details;
