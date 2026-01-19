@@ -697,7 +697,13 @@ body {
     border-color: #4caf50;
 }
 
+.settings-buttons {
+    display: flex;
+    gap: 1rem;
+}
+
 .start-game-btn {
+    flex: 1;
     background: #fff;
     color: #2e7d32;
     border: none;
@@ -711,6 +717,26 @@ body {
 }
 
 .start-game-btn:hover {
+    transform: scale(1.05);
+}
+
+.cancel-settings-btn {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 1rem;
+}
+
+.cancel-settings-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.8);
     transform: scale(1.05);
 }
 

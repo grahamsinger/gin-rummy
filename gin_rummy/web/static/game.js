@@ -58,6 +58,8 @@ const elements = {
     settingsModal: document.getElementById('settings-modal'),
     settingsForm: document.getElementById('settings-form'),
     playerNameInput: document.getElementById('player-name'),
+    playerNamesList: document.getElementById('player-names-list'),
+    cancelSettingsBtn: document.getElementById('cancel-settings-btn'),
     aiDifficultySelect: document.getElementById('ai-difficulty'),
     viewStatsBtn: document.getElementById('view-stats-btn'),
     statsModal: document.getElementById('stats-modal'),
@@ -460,11 +462,36 @@ async function newGame(settings = null) {
     }
 }
 
-function showSettingsModal() {
-    // Populate form with saved settings
-    elements.playerNameInput.value = savedSettings.playerName || '';
+async function showSettingsModal() {
+    // Load existing players for autocomplete
+    await loadPlayerNamesForSettings();
+
+    // Clear player name initially to show all options in datalist
+    // User can then select from list or type a new name
+    elements.playerNameInput.value = '';
+    elements.playerNameInput.placeholder = savedSettings.playerName || 'You';
     elements.aiDifficultySelect.value = savedSettings.aiDifficulty;
     elements.settingsModal.classList.remove('hidden');
+
+    // Focus on player name input
+    setTimeout(() => elements.playerNameInput.focus(), 100);
+}
+
+async function loadPlayerNamesForSettings() {
+    try {
+        const response = await fetch('/api/players');
+        const players = await response.json();
+
+        // Populate datalist with all players EXCEPT "Computer"
+        elements.playerNamesList.innerHTML = players
+            .filter(p => p.name !== 'Computer')
+            .map(p =>
+                `<option value="${p.name}">${p.name} (${p.total_hands} hands, ${(p.win_rate * 100).toFixed(0)}% wins)</option>`
+            ).join('');
+    } catch (error) {
+        console.error('Failed to load player names:', error);
+        // Silently fail - user can still type a name
+    }
 }
 
 async function getState() {
@@ -922,10 +949,22 @@ function init() {
         }
     });
 
+    // Settings modal cancel button
+    elements.cancelSettingsBtn.addEventListener('click', () => {
+        elements.settingsModal.classList.add('hidden');
+    });
+
     // Settings form submission
     elements.settingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const playerName = elements.playerNameInput.value.trim() || null;
+        let playerName = elements.playerNameInput.value.trim() || null;
+
+        // Prevent using "Computer" as player name
+        if (playerName && playerName.toLowerCase() === 'computer') {
+            alert('You cannot use "Computer" as your name - that\'s reserved for the AI!');
+            return;
+        }
+
         const aiDifficulty = elements.aiDifficultySelect.value;
 
         // Save to localStorage

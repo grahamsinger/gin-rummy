@@ -1,0 +1,358 @@
+{
+  "discard_stats": {
+    "24": {
+      "times": 6597,
+      "wins": 2466,
+      "points": -18543
+    },
+    "12": {
+      "times": 6549,
+      "wins": 2383,
+      "points": -22254
+    },
+    "11": {
+      "times": 6606,
+      "wins": 2410,
+      "points": -22346
+    },
+    "9": {
+      "times": 5706,
+      "wins": 2033,
+      "points": -17155
+    },
+    "45": {
+      "times": 4685,
+      "wins": 1865,
+      "points": -965
+    },
+    "10": {
+      "times": 6083,
+      "wins": 2176,
+      "points": -20245
+    },
+    "3": {
+      "times": 1343,
+      "wins": 689,
+      "points": 3014
+    },
+    "47": {
+      "times": 5884,
+      "wins": 2150,
+      "points": -14120
+    },
+    "48": {
+      "times": 5906,
+      "wins": 2094,
+      "points": -17720
+    },
+    "20": {
+      "times": 5125,
+      "wins": 1956,
+      "points": -5246
+    },
+    "5": {
+      "times": 3827,
+      "wins": 1602,
+      "points": 4305
+    },
+    "37": {
+      "times": 6219,
+      "wins": 2201,
+      "points": -18563
+    },
+    "25": {
+      "times": 6587,
+      "wins": 2371,
+      "points": -20731
+    },
+    "1": {
+      "times": 322,
+      "wins": 198,
+      "points": 1040
+    },
+    "49": {
+      "times": 6207,
+      "wins": 2268,
+      "points": -18679
+    },
+    "38": {
+      "times": 6578,
+      "wins": 2377,
+      "points": -21252
+    },
+    "21": {
+      "times": 5730,
+      "wins": 2080,
+      "points": -13705
+    },
+    "46": {
+      "times": 5307,
+      "wins": 2032,
+      "points": -6746
+    },
+    "33": {
+      "times": 5259,
+      "wins": 1983,
+      "points": -6659
+    },
+    "32": {
+      "times": 4774,
+      "wins": 1894,
+      "points": -2176
+    },
+    "6": {
+      "times": 4695,
+      "wins": 1856,
+      "points": -1701
+    },
+    "4": {
+      "times": 2883,
+      "wins": 1342,
+      "points": 6263
+    },
+    "51": {
+      "times": 6500,
+      "wins": 2355,
+      "points": -21411
+    },
+    "23": {
+      "times": 5902,
+      "wins": 2093,
+      "points": -19629
+    },
+    "50": {
+      "times": 6505,
+      "wins": 2318,
+      "points": -21567
+    },
+    "22": {
+      "times": 5731,
+      "wins": 2031,
+      "points": -18234
+    },
+    "8": {
+      "times": 5775,
+      "wins": 2081,
+      "points": -13484
+    },
+    "18": {
+      "times": 4098,
+      "wins": 1720,
+      "points": 4846
+    },
+    "36": {
+      "times": 6264,
+      "wins": 2283,
+      "points": -20706
+    },
+    "17": {
+      "times": 2416,
+      "wins": 1109,
+      "points": 4808
+    },
+    "35": {
+      "times": 5760,
+      "wins": 2040,
+      "points": -18752
+    },
+    "30": {
+      "times": 2481,
+      "wins": 1158,
+      "points": 5205
+    },
+    "14": {
+      "times": 164,
+      "wins": 100,
+      "points": 554
+    },
+    "19": {
+      "times": 4358,
+      "wins": 1723,
+      "points": -1798
+    },
+    "2": {
+      "times": 555,
+      "wins": 313,
+      "points": 907
+    },
+    "7": {
+      "times": 5236,
+      "wins": 2000,
+      "points": -6248
+    },
+    "29": {
+      "times": 1204,
+      "wins": 620,
+      "points": 2431
+    },
+    "44": {
+      "times": 3860,
+      "wins": 1608,
+      "points": 3465
+    },
+    "34": {
+      "times": 5934,
+      "wins": 2225,
+      "points": -11908
+    },
+    "31": {
+      "times": 3610,
+      "wins": 1509,
+      "points": 4076
+    },
+    "28": {
+      "times": 619,
+      "wins": 339,
+      "points": 742
+    },
+    "43": {
+      "times": 2132,
+      "wins": 996,
+      "points": 4294
+    },
+    "42": {
+      "times": 1018,
+      "wins": 531,
+      "points": 1775
+    },
+    "27": {
+      "times": 435,
+      "wins": 259,
+      "points": 495
+    },
+    "40": {
+      "times": 348,
+      "wins": 210,
+      "points": 393
+    },
+    "16": {
+      "times": 1449,
+      "wins": 745,
+      "points": 3189
+    },
+    "15": {
+      "times": 48,
+      "wins": 27,
+      "points": 249
+    },
+    "41": {
+      "times": 569,
+      "wins": 316,
+      "points": 803
+    },
+    "39": {
+      "times": 238,
+      "wins": 153,
+      "points": 427
+    },
+    "26": {
+      "times": 322,
+      "wins": 209,
+      "points": 1081
+    },
+    "0": {
+      "times": 10,
+      "wins": 0,
+      "points": -104
+    },
+    "13": {
+      "times": 220,
+      "wins": 144,
+      "points": 759
+    }
+  },
+  "draw_stats": {
+    "31+": {
+      "deck_draws": 59965,
+      "deck_wins": 20032,
+      "discard_draws": 26479,
+      "discard_wins": 8336
+    },
+    "21-30": {
+      "deck_draws": 23807,
+      "deck_wins": 8889,
+      "discard_draws": 9296,
+      "discard_wins": 3513
+    },
+    "0-10": {
+      "deck_draws": 45,
+      "deck_wins": 24,
+      "discard_draws": 25665,
+      "discard_wins": 14284
+    },
+    "11-20": {
+      "deck_draws": 37680,
+      "deck_wins": 14931,
+      "discard_draws": 2642,
+      "discard_wins": 1466
+    }
+  },
+  "knock_stats": {
+    "8": {
+      "knocked": 6865,
+      "knock_wins": 4146,
+      "continued": 0,
+      "continue_wins": 0
+    },
+    "4": {
+      "knocked": 1307,
+      "knock_wins": 1028,
+      "continued": 0,
+      "continue_wins": 0
+    },
+    "6": {
+      "knocked": 3057,
+      "knock_wins": 2031,
+      "continued": 0,
+      "continue_wins": 0
+    },
+    "3": {
+      "knocked": 866,
+      "knock_wins": 762,
+      "continued": 0,
+      "continue_wins": 0
+    },
+    "10": {
+      "knocked": 8733,
+      "knock_wins": 3802,
+      "continued": 1,
+      "continue_wins": 0
+    },
+    "7": {
+      "knocked": 4689,
+      "knock_wins": 3140,
+      "continued": 0,
+      "continue_wins": 0
+    },
+    "5": {
+      "knocked": 1893,
+      "knock_wins": 1400,
+      "continued": 0,
+      "continue_wins": 0
+    },
+    "2": {
+      "knocked": 778,
+      "knock_wins": 730,
+      "continued": 0,
+      "continue_wins": 0
+    },
+    "9": {
+      "knocked": 8295,
+      "knock_wins": 4473,
+      "continued": 1,
+      "continue_wins": 0
+    },
+    "1": {
+      "knocked": 745,
+      "knock_wins": 729,
+      "continued": 0,
+      "continue_wins": 0
+    },
+    "0": {
+      "knocked": 416,
+      "knock_wins": 408,
+      "continued": 0,
+      "continue_wins": 0
+    }
+  }
+}
