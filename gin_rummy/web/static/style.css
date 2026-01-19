@@ -923,6 +923,7 @@ body {
 
 .stats-player-select {
     flex: 1;
+    min-width: 0; /* Allow flex item to shrink below content size */
     padding: 8px 12px;
     border: 1px solid rgba(0, 0, 0, 0.2);
     border-radius: 6px;
@@ -931,6 +932,8 @@ body {
     font-size: 0.95em;
     cursor: pointer;
     transition: border-color 0.2s;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .stats-player-select:focus {

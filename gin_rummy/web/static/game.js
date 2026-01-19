@@ -1156,7 +1156,15 @@ let currentViewedPlayer = null;
 
 // Fetch and display player stats
 async function showPlayerStats() {
-    const playerName = savedSettings.playerName || 'You';
+    // Get player name from current game state if available, otherwise use saved settings
+    let playerName = savedSettings.playerName || 'You';
+    if (gameState && gameState.scores) {
+        const playerNames = Object.keys(gameState.scores);
+        if (playerNames.length > 0 && playerNames[0] !== 'Computer') {
+            playerName = playerNames[0];
+        }
+    }
+
     elements.statsModal.classList.remove('hidden');
 
     // Load player list
@@ -1184,7 +1192,13 @@ async function loadPlayerList() {
         ).join('');
 
         // If current player not in list, add them
-        const currentPlayerName = savedSettings.playerName || 'You';
+        let currentPlayerName = savedSettings.playerName || 'You';
+        if (gameState && gameState.scores) {
+            const playerNames = Object.keys(gameState.scores);
+            if (playerNames.length > 0 && playerNames[0] !== 'Computer') {
+                currentPlayerName = playerNames[0];
+            }
+        }
         const playerExists = players.some(p => p.name === currentPlayerName);
         if (!playerExists) {
             elements.statsPlayerSelect.innerHTML =
@@ -1205,7 +1219,15 @@ async function loadSelectedPlayerStats() {
     await loadStatsForPlayer(playerName);
 
     // Enable/disable clear button based on whether viewing current player
-    const isCurrentPlayer = playerName === (savedSettings.playerName || 'You');
+    // Get current player name from game state if available
+    let currentPlayerName = savedSettings.playerName || 'You';
+    if (gameState && gameState.scores) {
+        const playerNames = Object.keys(gameState.scores);
+        if (playerNames.length > 0 && playerNames[0] !== 'Computer') {
+            currentPlayerName = playerNames[0];
+        }
+    }
+    const isCurrentPlayer = playerName === currentPlayerName;
     elements.clearStatsBtn.disabled = !isCurrentPlayer;
 }
 
