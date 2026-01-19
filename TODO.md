@@ -162,12 +162,13 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Allow viewing stats for any previously played player
   - Allow clearing stats for the current player
   - Clearing stats must be confirmed with a confirmation dialog to avoid accidental deletion
-- [ ] **Player Selection in New Game Modal**
+- [x] **Player Selection in New Game Modal**
   - Add dropdown/autocomplete to select from existing players when starting a new game
   - Show player list with their stats (e.g., "Sarah (7 hands, 86% wins)")
   - Allow typing a new name or selecting an existing player
-  - Pre-fill last used player name by default
-  - Makes it easy to switch between players without retyping names
+  - Pre-fill last used player name by default (as placeholder)
+  - Filter out "Computer" from player list and prevent using it as name
+  - Added Cancel button to close modal without starting game
 - [ ] **Web UI: Manual card arrangement (drag & drop)**
   - Allow players to manually reorder cards in their hand via drag and drop
   - Use HTML5 drag and drop API (no library needed)
