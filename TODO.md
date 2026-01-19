@@ -169,6 +169,13 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Pre-fill last used player name by default (as placeholder)
   - Filter out "Computer" from player list and prevent using it as name
   - Added Cancel button to close modal without starting game
+- [ ] **Show Computer's Final Move in Round Result Modal**
+  - When round ends quickly, hard to see what computer's last action was
+  - Add computer's last move info to round result modal
+  - Show: "Computer drew from [deck/discard pile] and discarded [card]"
+  - Or show the discard pile top card to help player infer the action
+  - Important for learning and understanding game flow
+  - Especially helpful when computer knocks or goes gin
 - [ ] **Web UI: Manual card arrangement (drag & drop)**
   - Allow players to manually reorder cards in their hand via drag and drop
   - Use HTML5 drag and drop API (no library needed)
