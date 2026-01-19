@@ -100,20 +100,40 @@ class GameSession:
         self.last_ai_action: dict[str, Any] | None = None  # Structured action data
         self.player_name: str = "You"
         self.ai_difficulty: str = "medium"
+        self.game_mode: str = "practice"  # "practice" or "target"
+        self.target_score: int | None = None  # Target score for "target" mode
+        self.game_over: bool = False
+        self.winner: str | None = None
         self.tracker: GameTracker = GameTracker()
 
-    def new_game(self, player_name: str | None = None, ai_difficulty: str | None = None) -> dict[str, Any]:
+    def new_game(
+        self,
+        player_name: str | None = None,
+        ai_difficulty: str | None = None,
+        game_mode: str | None = None,
+        target_score: int | None = None
+    ) -> dict[str, Any]:
         """Start a new game.
 
         Args:
             player_name: Player's name (default: "You")
             ai_difficulty: AI difficulty - "easy", "medium", or "hard" (default: "medium")
+            game_mode: Game mode - "practice" or "target" (default: "practice")
+            target_score: Target score for "target" mode (100, 150, 200, 250)
         """
         # Save settings
         if player_name:
             self.player_name = player_name
         if ai_difficulty:
             self.ai_difficulty = ai_difficulty
+        if game_mode:
+            self.game_mode = game_mode
+        if target_score is not None:
+            self.target_score = target_score
+
+        # Reset game over state
+        self.game_over = False
+        self.winner = None
 
         # Create AI based on difficulty
         ai_map = {
@@ -239,6 +259,10 @@ class GameSession:
                 'dead_cards': [str(c) for c in dead_cards],  # Use suit symbols
                 'opponent_known': [str(c) for c in opponent_known],  # Use suit symbols
             },
+            'game_mode': self.game_mode,
+            'target_score': self.target_score,
+            'game_over': self.game_over,
+            'game_winner': self.winner,
         }
 
         return state
@@ -478,6 +502,22 @@ class GameSession:
             layoff_cards=layoff_cards_str,
             defender_deadwood_before=result.defender_deadwood_before_layoff,
         )
+
+        # Check if game is over (target score reached)
+        if self.game_mode == "target" and self.target_score is not None:
+            player_score = self.game.players[self.human_idx].score
+            ai_score = self.game.players[1 - self.human_idx].score
+
+            if player_score >= self.target_score:
+                self.game_over = True
+                self.winner = self.player_name
+                # Record game completion in database
+                self.tracker.end_game(self.player_name, player_score, ai_score)
+            elif ai_score >= self.target_score:
+                self.game_over = True
+                self.winner = "Computer"
+                # Record game completion in database
+                self.tracker.end_game("Computer", player_score, ai_score)
 
         # Record hand result in database
         self.tracker.end_hand(

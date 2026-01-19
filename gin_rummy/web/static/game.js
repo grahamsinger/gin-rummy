@@ -61,6 +61,14 @@ const elements = {
     playerNamesList: document.getElementById('player-names-list'),
     cancelSettingsBtn: document.getElementById('cancel-settings-btn'),
     aiDifficultySelect: document.getElementById('ai-difficulty'),
+    gameModeSelect: document.getElementById('game-mode'),
+    targetScoreSelect: document.getElementById('target-score'),
+    targetScoreField: document.getElementById('target-score-field'),
+    gameOverModal: document.getElementById('game-over-modal'),
+    gameOverTitle: document.getElementById('game-over-title'),
+    gameOverDetails: document.getElementById('game-over-details'),
+    newGameAfterWinBtn: document.getElementById('new-game-after-win-btn'),
+    viewStatsAfterWinBtn: document.getElementById('view-stats-after-win-btn'),
     viewStatsBtn: document.getElementById('view-stats-btn'),
     statsModal: document.getElementById('stats-modal'),
     statsContent: document.getElementById('stats-content'),
@@ -342,25 +350,41 @@ function renderGameState(state) {
             // Assume first player is human, second is computer
             const humanName = playerNames[0];
             const opponentName = playerNames[1];
+            const humanScore = state.scores[humanName] || 0;
+            const opponentScore = state.scores[opponentName] || 0;
+
+            // Format scores with target if in target mode
+            const formatScore = (score) => {
+                if (state.game_mode === 'target' && state.target_score) {
+                    return `${score} / ${state.target_score}`;
+                }
+                return score;
+            };
 
             // Update header labels if they've changed (must do this BEFORE updating scores)
             const playerLabel = document.querySelector('.scores .score:first-child');
             const opponentLabel = document.querySelector('.scores .score:last-child');
             if (playerLabel && !playerLabel.textContent.startsWith(humanName)) {
-                playerLabel.innerHTML = `${humanName}: <span id="player-score">${state.scores[humanName] || 0}</span>`;
+                playerLabel.innerHTML = `${humanName}: <span id="player-score">${formatScore(humanScore)}</span>`;
                 // Re-capture the element reference after innerHTML update
                 elements.playerScore = document.getElementById('player-score');
             }
             if (opponentLabel && !opponentLabel.textContent.startsWith(opponentName)) {
-                opponentLabel.innerHTML = `${opponentName}: <span id="opponent-score">${state.scores[opponentName] || 0}</span>`;
+                opponentLabel.innerHTML = `${opponentName}: <span id="opponent-score">${formatScore(opponentScore)}</span>`;
                 // Re-capture the element reference after innerHTML update
                 elements.opponentScore = document.getElementById('opponent-score');
             }
 
             // Now update the scores (using potentially refreshed element references)
-            elements.playerScore.textContent = state.scores[humanName] || 0;
-            elements.opponentScore.textContent = state.scores[opponentName] || 0;
+            elements.playerScore.textContent = formatScore(humanScore);
+            elements.opponentScore.textContent = formatScore(opponentScore);
         }
+    }
+
+    // Check for game over
+    if (state.game_over && state.game_winner) {
+        showGameOver(state.game_winner, state.scores, state.target_score);
+        return;  // Don't show round result modal if game is over
     }
 
     // Deck
@@ -471,6 +495,20 @@ async function showSettingsModal() {
     elements.playerNameInput.value = '';
     elements.playerNameInput.placeholder = savedSettings.playerName || 'You';
     elements.aiDifficultySelect.value = savedSettings.aiDifficulty;
+
+    // Load saved game mode settings
+    const savedGameMode = localStorage.getItem('gameMode') || 'target';
+    const savedTargetScore = localStorage.getItem('targetScore') || '100';
+    elements.gameModeSelect.value = savedGameMode;
+    elements.targetScoreSelect.value = savedTargetScore;
+
+    // Show/hide target score field based on mode
+    if (savedGameMode === 'target') {
+        elements.targetScoreField.style.display = 'flex';
+    } else {
+        elements.targetScoreField.style.display = 'none';
+    }
+
     elements.settingsModal.classList.remove('hidden');
 
     // Focus on player name input
@@ -954,6 +992,15 @@ function init() {
         elements.settingsModal.classList.add('hidden');
     });
 
+    // Game mode change handler - show/hide target score
+    elements.gameModeSelect.addEventListener('change', () => {
+        if (elements.gameModeSelect.value === 'target') {
+            elements.targetScoreField.style.display = 'flex';
+        } else {
+            elements.targetScoreField.style.display = 'none';
+        }
+    });
+
     // Settings form submission
     elements.settingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -966,6 +1013,8 @@ function init() {
         }
 
         const aiDifficulty = elements.aiDifficultySelect.value;
+        const gameMode = elements.gameModeSelect.value;
+        const targetScore = gameMode === 'target' ? parseInt(elements.targetScoreSelect.value) : null;
 
         // Save to localStorage
         if (playerName) {
@@ -974,6 +1023,10 @@ function init() {
             localStorage.removeItem('playerName');
         }
         localStorage.setItem('aiDifficulty', aiDifficulty);
+        localStorage.setItem('gameMode', gameMode);
+        if (targetScore) {
+            localStorage.setItem('targetScore', targetScore.toString());
+        }
 
         // Update savedSettings
         savedSettings.playerName = playerName;
@@ -981,7 +1034,9 @@ function init() {
 
         const settings = {
             player_name: playerName,
-            ai_difficulty: aiDifficulty
+            ai_difficulty: aiDifficulty,
+            game_mode: gameMode,
+            target_score: targetScore
         };
         newGame(settings);
     });
@@ -991,6 +1046,16 @@ function init() {
 
     // Next round button
     elements.nextRoundBtn.addEventListener('click', nextRound);
+
+    // Game over modal buttons
+    elements.newGameAfterWinBtn.addEventListener('click', () => {
+        elements.gameOverModal.classList.add('hidden');
+        showSettingsModal();
+    });
+    elements.viewStatsAfterWinBtn.addEventListener('click', () => {
+        elements.gameOverModal.classList.add('hidden');
+        showPlayerStats();
+    });
 
     // Assist mode toggle
     elements.assistMode.addEventListener('change', () => {
@@ -1250,6 +1315,37 @@ async function confirmClearStats() {
         console.error('Failed to clear stats:', error);
         alert('Failed to clear statistics. Please try again.');
     }
+}
+
+function showGameOver(winner, scores, targetScore) {
+    // Hide round modal if it's showing
+    elements.roundModal.classList.add('hidden');
+
+    // Determine winner's score
+    const winnerScore = scores[winner] || 0;
+    const loserName = Object.keys(scores).find(name => name !== winner);
+    const loserScore = scores[loserName] || 0;
+
+    // Build game over details
+    elements.gameOverTitle.textContent = `🎉 ${winner} Wins!`;
+    elements.gameOverDetails.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+            <p style="font-size: 1.5em; margin-bottom: 20px;">
+                <strong>${winner}</strong> reached ${targetScore} points!
+            </p>
+            <div style="font-size: 1.2em; margin: 20px 0;">
+                <div style="margin: 10px 0;">
+                    <strong>${winner}:</strong> ${winnerScore} points
+                </div>
+                <div style="margin: 10px 0;">
+                    <strong>${loserName}:</strong> ${loserScore} points
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Show game over modal
+    elements.gameOverModal.classList.remove('hidden');
 }
 
 async function showScoreHistory() {

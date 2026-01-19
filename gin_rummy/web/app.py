@@ -28,6 +28,8 @@ session = GameSession()
 class NewGameRequest(BaseModel):
     player_name: str | None = None  # Player's name
     ai_difficulty: str | None = None  # "easy", "medium", or "hard"
+    game_mode: str | None = None  # "practice" or "target"
+    target_score: int | None = None  # Target score for "target" mode (100, 150, 200, 250)
 
 
 class DrawRequest(BaseModel):
@@ -51,10 +53,15 @@ async def new_game(request: NewGameRequest | None = None):
     """Start a new game with optional settings.
 
     Args:
-        request: Optional settings for player name and AI difficulty
+        request: Optional settings for player name, AI difficulty, game mode, and target score
     """
     if request:
-        return session.new_game(player_name=request.player_name, ai_difficulty=request.ai_difficulty)
+        return session.new_game(
+            player_name=request.player_name,
+            ai_difficulty=request.ai_difficulty,
+            game_mode=request.game_mode,
+            target_score=request.target_score
+        )
     return session.new_game()
 
 

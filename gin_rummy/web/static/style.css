@@ -1117,6 +1117,64 @@ body {
     opacity: 0.9;
 }
 
+/* Game Over Modal */
+.game-over-modal-content {
+    max-width: 500px;
+    text-align: center;
+}
+
+.game-over-modal-content h2 {
+    font-size: 2em;
+    margin-bottom: 10px;
+    background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.game-over-details {
+    margin: 20px 0;
+    color: #333;
+}
+
+.game-over-buttons {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.new-game-after-win-btn,
+.view-stats-after-win-btn {
+    flex: 1;
+    padding: 15px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.new-game-after-win-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.new-game-after-win-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.view-stats-after-win-btn {
+    background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+    color: white;
+}
+
+.view-stats-after-win-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(102, 187, 106, 0.4);
+}
+
 .score-loading {
     text-align: center;
     padding: 20px;

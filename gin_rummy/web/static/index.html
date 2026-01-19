@@ -106,6 +106,22 @@
                             <option value="hard">Hard</option>
                         </select>
                     </div>
+                    <div class="settings-field">
+                        <label for="game-mode">Game Mode:</label>
+                        <select id="game-mode" name="game_mode">
+                            <option value="practice">Hand Practice (No End)</option>
+                            <option value="target" selected>Play to Target Score</option>
+                        </select>
+                    </div>
+                    <div class="settings-field" id="target-score-field">
+                        <label for="target-score">Target Score:</label>
+                        <select id="target-score" name="target_score">
+                            <option value="100" selected>100 Points</option>
+                            <option value="150">150 Points</option>
+                            <option value="200">200 Points</option>
+                            <option value="250">250 Points</option>
+                        </select>
+                    </div>
                     <div class="settings-buttons">
                         <button type="submit" class="start-game-btn">Start Game</button>
                         <button type="button" id="cancel-settings-btn" class="cancel-settings-btn">Cancel</button>
@@ -203,6 +219,20 @@
                     <div class="score-loading">Loading history...</div>
                 </div>
                 <button id="score-history-close-btn" class="score-history-close-btn">Close</button>
+            </div>
+        </div>
+
+        <!-- Game Over modal -->
+        <div id="game-over-modal" class="modal hidden">
+            <div class="modal-content game-over-modal-content">
+                <h2 id="game-over-title">Game Over!</h2>
+                <div id="game-over-details" class="game-over-details">
+                    <!-- Filled by JS -->
+                </div>
+                <div class="game-over-buttons">
+                    <button id="new-game-after-win-btn" class="new-game-after-win-btn">New Game</button>
+                    <button id="view-stats-after-win-btn" class="view-stats-after-win-btn">View Stats</button>
+                </div>
             </div>
         </div>
     </div>
