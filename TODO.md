@@ -130,7 +130,37 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Late game: few helpful cards = more desperate = lower threshold
 
 ## Game Tracking
-- [ ] Game history/replay viewer
+- [ ] **Hand Replay Viewer**
+  - **Database schema supports turn-by-turn tracking** (turns table exists)
+  - Turn data includes: drew_from, card_drawn, card_discarded, did_knock, cards_before, cards_after, deadwood_before, deadwood_after
+  - **NOTE:** Currently only CLI uses `tracker.record_turn()` - web UI needs to be updated to track turns
+  - **First step:** Add turn tracking to web game session (game_session.py)
+  - **Two-level navigation:**
+    1. **Hand-by-hand history with scores** (ALREADY EXISTS - Score History modal)
+       - Shows round-by-round progression with winner and points
+       - Already implemented in web UI with badges for GIN/UNDERCUT/DRAW
+    2. **Turn-by-turn replay for each hand** (NEW FEATURE)
+       - Click on a hand in Score History to view detailed replay
+       - Show each turn sequentially with cards visible
+       - Option to view from either player's perspective
+       - "Step forward/back" buttons to navigate through turns
+       - Display what each player drew, discarded, and their hand state
+       - Show deadwood changes after each turn
+       - Highlight final turn (knock/gin/draw)
+  - **UI mockup:**
+    - Score History modal → Click hand → Opens Hand Replay modal
+    - Replay modal shows: Turn counter, current player, action taken, hand state
+    - Perspective switcher: "View as [Player Name]" or "View as Computer"
+    - When viewing from a player's perspective, show their hand face-up, opponent face-down (unless final reveal)
+    - Timeline slider to jump to specific turns
+  - **API endpoints needed:**
+    - `GET /api/hands/{hand_id}/turns` - Get all turns for a hand
+    - Returns: List of turns with full state (cards, deadwood, actions)
+  - **Implementation notes:**
+    - Backend: Query turns table and reconstruct game state for each turn
+    - Card format: Use existing card_to_dict() conversion
+    - Parse cards_before/cards_after JSON fields from database
+    - Add AI decision reasoning if available (ai_decisions table)
 - [x] Statistics dashboard/summary command
   - Lifetime stats tracking in SQLite (player_stats table)
   - Web UI stats modal with 14 statistics
