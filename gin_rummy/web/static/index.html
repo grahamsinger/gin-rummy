@@ -18,6 +18,16 @@
             </div>
         </header>
 
+        <div class="game-info">
+            <div id="knock-threshold-display" class="hidden">
+                Knock at: <span id="knock-threshold-value">10</span>
+                <span id="spade-indicator" class="hidden"> ♠ (Points Doubled)</span>
+            </div>
+            <div id="match-progress" class="hidden">
+                Games: <span id="games-won-display"></span>
+            </div>
+        </div>
+
         <main class="game-board">
             <!-- Opponent's hand (face down) -->
             <div class="opponent-area">
@@ -121,6 +131,27 @@
                             <option value="200">200 Points</option>
                             <option value="250">250 Points</option>
                         </select>
+                    </div>
+                    <div class="settings-field">
+                        <label>
+                            <input type="checkbox" id="oklahoma-gin" name="oklahoma_gin">
+                            Oklahoma Gin Rules
+                        </label>
+                        <div class="settings-help-text">
+                            Upcard determines knock threshold (Ace=gin only, spades double points)
+                        </div>
+                    </div>
+                    <div class="settings-field" id="spade-doubling-field" style="display: none;">
+                        <label>
+                            <input type="checkbox" id="spade-doubling" name="spade_doubling" checked>
+                            Spade Doubling
+                        </label>
+                    </div>
+                    <div class="settings-field">
+                        <label>
+                            <input type="checkbox" id="match-mode" name="match_mode">
+                            Match Play (Best of 3 Games)
+                        </label>
                     </div>
                     <div class="settings-buttons">
                         <button type="submit" class="start-game-btn">Start Game</button>

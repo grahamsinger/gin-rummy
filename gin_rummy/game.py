@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from gin_rummy.models import Card, Deck, Player
+from gin_rummy.models import Card, Deck, Player, Suit
 from gin_rummy.models.melds import calculate_layoff
 from gin_rummy.config import get_config
 
@@ -51,19 +51,32 @@ class RoundResult:
 class Game:
     """Gin Rummy game state and logic."""
 
-    def __init__(self, player1_name: str, player2_name: str) -> None:
+    def __init__(
+        self,
+        player1_name: str,
+        player2_name: str,
+        is_oklahoma_gin: bool = False,
+        spade_doubling_enabled: bool = False,
+    ) -> None:
         """Create a new game with two players.
 
         Args:
             player1_name: Name of first player.
             player2_name: Name of second player.
+            is_oklahoma_gin: Whether to use Oklahoma Gin rules.
+            spade_doubling_enabled: Whether to double points when upcard is a spade.
         """
         # Load game rules from config
         config = get_config()
-        self.knock_threshold = config.game_rules.knock_threshold
+        self._base_knock_threshold = config.game_rules.knock_threshold
         self.gin_bonus = config.game_rules.gin_bonus
         self.undercut_bonus = config.game_rules.undercut_bonus
         self.min_deck_cards = config.game_rules.min_deck_cards
+
+        # Oklahoma Gin settings
+        self.is_oklahoma_gin = is_oklahoma_gin
+        self.spade_doubling_enabled = spade_doubling_enabled
+        self.upcard: Card | None = None
 
         self.players: tuple[Player, Player] = (
             Player(player1_name),
@@ -86,6 +99,21 @@ class Game:
             player2_name: [],
         }
         self._discard_history: list[Card] = []
+
+    @property
+    def knock_threshold(self) -> int:
+        """Get current knock threshold (dynamic for Oklahoma Gin)."""
+        if not self.is_oklahoma_gin or self.upcard is None:
+            return self._base_knock_threshold
+
+        # Oklahoma Gin - threshold based on upcard rank
+        rank_value = self.upcard.rank.value
+        if rank_value == 1:  # Ace
+            return 0
+        elif rank_value <= 10:
+            return rank_value
+        else:  # J, Q, K
+            return 10
 
     @property
     def current_player(self) -> Player:
@@ -212,12 +240,22 @@ class Game:
             for player in self.players:
                 player.hand.add(self.deck.draw())
 
-        # Deal 11th card to non-dealer
-        self.non_dealer.hand.add(self.deck.draw())
+        if self.is_oklahoma_gin:
+            # Oklahoma Gin: turn upcard, becomes first discard
+            self.upcard = self.deck.draw()
+            self.discard_pile.append(self.upcard)
+            self._discard_history.append(self.upcard)
 
-        # Non-dealer goes first (to discard)
-        self.current_player_idx = 1 - self.dealer_idx
-        self.phase = GamePhase.FIRST_DISCARD
+            # Non-dealer goes first (already indexed)
+            self.current_player_idx = 1 - self.dealer_idx
+            self.phase = GamePhase.DRAWING  # Skip FIRST_DISCARD
+        else:
+            # Standard Gin: deal 11th card to non-dealer
+            self.non_dealer.hand.add(self.deck.draw())
+
+            # Non-dealer goes first (to discard)
+            self.current_player_idx = 1 - self.dealer_idx
+            self.phase = GamePhase.FIRST_DISCARD
 
     def discard_to_start(self, card: Card) -> None:
         """Non-dealer's opening discard from their 11 cards.
@@ -389,6 +427,11 @@ class Game:
             points = defender_deadwood - knocker_deadwood
             winner = knocker
             loser = defender
+
+        # Apply spade doubling for Oklahoma Gin
+        if self.is_oklahoma_gin and self.spade_doubling_enabled and self.upcard:
+            if self.upcard.suit == Suit.SPADES:
+                points *= 2  # Double the points for spades
 
         winner.score += points
         self.phase = GamePhase.ROUND_OVER

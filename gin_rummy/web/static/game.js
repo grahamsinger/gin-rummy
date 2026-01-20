@@ -83,6 +83,15 @@ const elements = {
     scoreHistoryModal: document.getElementById('score-history-modal'),
     scoreHistoryContent: document.getElementById('score-history-content'),
     scoreHistoryCloseBtn: document.getElementById('score-history-close-btn'),
+    oklahomaGinCheckbox: document.getElementById('oklahoma-gin'),
+    spadeDoublingCheckbox: document.getElementById('spade-doubling'),
+    spadeDoublingField: document.getElementById('spade-doubling-field'),
+    matchModeCheckbox: document.getElementById('match-mode'),
+    knockThresholdDisplay: document.getElementById('knock-threshold-display'),
+    knockThresholdValue: document.getElementById('knock-threshold-value'),
+    spadeIndicator: document.getElementById('spade-indicator'),
+    matchProgress: document.getElementById('match-progress'),
+    gamesWonDisplay: document.getElementById('games-won-display'),
 };
 
 // Suit symbols
@@ -443,6 +452,32 @@ function renderGameState(state) {
         updateLastAiMove(state.ai_action);
     }
 
+    // Display Oklahoma Gin info
+    if (state.oklahoma_gin) {
+        elements.knockThresholdDisplay.classList.remove('hidden');
+        elements.knockThresholdValue.textContent = state.knock_threshold;
+
+        // Show spade doubling indicator if applicable
+        if (state.upcard && state.spade_doubling && state.upcard.suit === 'spades') {
+            elements.spadeIndicator.classList.remove('hidden');
+        } else {
+            elements.spadeIndicator.classList.add('hidden');
+        }
+    } else {
+        elements.knockThresholdDisplay.classList.add('hidden');
+        elements.spadeIndicator.classList.add('hidden');
+    }
+
+    // Display match progress
+    if (state.match_mode && state.games_won) {
+        elements.matchProgress.classList.remove('hidden');
+        const playerGames = state.games_won[state.player_name] || 0;
+        const aiGames = state.games_won['Computer'] || 0;
+        elements.gamesWonDisplay.textContent = `You ${playerGames} - ${aiGames} Computer`;
+    } else {
+        elements.matchProgress.classList.add('hidden');
+    }
+
     // Check for round over
     if (state.round_over) {
         showRoundResult(state.round_result);
@@ -480,6 +515,11 @@ async function newGame(settings = null) {
     const state = await apiCall('/new', 'POST', settings);
     if (state) {
         renderGameState(state);
+
+        // Check if AI goes first (e.g., in Oklahoma mode when computer is non-dealer)
+        if (!state.your_turn) {
+            await doAiTurn();
+        }
     }
 }
 
@@ -505,6 +545,17 @@ async function showSettingsModal() {
     } else {
         elements.targetScoreField.style.display = 'none';
     }
+
+    // Load Oklahoma Gin settings
+    const oklahomaGin = localStorage.getItem('oklahomaGin') === 'true';
+    const spadeDoubling = localStorage.getItem('spadeDoubling') !== 'false'; // default true
+    const matchMode = localStorage.getItem('matchMode') === 'true';
+    elements.oklahomaGinCheckbox.checked = oklahomaGin;
+    elements.spadeDoublingCheckbox.checked = spadeDoubling;
+    elements.matchModeCheckbox.checked = matchMode;
+
+    // Show spade doubling field if Oklahoma is checked
+    elements.spadeDoublingField.style.display = oklahomaGin ? 'flex' : 'none';
 
     elements.settingsModal.classList.remove('hidden');
 
@@ -615,7 +666,7 @@ async function nextRound() {
 
     // Check if game is over before starting new round
     if (gameState && gameState.game_over && gameState.game_winner) {
-        showGameOver(gameState.game_winner, gameState.scores, gameState.target_score);
+        showGameOver(gameState.game_winner, gameState.scores, gameState.target_score, gameState.match_mode, gameState.games_won, gameState.match_winner);
         return;
     }
 
@@ -1017,6 +1068,11 @@ function init() {
         }
     });
 
+    // Oklahoma Gin toggle handler - show/hide spade doubling
+    elements.oklahomaGinCheckbox.addEventListener('change', (e) => {
+        elements.spadeDoublingField.style.display = e.target.checked ? 'flex' : 'none';
+    });
+
     // Settings form submission
     elements.settingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -1031,6 +1087,9 @@ function init() {
         const aiDifficulty = elements.aiDifficultySelect.value;
         const gameMode = elements.gameModeSelect.value;
         const targetScore = gameMode === 'target' ? parseInt(elements.targetScoreSelect.value) : null;
+        const oklahomaGin = elements.oklahomaGinCheckbox.checked;
+        const spadeDoubling = elements.spadeDoublingCheckbox.checked;
+        const matchMode = elements.matchModeCheckbox.checked;
 
         // Save to localStorage
         if (playerName) {
@@ -1043,6 +1102,9 @@ function init() {
         if (targetScore) {
             localStorage.setItem('targetScore', targetScore.toString());
         }
+        localStorage.setItem('oklahomaGin', oklahomaGin);
+        localStorage.setItem('spadeDoubling', spadeDoubling);
+        localStorage.setItem('matchMode', matchMode);
 
         // Update savedSettings
         savedSettings.playerName = playerName;
@@ -1052,7 +1114,10 @@ function init() {
             player_name: playerName,
             ai_difficulty: aiDifficulty,
             game_mode: gameMode,
-            target_score: targetScore
+            target_score: targetScore,
+            oklahoma_gin: oklahomaGin,
+            spade_doubling: spadeDoubling,
+            match_mode: matchMode,
         };
         newGame(settings);
     });
@@ -1355,7 +1420,7 @@ async function confirmClearStats() {
     }
 }
 
-function showGameOver(winner, scores, targetScore) {
+function showGameOver(winner, scores, targetScore, matchMode, gamesWon, matchWinner) {
     // Hide round modal if it's showing
     elements.roundModal.classList.add('hidden');
 
@@ -1364,23 +1429,67 @@ function showGameOver(winner, scores, targetScore) {
     const loserName = Object.keys(scores).find(name => name !== winner);
     const loserScore = scores[loserName] || 0;
 
-    // Build game over details
-    elements.gameOverTitle.textContent = `🎉 ${winner} Wins!`;
-    elements.gameOverDetails.innerHTML = `
-        <div style="text-align: center; padding: 20px;">
-            <p style="font-size: 1.5em; margin-bottom: 20px;">
-                <strong>${winner}</strong> reached ${targetScore} points!
-            </p>
-            <div style="font-size: 1.2em; margin: 20px 0;">
-                <div style="margin: 10px 0;">
-                    <strong>${winner}:</strong> ${winnerScore} points
+    // Build game over details based on match mode
+    if (matchMode && gamesWon) {
+        if (matchWinner) {
+            // Match is complete
+            elements.gameOverTitle.textContent = `🎉 Match Complete!`;
+            const playerGames = gamesWon[gameState.player_name] || 0;
+            const aiGames = gamesWon['Computer'] || 0;
+            elements.gameOverDetails.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <p style="font-size: 1.5em; margin-bottom: 20px;">
+                        <strong>${matchWinner}</strong> wins the match!
+                    </p>
+                    <div style="font-size: 1.2em; margin: 20px 0;">
+                        <div style="margin: 10px 0;">
+                            Match Score: You ${playerGames} - ${aiGames} Computer
+                        </div>
+                    </div>
                 </div>
-                <div style="margin: 10px 0;">
-                    <strong>${loserName}:</strong> ${loserScore} points
+            `;
+        } else {
+            // Game over but match continues
+            const playerGames = gamesWon[gameState.player_name] || 0;
+            const aiGames = gamesWon['Computer'] || 0;
+            elements.gameOverTitle.textContent = `Game Complete!`;
+            elements.gameOverDetails.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <p style="font-size: 1.5em; margin-bottom: 20px;">
+                        <strong>${winner}</strong> wins this game!
+                    </p>
+                    <div style="font-size: 1.2em; margin: 20px 0;">
+                        <div style="margin: 10px 0;">
+                            Match Score: You ${playerGames} - ${aiGames} Computer
+                        </div>
+                        <div style="margin: 10px 0;">
+                            First to win 2 games wins the match!
+                        </div>
+                    </div>
+                </div>
+            `;
+            elements.newGameAfterWinBtn.textContent = 'Next Game';
+        }
+    } else {
+        // Standard mode
+        elements.gameOverTitle.textContent = `🎉 ${winner} Wins!`;
+        elements.gameOverDetails.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <p style="font-size: 1.5em; margin-bottom: 20px;">
+                    <strong>${winner}</strong> reached ${targetScore} points!
+                </p>
+                <div style="font-size: 1.2em; margin: 20px 0;">
+                    <div style="margin: 10px 0;">
+                        <strong>${winner}:</strong> ${winnerScore} points
+                    </div>
+                    <div style="margin: 10px 0;">
+                        <strong>${loserName}:</strong> ${loserScore} points
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
+        `;
+        elements.newGameAfterWinBtn.textContent = 'New Game';
+    }
 
     // Show game over modal
     elements.gameOverModal.classList.remove('hidden');

@@ -176,6 +176,11 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - No laying off allowed on gin (knocker deadwood = 0)
 
 ## UI Improvements
+- [ ] **Show Dealer Indicator**
+  - Display who is the dealer for the current hand
+  - Useful for verifying game logic (dealer alternates each round)
+  - Could show "DEALER" badge next to player/computer name
+  - Helps understand turn order in Oklahoma Gin (non-dealer goes first)
 - [x] **PRIORITY: Highlight drawn card in hand display**
   - Make it MUCH CLEARER which card was just drawn
   - Implemented: Card is now 15% bigger with bright pulsing yellow glow
@@ -219,24 +224,24 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - See docs/web_ui_spec.md for detailed implementation notes
 
 ## Game Variants & Modes
-- [ ] **Oklahoma Gin / Match Play Format**
+- [x] **Oklahoma Gin / Match Play Format** (COMPLETED)
   - **Game Format Options:**
-    - Match Play: Best of 3 games ("3 streets"), first to win 2 games wins
-    - Total Points: Single continuous game to target score (e.g., 250, 500 points)
+    - Match Play: Best of 3 games, first to win 2 games wins
+    - Total Points: Single continuous game to target score (e.g., 100, 150, 200, 250 points)
   - **Rules Options (toggleable):**
     - Standard Gin: Fixed knock threshold (10 deadwood)
     - Oklahoma Gin Rules: Upcard determines knock threshold
-      - **IMPORTANT: Different dealing procedure:**
-        - Deal 10 cards to EACH player (not 11 to one, 10 to the other)
-        - Turn over next card as upcard (determines knock threshold)
-        - Non-dealer goes first
-        - No initial discard phase
+      - Deal 10 cards to EACH player (not 11 to one, 10 to the other)
+      - Turn over next card as upcard (determines knock threshold)
+      - Non-dealer goes first
+      - No initial discard phase
       - Ace upcard: Must gin (0 deadwood required)
       - 2-10 upcard: Can knock with that value or less
       - J/Q/K upcard: Can knock with 10 or less (standard)
       - Spade upcard: All points doubled for that hand
-  - Settings modal should allow selecting format and rules variant
-  - **Implementation Note:** Will need to refactor deal() to support both dealing modes
+  - Settings modal with checkboxes for Oklahoma Gin, Spade Doubling, and Match Play
+  - UI displays knock threshold and spade doubling indicator when applicable
+  - Match progress tracking shows games won (e.g., "You 1 - 0 Computer")
 - [ ] Tournament mode with multiple rounds/scoring
 - [ ] Undo last move (within same turn)
 

@@ -102,6 +102,11 @@ class GameSession:
         self.ai_difficulty: str = "medium"
         self.game_mode: str = "practice"  # "practice" or "target"
         self.target_score: int | None = None  # Target score for "target" mode
+        self.oklahoma_gin: bool = False
+        self.spade_doubling: bool = True  # Default ON
+        self.match_mode: bool = False
+        self.games_won: dict[str, int] = {}
+        self.match_winner: str | None = None
         self.game_over: bool = False
         self.winner: str | None = None
         self.tracker: GameTracker = GameTracker()
@@ -111,7 +116,10 @@ class GameSession:
         player_name: str | None = None,
         ai_difficulty: str | None = None,
         game_mode: str | None = None,
-        target_score: int | None = None
+        target_score: int | None = None,
+        oklahoma_gin: bool | None = None,
+        spade_doubling: bool | None = None,
+        match_mode: bool | None = None,
     ) -> dict[str, Any]:
         """Start a new game.
 
@@ -120,6 +128,9 @@ class GameSession:
             ai_difficulty: AI difficulty - "easy", "medium", or "hard" (default: "medium")
             game_mode: Game mode - "practice" or "target" (default: "practice")
             target_score: Target score for "target" mode (100, 150, 200, 250)
+            oklahoma_gin: Whether to use Oklahoma Gin rules
+            spade_doubling: Whether to double points when upcard is a spade
+            match_mode: Whether to play best-of-3 match
         """
         # Save settings
         if player_name:
@@ -130,8 +141,25 @@ class GameSession:
             self.game_mode = game_mode
         if target_score is not None:
             self.target_score = target_score
+        if oklahoma_gin is not None:
+            self.oklahoma_gin = oklahoma_gin
+        if spade_doubling is not None:
+            self.spade_doubling = spade_doubling
+        if match_mode is not None:
+            # Only reset match tracking when starting a NEW match
+            # (not when continuing an existing match)
+            if match_mode and not self.match_mode:
+                # Starting a new match
+                self.games_won = {self.player_name: 0, "Computer": 0}
+                self.match_winner = None
+            elif not match_mode:
+                # Turning off match mode
+                self.games_won = {}
+                self.match_winner = None
+            # If match_mode=True and already in match mode, preserve games_won
+            self.match_mode = match_mode
 
-        # Reset game over state
+        # Reset game over state (but preserve match tracking)
         self.game_over = False
         self.winner = None
 
@@ -143,7 +171,12 @@ class GameSession:
         }
         ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
 
-        self.game = Game(self.player_name, "Computer")
+        self.game = Game(
+            self.player_name,
+            "Computer",
+            is_oklahoma_gin=self.oklahoma_gin,
+            spade_doubling_enabled=self.spade_doubling,
+        )
         self.ai = ai_class()
         self.human_idx = 0
         self.last_round_result = None
@@ -155,9 +188,10 @@ class GameSession:
         self.game.deal()
         self.tracker.start_hand(self.game.dealer.name)
 
-        # Handle first discard phase
+        # Handle first discard phase (only in standard mode)
         # Non-dealer (human if dealer_idx=1, AI if dealer_idx=0) must discard first
-        if self.game.current_player_idx != self.human_idx:
+        # In Oklahoma mode, phase is DRAWING so this is skipped
+        if self.game.phase == GamePhase.FIRST_DISCARD and self.game.current_player_idx != self.human_idx:
             # AI does first discard
             self._ai_first_discard()
 
@@ -263,6 +297,14 @@ class GameSession:
             'target_score': self.target_score,
             'game_over': self.game_over,
             'game_winner': self.winner,
+            'oklahoma_gin': self.oklahoma_gin,
+            'spade_doubling': self.spade_doubling,
+            'knock_threshold': self.game.knock_threshold,
+            'upcard': card_to_dict(self.game.upcard) if self.game.upcard else None,
+            'match_mode': self.match_mode,
+            'games_won': self.games_won if self.match_mode else None,
+            'match_winner': self.match_winner if self.match_mode else None,
+            'player_name': self.player_name,
         }
 
         return state
@@ -509,16 +551,32 @@ class GameSession:
             player_score = self.game.players[self.human_idx].score
             ai_score = self.game.players[1 - self.human_idx].score
 
+            game_winner = None
             if player_score >= self.target_score:
-                self.game_over = True
-                self.winner = self.player_name
-                # Record game completion in database
-                self.tracker.end_game(self.player_name, player_score, ai_score)
+                game_winner = self.player_name
             elif ai_score >= self.target_score:
-                self.game_over = True
-                self.winner = "Computer"
-                # Record game completion in database
-                self.tracker.end_game("Computer", player_score, ai_score)
+                game_winner = "Computer"
+
+            if game_winner:
+                if self.match_mode:
+                    # Match play - track games won
+                    self.games_won[game_winner] += 1
+                    if self.games_won[game_winner] >= 2:
+                        # Match is over
+                        self.match_winner = game_winner
+                        self.game_over = True
+                        self.winner = game_winner
+                        self.tracker.end_game(game_winner, player_score, ai_score)
+                    else:
+                        # Game over but match continues
+                        self.game_over = True
+                        self.winner = game_winner
+                        # Don't call tracker.end_game yet - match not complete
+                else:
+                    # Standard mode - game over is final
+                    self.game_over = True
+                    self.winner = game_winner
+                    self.tracker.end_game(game_winner, player_score, ai_score)
 
         # Record hand result in database
         self.tracker.end_hand(
@@ -554,8 +612,9 @@ class GameSession:
         self.last_round_result = None
         self.last_ai_action = None
 
-        # Handle first discard
-        if self.game.current_player_idx != self.human_idx:
+        # Handle first discard (only in standard mode)
+        # In Oklahoma mode, phase is DRAWING so this is skipped
+        if self.game.phase == GamePhase.FIRST_DISCARD and self.game.current_player_idx != self.human_idx:
             self._ai_first_discard()
 
         return self.get_state()

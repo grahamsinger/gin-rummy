@@ -30,6 +30,9 @@ class NewGameRequest(BaseModel):
     ai_difficulty: str | None = None  # "easy", "medium", or "hard"
     game_mode: str | None = None  # "practice" or "target"
     target_score: int | None = None  # Target score for "target" mode (100, 150, 200, 250)
+    oklahoma_gin: bool | None = None  # Whether to use Oklahoma Gin rules
+    spade_doubling: bool | None = None  # Whether to double points when upcard is a spade
+    match_mode: bool | None = None  # Whether to play best-of-3 match
 
 
 class DrawRequest(BaseModel):
@@ -60,7 +63,10 @@ async def new_game(request: NewGameRequest | None = None):
             player_name=request.player_name,
             ai_difficulty=request.ai_difficulty,
             game_mode=request.game_mode,
-            target_score=request.target_score
+            target_score=request.target_score,
+            oklahoma_gin=request.oklahoma_gin,
+            spade_doubling=request.spade_doubling,
+            match_mode=request.match_mode,
         )
     return session.new_game()
 
