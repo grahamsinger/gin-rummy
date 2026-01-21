@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, StatisticalAI, DrawChoice
-from gin_rummy.database import GameTracker
+from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.models import Card, Suit, Rank, analyze_hand
@@ -207,6 +207,12 @@ class GameSession:
         self.game_over: bool = False
         self.winner: str | None = None
         self.tracker: GameTracker = GameTracker()
+
+        # Turn tracking state (for recording to database)
+        self.turn_cards_before: list[str] | None = None
+        self.turn_deadwood_before: int | None = None
+        self.turn_drew_from: str | None = None  # 'deck' or 'discard'
+        self.turn_card_drawn: Card | None = None
 
     def new_game(
         self,
@@ -450,12 +456,24 @@ class GameSession:
             return {'error': f"Cannot draw in {self.game.phase.name} phase"}
 
         try:
+            human = self.game.players[self.human_idx]
+
+            # Save turn state BEFORE drawing
+            self.turn_cards_before = cards_to_db_list(list(human.hand))
+            analysis_before = human.hand.analyze()
+            self.turn_deadwood_before = analysis_before.deadwood_value
+
+            # Draw the card
             if source == 'discard':
                 if not self.game.top_of_discard:
                     return {'error': 'Discard pile is empty'}
                 card = self.game.draw_from_discard()
+                self.turn_drew_from = 'discard'
             else:
                 card = self.game.draw_from_deck()
+                self.turn_drew_from = 'deck'
+
+            self.turn_card_drawn = card
 
             return self.get_state()
 
@@ -517,12 +535,50 @@ class GameSession:
                 self.game.discard_pile.append(card)
                 self.game._discard_history.append(card)
 
+                # Record turn with knock
+                if (self.turn_cards_before is not None and
+                    self.turn_deadwood_before is not None and
+                    self.turn_drew_from and
+                    self.turn_card_drawn):
+                    cards_after = cards_to_db_list(list(human.hand))
+                    self.tracker.record_turn(
+                        player_name=human.name,
+                        drew_from=self.turn_drew_from,
+                        card_drawn=card_to_db_str(self.turn_card_drawn),
+                        card_discarded=card_to_db_str(card),
+                        did_knock=True,
+                        cards_before=self.turn_cards_before,
+                        cards_after=cards_after,
+                        deadwood_before=self.turn_deadwood_before,
+                        deadwood_after=post_discard_deadwood
+                    )
+
                 result = self.game.knock()
                 self._save_round_result(result)
                 return self.get_state()
 
             # Just discard (no knock or can't knock)
             self.game.discard(card)
+
+            # Record turn without knock
+            if (self.turn_cards_before is not None and
+                self.turn_deadwood_before is not None and
+                self.turn_drew_from and
+                self.turn_card_drawn):
+                cards_after = cards_to_db_list(list(human.hand))
+                deadwood_after = human.hand.analyze().deadwood_value
+                self.tracker.record_turn(
+                    player_name=human.name,
+                    drew_from=self.turn_drew_from,
+                    card_drawn=card_to_db_str(self.turn_card_drawn),
+                    card_discarded=card_to_db_str(card),
+                    did_knock=False,
+                    cards_before=self.turn_cards_before,
+                    cards_after=cards_after,
+                    deadwood_before=self.turn_deadwood_before,
+                    deadwood_after=deadwood_after
+                )
+
             return self.get_state()
 
         except (InvalidActionError, KeyError, ValueError) as e:
@@ -563,6 +619,11 @@ class GameSession:
         if self.game.phase not in (GamePhase.DRAWING, GamePhase.DISCARDING):
             return {'error': f"Cannot play in {self.game.phase.name} phase"}
 
+        # Save AI player state before turn (for tracking)
+        ai_player = self.game.players[1 - self.human_idx]
+        cards_before = cards_to_db_list(list(ai_player.hand))
+        deadwood_before = ai_player.hand.analyze().deadwood_value
+
         # Execute AI turn
         turn_result, actions, round_result = execute_ai_turn(self.game, self.ai)
 
@@ -574,6 +635,26 @@ class GameSession:
                 'drew_card': card_to_id(actions.drawn_card) if actions.draw_source == DrawChoice.DISCARD else None,
                 'discarded': card_to_id(actions.discarded_card),
             }
+
+            # Record AI turn in database
+            drew_from = 'discard' if actions.draw_source == DrawChoice.DISCARD else 'deck'
+            if actions.did_knock:
+                # Cards after knock (discarded card removed)
+                cards_after = cards_to_db_list([c for c in ai_player.hand if c != actions.discarded_card])
+            else:
+                cards_after = cards_to_db_list(list(ai_player.hand))
+
+            self.tracker.record_turn(
+                player_name=ai_player.name,
+                drew_from=drew_from,
+                card_drawn=card_to_db_str(actions.drawn_card),
+                card_discarded=card_to_db_str(actions.discarded_card),
+                did_knock=actions.did_knock,
+                cards_before=cards_before,
+                cards_after=cards_after,
+                deadwood_before=deadwood_before,
+                deadwood_after=actions.deadwood_after
+            )
 
         if turn_result == TurnResult.DRAW:
             # Deck exhausted
@@ -715,6 +796,12 @@ class GameSession:
 
         self.last_round_result = None
         self.last_ai_action = None
+
+        # Reset turn tracking state
+        self.turn_cards_before = None
+        self.turn_deadwood_before = None
+        self.turn_drew_from = None
+        self.turn_card_drawn = None
 
         # Handle first discard (only in standard mode)
         # In Oklahoma mode, phase is DRAWING so this is skipped
