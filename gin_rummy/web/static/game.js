@@ -617,9 +617,10 @@ async function drawCard(source) {
 }
 
 async function discardCard(cardId, knock = null) {
-    // If knock not explicitly set, use the checkbox state
+    // If knock not explicitly set, only use checkbox if it's checked
+    // Otherwise pass null to let backend handle automatic gin detection
     if (knock === null) {
-        knock = elements.knockCheckbox.checked;
+        knock = elements.knockCheckbox.checked ? true : null;
     }
 
     const state = await apiCall('/discard', 'POST', { card: cardId, knock: knock });
