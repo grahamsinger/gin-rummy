@@ -143,37 +143,16 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Late game: few helpful cards = more desperate = lower threshold
 
 ## Game Tracking
-- [ ] **Hand Replay Viewer**
-  - **Database schema supports turn-by-turn tracking** (turns table exists)
-  - Turn data includes: drew_from, card_drawn, card_discarded, did_knock, cards_before, cards_after, deadwood_before, deadwood_after
-  - **NOTE:** Currently only CLI uses `tracker.record_turn()` - web UI needs to be updated to track turns
-  - **First step:** Add turn tracking to web game session (game_session.py)
-  - **Two-level navigation:**
-    1. **Hand-by-hand history with scores** (ALREADY EXISTS - Score History modal)
-       - Shows round-by-round progression with winner and points
-       - Already implemented in web UI with badges for GIN/UNDERCUT/DRAW
-    2. **Turn-by-turn replay for each hand** (NEW FEATURE)
-       - Click on a hand in Score History to view detailed replay
-       - Show each turn sequentially with cards visible
-       - Option to view from either player's perspective
-       - "Step forward/back" buttons to navigate through turns
-       - Display what each player drew, discarded, and their hand state
-       - Show deadwood changes after each turn
-       - Highlight final turn (knock/gin/draw)
-  - **UI mockup:**
-    - Score History modal → Click hand → Opens Hand Replay modal
-    - Replay modal shows: Turn counter, current player, action taken, hand state
-    - Perspective switcher: "View as [Player Name]" or "View as Computer"
-    - When viewing from a player's perspective, show their hand face-up, opponent face-down (unless final reveal)
-    - Timeline slider to jump to specific turns
-  - **API endpoints needed:**
-    - `GET /api/hands/{hand_id}/turns` - Get all turns for a hand
-    - Returns: List of turns with full state (cards, deadwood, actions)
-  - **Implementation notes:**
-    - Backend: Query turns table and reconstruct game state for each turn
-    - Card format: Use existing card_to_dict() conversion
-    - Parse cards_before/cards_after JSON fields from database
-    - Add AI decision reasoning if available (ai_decisions table)
+- [x] **Hand Replay Viewer** (COMPLETED)
+  - Turn tracking added to web game session (game_session.py)
+  - Deferred DB creation: game/hand records only created when human makes first move
+  - AI turns buffered and flushed when human plays
+  - API endpoint: `GET /api/hands/{hand_id}/turns`
+  - API endpoint: `GET /api/history` for browsing all past games
+  - Score History modal: click any hand to view turn-by-turn replay
+  - History Explorer page (`/history`): browse and filter all past games
+  - Replay component with keyboard navigation (arrows, home/end, escape)
+  - Admin cleanup endpoint to remove abandoned games with no turn data
 - [x] Statistics dashboard/summary command
   - Lifetime stats tracking in SQLite (player_stats table)
   - Web UI stats modal with 14 statistics
@@ -189,6 +168,9 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - No laying off allowed on gin (knocker deadwood = 0)
 
 ## UI Improvements
+- [ ] **Standardize Button Sizes**
+  - Footer control buttons have inconsistent sizes (View Stats, Score History, Explore History, New Game)
+  - Should all use the same padding/min-width for visual consistency
 - [ ] **Show Dealer Indicator**
   - Display who is the dealer for the current hand
   - Useful for verifying game logic (dealer alternates each round)
