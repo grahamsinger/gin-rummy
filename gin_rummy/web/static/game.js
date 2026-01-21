@@ -35,6 +35,7 @@ const elements = {
     assistPanel: document.getElementById('assist-panel'),
     deadCards: document.getElementById('dead-cards'),
     opponentKnown: document.getElementById('opponent-known'),
+    helpfulCards: document.getElementById('helpful-cards'),
     roundModal: document.getElementById('round-modal'),
     roundResultTitle: document.getElementById('round-result-title'),
     roundResultDetails: document.getElementById('round-result-details'),
@@ -441,6 +442,9 @@ function renderGameState(state) {
         }
         elements.opponentKnown.title = "Cards in opponent's hand that you've seen (picked from discard minus cards they re-discarded)";
 
+        // Helpful cards ranking
+        renderHelpfulCards(state.assist.helpfulness);
+
         // Render card tracker grid
         renderCardTracker(state);
     } else {
@@ -795,6 +799,40 @@ function isCardInMeld(cardId) {
         return false;
     }
     return gameState.melds.some(meld => meld.cards.includes(cardId));
+}
+
+// Render helpful cards ranking
+function renderHelpfulCards(helpfulness) {
+    if (!helpfulness) {
+        elements.helpfulCards.innerHTML = '';
+        return;
+    }
+
+    const { helpful_cards, total_helpful, live_helpful } = helpfulness;
+
+    // Build summary text
+    let summaryText = `Helpful cards: ${live_helpful} live`;
+    if (total_helpful > live_helpful) {
+        summaryText += ` (${total_helpful - live_helpful} dead)`;
+    }
+
+    // Build list of top helpful cards (show top 10)
+    const topCards = helpful_cards.slice(0, 10);
+    let cardsHTML = '';
+    if (topCards.length > 0) {
+        cardsHTML = '<div class="helpful-cards-list">';
+        topCards.forEach(cardInfo => {
+            const cardClass = cardInfo.is_dead ? 'helpful-card dead' : 'helpful-card';
+            cardsHTML += `<span class="${cardClass}" title="Reduces deadwood by ${cardInfo.reduction}">${cardInfo.card} (-${cardInfo.reduction})</span>`;
+        });
+        cardsHTML += '</div>';
+    }
+
+    elements.helpfulCards.innerHTML = `
+        <div class="helpful-cards-summary">${summaryText}</div>
+        ${cardsHTML}
+    `;
+    elements.helpfulCards.title = "Cards that would reduce your deadwood if added to your hand";
 }
 
 // Render card tracker grid (all 52 cards with status)

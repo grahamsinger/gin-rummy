@@ -124,13 +124,14 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
 ```
 
 ## Card Helpfulness Ranking
-- [ ] Rank all non-dead cards by how helpful they would be
+- [x] Rank all non-dead cards by how helpful they would be (WEB UI)
   - Primary metric: deadwood reduction when added to hand
-  - For each unknown card, calculate: current_deadwood - deadwood_with_card
-  - Higher reduction = more helpful
-- [ ] Track "helpful cards remaining" count
-  - How many live (non-dead) cards would improve the hand
-  - Weighted by degree of helpfulness
+  - Simulates full draw-and-discard cycle for accurate helpfulness
+  - Shows top 10 most helpful cards with reduction values
+  - Dead cards shown with strikethrough
+- [x] Track "helpful cards remaining" count (WEB UI)
+  - Shows live (available) and dead (unavailable) helpful cards count
+  - Integrated into assist info panel
 - [ ] Integrate into outs analysis
   - Current outs focus on meld-completing; this is broader (any improvement)
   - Could replace or complement existing partial_outs

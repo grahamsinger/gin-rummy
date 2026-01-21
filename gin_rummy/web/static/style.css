@@ -395,8 +395,7 @@ body {
     background: rgba(0, 0, 0, 0.85);
     padding: 1rem;
     border-radius: 8px;
-    min-width: 200px;
-    max-width: 350px;
+    width: 300px;
     font-size: 0.9rem;
     max-height: 90vh;
     overflow-y: auto;
@@ -413,6 +412,51 @@ body {
     margin-top: 0.5rem;
     line-height: 1.4;
     display: none;  /* Hide text lists, grid is more useful */
+}
+
+/* Helpful Cards Section */
+.helpful-cards {
+    display: block !important;  /* Override display: none from .assist-info */
+    margin-top: 1rem;
+}
+
+.helpful-cards-summary {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.helpful-cards-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.helpful-card {
+    padding: 0.3rem 0.5rem;
+    background: rgba(33, 150, 243, 0.2);
+    border: 1px solid rgba(33, 150, 243, 0.5);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: help;
+    transition: background 0.2s;
+}
+
+.helpful-card:hover {
+    background: rgba(33, 150, 243, 0.3);
+}
+
+.helpful-card.dead {
+    background: rgba(50, 50, 50, 0.3);
+    border: 1px solid rgba(100, 100, 100, 0.5);
+    color: rgba(255, 255, 255, 0.4);
+    text-decoration: line-through;
+}
+
+.helpful-card.dead:hover {
+    background: rgba(50, 50, 50, 0.4);
 }
 
 /* Card Tracker */

@@ -9,7 +9,7 @@ from gin_rummy.ai import BasicAI, ContextAwareAI, StatisticalAI, DrawChoice
 from gin_rummy.database import GameTracker
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
-from gin_rummy.models import Card, Suit, Rank
+from gin_rummy.models import Card, Suit, Rank, analyze_hand
 
 
 # Map for converting card IDs to Card objects
@@ -63,6 +63,87 @@ def card_to_dict(card: Card) -> dict[str, str]:
         'id': card_to_id(card),
         'rank': RANK_NAMES[card.rank],
         'suit': SUIT_NAMES[card.suit],
+    }
+
+
+def calculate_card_helpfulness(hand: list[Card], dead_cards: frozenset[Card]) -> dict[str, Any]:
+    """Calculate how helpful each non-hand card would be.
+
+    Simulates drawing a card and then discarding optimally to see if deadwood improves.
+
+    Args:
+        hand: Current cards in hand
+        dead_cards: Cards that are known dead (in discard pile)
+
+    Returns:
+        Dict with:
+        - helpful_cards: List of {card, reduction, is_dead} sorted by reduction (descending)
+        - total_helpful: Count of all cards that would help
+        - live_helpful: Count of helpful cards that are not dead
+    """
+    # Calculate current deadwood
+    current_analysis = analyze_hand(hand)
+    current_deadwood = current_analysis.deadwood_value
+
+    helpful_cards = []
+
+    # Check every card not in hand
+    for suit in Suit:
+        for rank in Rank:
+            card = Card(rank, suit)
+            if card in hand:
+                continue
+
+            # Simulate drawing this card (now have 11 cards)
+            test_hand_11 = hand + [card]
+            test_analysis_11 = analyze_hand(test_hand_11)
+
+            # Find the best card to discard (highest deadwood value from non-melded cards)
+            # After optimal discard, we'd have 10 cards again
+            used_cards = set()
+            for meld in test_analysis_11.melds:
+                used_cards.update(meld.cards)
+
+            # Deadwood cards are those not in any meld
+            deadwood_cards = [c for c in test_hand_11 if c not in used_cards]
+
+            if not deadwood_cards:
+                # Perfect hand - all cards melded (gin!)
+                # Discard the least valuable melded card
+                worst_card = min(test_hand_11, key=lambda c: c.deadwood_value)
+            else:
+                # Discard the worst deadwood card
+                worst_card = max(deadwood_cards, key=lambda c: c.deadwood_value)
+
+            # Calculate deadwood after optimal discard
+            final_hand = [c for c in test_hand_11 if c != worst_card]
+            final_analysis = analyze_hand(final_hand)
+            new_deadwood = final_analysis.deadwood_value
+
+            # Calculate reduction (positive = helpful)
+            reduction = current_deadwood - new_deadwood
+
+            # Only include cards that help (positive reduction)
+            if reduction > 0:
+                is_dead = card in dead_cards
+                helpful_cards.append({
+                    'card': str(card),  # Format with suit symbols
+                    'card_id': card_to_id(card),  # ASCII format for frontend
+                    'reduction': reduction,
+                    'is_dead': is_dead,
+                })
+
+    # Sort by reduction (most helpful first)
+    helpful_cards.sort(key=lambda x: x['reduction'], reverse=True)
+
+    # Count totals
+    total_helpful = len(helpful_cards)
+    live_helpful = sum(1 for c in helpful_cards if not c['is_dead'])
+
+    return {
+        'helpful_cards': helpful_cards,
+        'total_helpful': total_helpful,
+        'live_helpful': live_helpful,
     }
 
 
@@ -270,6 +351,12 @@ class GameSession:
             key=lambda c: (c.suit.value, c.rank.value)
         )
 
+        # Calculate card helpfulness
+        helpfulness = calculate_card_helpfulness(
+            list(human.hand),
+            context.known_cards.dead_cards if context.known_cards else frozenset()
+        )
+
         state = {
             'phase': phase,
             'your_turn': your_turn,
@@ -292,6 +379,7 @@ class GameSession:
             'assist': {
                 'dead_cards': [str(c) for c in dead_cards],  # Use suit symbols
                 'opponent_known': [str(c) for c in opponent_known],  # Use suit symbols
+                'helpfulness': helpfulness,  # Card helpfulness ranking
             },
             'game_mode': self.game_mode,
             'target_score': self.target_score,
