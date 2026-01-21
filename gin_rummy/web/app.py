@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from gin_rummy.web.game_session import GameSession
 from gin_rummy.database import (
     get_game_hands, get_all_players, delete_player_stats,
-    get_hand_turns, get_connection
+    get_hand_turns, get_connection, cleanup_empty_games
 )
 
 
@@ -179,6 +179,16 @@ async def get_score_history():
             'rounds': []
         }
 
+    # Get turn counts for each hand
+    with get_connection() as conn:
+        hand_ids = [h['id'] for h in hands]
+        placeholders = ','.join('?' * len(hand_ids))
+        cursor = conn.execute(
+            f"SELECT hand_id, COUNT(*) as turn_count FROM turns WHERE hand_id IN ({placeholders}) GROUP BY hand_id",
+            hand_ids
+        )
+        turn_counts = {row['hand_id']: row['turn_count'] for row in cursor.fetchall()}
+
     # Calculate cumulative scores
     cumulative_p1 = 0
     cumulative_p2 = 0
@@ -187,6 +197,10 @@ async def get_score_history():
     for hand in hands:
         # Skip incomplete hands (in-progress rounds)
         if hand['points_awarded'] is None:
+            continue
+
+        # Skip hands without turn data (human never played)
+        if turn_counts.get(hand['id'], 0) == 0:
             continue
 
         # Add points to winner
@@ -285,15 +299,21 @@ async def get_history(
 
         games = [dict(row) for row in cursor.fetchall()]
 
-        # Get hands for each game
+        # Get hands for each game (only those with turn data)
         for game in games:
             hands_cursor = conn.execute(
-                """SELECT id, hand_number, dealer_name, winner_name,
-                          points_awarded, is_gin, is_undercut, is_draw
-                   FROM hands WHERE game_id = ? ORDER BY hand_number""",
+                """SELECT h.id, h.hand_number, h.dealer_name, h.winner_name,
+                          h.points_awarded, h.is_gin, h.is_undercut, h.is_draw
+                   FROM hands h
+                   WHERE h.game_id = ?
+                     AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = h.id)
+                   ORDER BY h.hand_number""",
                 (game['game_id'],)
             )
             game['hands'] = [dict(h) for h in hands_cursor.fetchall()]
+
+    # Filter out games with no hands (all hands had no turn data)
+    games = [g for g in games if g['hands']]
 
     return {'games': games, 'limit': limit, 'offset': offset}
 
@@ -302,3 +322,13 @@ async def get_history(
 async def history_page():
     """Serve the hand history explorer page."""
     return FileResponse(STATIC_DIR / "history.html")
+
+
+@app.post("/api/admin/cleanup")
+async def run_cleanup():
+    """Clean up games and hands with no turn data."""
+    result = cleanup_empty_games()
+    return {
+        "message": f"Cleaned up {result['games']} games and {result['hands']} hands",
+        **result
+    }

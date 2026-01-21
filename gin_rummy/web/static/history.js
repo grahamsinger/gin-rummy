@@ -64,8 +64,8 @@ async function loadPlayers() {
         // Add players to dropdown
         players.forEach(player => {
             const option = document.createElement('option');
-            option.value = player.player_name;
-            option.textContent = player.player_name;
+            option.value = player.name;
+            option.textContent = player.name;
             elements.playerFilter.appendChild(option);
         });
     } catch (error) {

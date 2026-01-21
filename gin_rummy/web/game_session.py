@@ -214,6 +214,11 @@ class GameSession:
         self.turn_drew_from: str | None = None  # 'deck' or 'discard'
         self.turn_card_drawn: Card | None = None
 
+        # Deferred DB tracking - don't create game/hand until human makes first move
+        self.db_game_started: bool = False
+        self.buffered_ai_turns: list[dict] = []
+        self.pending_dealer_name: str = ""
+
     def new_game(
         self,
         player_name: str | None = None,
@@ -285,11 +290,12 @@ class GameSession:
         self.last_round_result = None
         self.last_ai_action = None
 
-        # Start tracking
-        self.tracker.start_game(self.player_name, "Computer")
+        # Reset deferred DB tracking - don't create game until human makes first move
+        self.db_game_started = False
+        self.buffered_ai_turns = []
 
         self.game.deal()
-        self.tracker.start_hand(self.game.dealer.name)
+        self.pending_dealer_name = self.game.dealer.name
 
         # Handle first discard phase (only in standard mode)
         # Non-dealer (human if dealer_idx=1, AI if dealer_idx=0) must discard first
@@ -311,6 +317,22 @@ class GameSession:
             'type': 'first_discard',
             'discarded': card_to_id(discard),
         }
+
+    def _ensure_db_started(self) -> None:
+        """Start game/hand in DB if not already started, and flush buffered AI turns."""
+        if self.db_game_started or self.game is None:
+            return
+
+        # Start game and hand in database
+        self.tracker.start_game(self.player_name, "Computer")
+        self.tracker.start_hand(self.pending_dealer_name)
+
+        # Flush any buffered AI turns
+        for turn_data in self.buffered_ai_turns:
+            self.tracker.record_turn(**turn_data)
+        self.buffered_ai_turns = []
+
+        self.db_game_started = True
 
     def get_state(self) -> dict[str, Any]:
         """Get current game state as JSON-serializable dict."""
@@ -535,6 +557,9 @@ class GameSession:
                 self.game.discard_pile.append(card)
                 self.game._discard_history.append(card)
 
+                # Ensure DB started before recording turn
+                self._ensure_db_started()
+
                 # Record turn with knock
                 if (self.turn_cards_before is not None and
                     self.turn_deadwood_before is not None and
@@ -559,6 +584,9 @@ class GameSession:
 
             # Just discard (no knock or can't knock)
             self.game.discard(card)
+
+            # Ensure DB started before recording turn
+            self._ensure_db_started()
 
             # Record turn without knock
             if (self.turn_cards_before is not None and
@@ -636,7 +664,7 @@ class GameSession:
                 'discarded': card_to_id(actions.discarded_card),
             }
 
-            # Record AI turn in database
+            # Prepare turn data for recording
             drew_from = 'discard' if actions.draw_source == DrawChoice.DISCARD else 'deck'
             if actions.did_knock:
                 # Cards after knock (discarded card removed)
@@ -644,17 +672,23 @@ class GameSession:
             else:
                 cards_after = cards_to_db_list(list(ai_player.hand))
 
-            self.tracker.record_turn(
-                player_name=ai_player.name,
-                drew_from=drew_from,
-                card_drawn=card_to_db_str(actions.drawn_card),
-                card_discarded=card_to_db_str(actions.discarded_card),
-                did_knock=actions.did_knock,
-                cards_before=cards_before,
-                cards_after=cards_after,
-                deadwood_before=deadwood_before,
-                deadwood_after=actions.deadwood_after
-            )
+            turn_data = {
+                'player_name': ai_player.name,
+                'drew_from': drew_from,
+                'card_drawn': card_to_db_str(actions.drawn_card),
+                'card_discarded': card_to_db_str(actions.discarded_card),
+                'did_knock': actions.did_knock,
+                'cards_before': cards_before,
+                'cards_after': cards_after,
+                'deadwood_before': deadwood_before,
+                'deadwood_after': actions.deadwood_after,
+            }
+
+            # Buffer AI turn if DB not started, otherwise record directly
+            if self.db_game_started:
+                self.tracker.record_turn(**turn_data)
+            else:
+                self.buffered_ai_turns.append(turn_data)
 
         if turn_result == TurnResult.DRAW:
             # Deck exhausted
@@ -668,16 +702,17 @@ class GameSession:
                 opponent_hand=self._build_hand_result(1 - self.human_idx),
             )
             self.game.phase = GamePhase.ROUND_OVER
-            # Record draw in database
-            self.tracker.end_hand(
-                winner_name=None,
-                loser_name=None,
-                points=0,
-                is_draw=True,
-                knocker_name=None,
-                winner_deadwood=0,
-                loser_deadwood=0
-            )
+            # Record draw in database only if game was started (human played)
+            if self.db_game_started:
+                self.tracker.end_hand(
+                    winner_name=None,
+                    loser_name=None,
+                    points=0,
+                    is_draw=True,
+                    knocker_name=None,
+                    winner_deadwood=0,
+                    loser_deadwood=0
+                )
         elif turn_result == TurnResult.KNOCKED and round_result:
             self._save_round_result(round_result)
 
@@ -751,7 +786,8 @@ class GameSession:
                         self.match_winner = game_winner
                         self.game_over = True
                         self.winner = game_winner
-                        self.tracker.end_game(game_winner, player_score, ai_score)
+                        if self.db_game_started:
+                            self.tracker.end_game(game_winner, player_score, ai_score)
                     else:
                         # Game over but match continues
                         self.game_over = True
@@ -761,20 +797,22 @@ class GameSession:
                     # Standard mode - game over is final
                     self.game_over = True
                     self.winner = game_winner
-                    self.tracker.end_game(game_winner, player_score, ai_score)
+                    if self.db_game_started:
+                        self.tracker.end_game(game_winner, player_score, ai_score)
 
-        # Record hand result in database
-        self.tracker.end_hand(
-            winner_name=winner_name,
-            loser_name=loser_name,
-            points=result.points,
-            is_gin=result.is_gin,
-            is_undercut=result.is_undercut,
-            is_draw=result.is_draw,
-            knocker_name=knocker_name,
-            winner_deadwood=result.winner_deadwood,
-            loser_deadwood=result.loser_deadwood,
-        )
+        # Record hand result in database only if game was started (human played)
+        if self.db_game_started:
+            self.tracker.end_hand(
+                winner_name=winner_name,
+                loser_name=loser_name,
+                points=result.points,
+                is_gin=result.is_gin,
+                is_undercut=result.is_undercut,
+                is_draw=result.is_draw,
+                knocker_name=knocker_name,
+                winner_deadwood=result.winner_deadwood,
+                loser_deadwood=result.loser_deadwood,
+            )
 
     def new_round(self) -> dict[str, Any]:
         """Start a new round."""
@@ -783,7 +821,14 @@ class GameSession:
 
         self.game.new_round()
         self.game.deal()
-        self.tracker.start_hand(self.game.dealer.name)
+
+        # If DB already started, start new hand immediately
+        # Otherwise, store dealer name for deferred start
+        if self.db_game_started:
+            self.tracker.start_hand(self.game.dealer.name)
+        else:
+            self.pending_dealer_name = self.game.dealer.name
+            self.buffered_ai_turns = []
 
         # Reset AI state with same difficulty
         ai_map = {

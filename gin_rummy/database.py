@@ -624,3 +624,31 @@ def delete_player_stats(player_name: str, db_path: Path | None = None) -> bool:
         )
         conn.commit()
         return cursor.rowcount > 0
+
+
+def cleanup_empty_games(db_path: Path | None = None) -> dict[str, int]:
+    """Remove games and hands that have no turn data.
+
+    This cleans up abandoned games where the human never made a move.
+
+    Returns:
+        Dict with counts of deleted items: {'hands': N, 'games': N}
+    """
+    with get_connection(db_path) as conn:
+        # First, delete hands that have no turns
+        cursor = conn.execute(
+            """DELETE FROM hands
+               WHERE id NOT IN (SELECT DISTINCT hand_id FROM turns)"""
+        )
+        deleted_hands = cursor.rowcount
+
+        # Then, delete games that have no hands remaining
+        cursor = conn.execute(
+            """DELETE FROM games
+               WHERE id NOT IN (SELECT DISTINCT game_id FROM hands)"""
+        )
+        deleted_games = cursor.rowcount
+
+        conn.commit()
+
+        return {'hands': deleted_hands, 'games': deleted_games}
