@@ -11,6 +11,18 @@
 - [ ] Tune ContextAwareAI parameters (currently ~55% win rate vs BasicAI)
   - Best config so far: threshold=3, key_out=2, denial=0
   - See SIMULATION_HISTORY.md for detailed results
+- [ ] Investigate ContextAwareAI knock timing behavior
+  - AI appears to knock almost immediately when deadwood drops below threshold (10 points)
+  - **Knocking should not be binary**: Just because you CAN knock doesn't mean you SHOULD knock
+  - Human strategic considerations:
+    - Risk assessment: How likely is opponent to undercut? (based on their discard patterns)
+    - Opportunity cost: Is it worth waiting to improve position vs locking in current advantage?
+    - Deck depletion: More urgency to knock as deck runs low (fewer chances to improve)
+    - Score situation: Behind in score → more aggressive knocking; ahead → can be more selective
+    - Gin pursuit vs safe knock: Don't ALWAYS pursue gin/lower deadwood if knock is safe now
+    - Example: Knocking with 7 deadwood might be better than waiting for 5 if opponent looks strong
+  - Identify which config parameters control knock timing/eagerness
+  - Evaluate if immediate knocking is optimal or if waiting for better opportunities would improve win rate
 - [x] Investigate opponent modeling
   - Implemented via Opponent Meld Inference (see below)
 
