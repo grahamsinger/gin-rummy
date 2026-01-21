@@ -26,10 +26,10 @@ const elements = {
     deck: document.getElementById('deck'),
     deckCount: document.getElementById('deck-count'),
     deadwood: document.getElementById('deadwood'),
+    playerStatus: document.getElementById('player-status'),
     playerScore: document.getElementById('player-score'),
     opponentScore: document.getElementById('opponent-score'),
     knockCheckbox: document.getElementById('knock-checkbox'),
-    statusMessage: document.getElementById('status-message'),
     newGameBtn: document.getElementById('new-game-btn'),
     assistMode: document.getElementById('assist-mode'),
     assistPanel: document.getElementById('assist-panel'),
@@ -423,8 +423,8 @@ function renderGameState(state) {
     updateClickableStates(state.phase, state.your_turn);
 
     // Status message
-    elements.statusMessage.textContent = state.message || '';
-    elements.statusMessage.classList.remove('thinking');
+    elements.playerStatus.textContent = state.message || '';
+    elements.playerStatus.classList.remove('thinking');
 
     // Assist info
     if (elements.assistMode.checked && state.assist) {
@@ -506,7 +506,7 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 
     if (!response.ok) {
         console.error('API error:', data);
-        elements.statusMessage.textContent = data.error || 'An error occurred';
+        elements.playerStatus.textContent = data.error || 'An error occurred';
         return null;
     }
 
@@ -692,8 +692,8 @@ async function nextRound() {
 
 async function doAiTurn() {
     // Show thinking indicator
-    elements.statusMessage.textContent = "Computer is thinking...";
-    elements.statusMessage.classList.add('thinking');
+    elements.playerStatus.textContent = "Computer is thinking...";
+    elements.playerStatus.classList.add('thinking');
 
     // Small delay to show AI is "thinking"
     await new Promise(resolve => setTimeout(resolve, 600));
@@ -721,13 +721,13 @@ async function displayAiAction(action, state) {
         // Highlight discard pile if drawing from it
         if (action.draw_from === 'discard') {
             elements.discardPile.classList.add('highlight-pickup');
-            elements.statusMessage.textContent = `Computer picked up ${action.drew_card} from discard pile`;
-            elements.statusMessage.classList.remove('thinking');
-            elements.statusMessage.classList.add('ai-pickup');
+            elements.playerStatus.textContent = `Computer picked up ${action.drew_card} from discard pile`;
+            elements.playerStatus.classList.remove('thinking');
+            elements.playerStatus.classList.add('ai-pickup');
         } else {
-            elements.statusMessage.textContent = "Computer drew from deck";
-            elements.statusMessage.classList.remove('thinking');
-            elements.statusMessage.classList.add('ai-draw');
+            elements.playerStatus.textContent = "Computer drew from deck";
+            elements.playerStatus.classList.remove('thinking');
+            elements.playerStatus.classList.add('ai-draw');
         }
 
         // Wait to show the draw action
@@ -737,9 +737,9 @@ async function displayAiAction(action, state) {
         elements.discardPile.classList.remove('highlight-pickup');
 
         // Show the discard action
-        elements.statusMessage.textContent = `Computer discarded ${action.discarded}`;
-        elements.statusMessage.classList.remove('ai-pickup', 'ai-draw');
-        elements.statusMessage.classList.add('ai-discard');
+        elements.playerStatus.textContent = `Computer discarded ${action.discarded}`;
+        elements.playerStatus.classList.remove('ai-pickup', 'ai-draw');
+        elements.playerStatus.classList.add('ai-discard');
 
         // Update the UI with the new state
         renderGameState(state);
@@ -748,13 +748,13 @@ async function displayAiAction(action, state) {
         await new Promise(resolve => setTimeout(resolve, 800));
 
         // Clear status classes
-        elements.statusMessage.classList.remove('ai-discard');
+        elements.playerStatus.classList.remove('ai-discard');
 
         // Persist the last AI move summary
         updateLastAiMove(action);
     } else if (action.type === 'first_discard') {
-        elements.statusMessage.textContent = `Computer discarded ${action.discarded}`;
-        elements.statusMessage.classList.remove('thinking');
+        elements.playerStatus.textContent = `Computer discarded ${action.discarded}`;
+        elements.playerStatus.classList.remove('thinking');
         renderGameState(state);
         await new Promise(resolve => setTimeout(resolve, 800));
 

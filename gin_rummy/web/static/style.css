@@ -173,6 +173,21 @@ body {
     opacity: 0;
 }
 
+/* Player status message (below player's hand) */
+.player-status {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #a0c4ff;
+    font-style: italic;
+    min-height: 1.3em;
+    text-align: center;
+}
+
+.player-status:empty::before {
+    content: '\00a0';
+    opacity: 0;
+}
+
 .opponent-hand .card {
     width: 45px;
     height: 63px;
@@ -338,21 +353,12 @@ body {
 /* Status bar */
 .status-bar {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     padding: 1rem;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 8px;
     margin-top: 1rem;
-    min-height: 60px; /* Prevent height changes */
-}
-
-.status-message {
-    font-size: 1.1rem;
-    flex: 1;
-    min-height: 1.5em; /* Ensure consistent height even when empty */
-    display: flex;
-    align-items: center;
 }
 
 .controls {
