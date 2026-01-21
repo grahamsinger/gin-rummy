@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS player_stats (
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_hands_game_id ON hands(game_id);
 CREATE INDEX IF NOT EXISTS idx_turns_hand_id ON turns(hand_id);
+CREATE INDEX IF NOT EXISTS idx_turns_knock_stats ON turns(did_knock, player_name);
 CREATE INDEX IF NOT EXISTS idx_ai_decisions_turn_id ON ai_decisions(turn_id);
 CREATE INDEX IF NOT EXISTS idx_games_started_at ON games(started_at);
 """
