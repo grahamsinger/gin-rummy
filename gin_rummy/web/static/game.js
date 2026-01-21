@@ -822,8 +822,17 @@ function renderHelpfulCards(helpfulness) {
     if (topCards.length > 0) {
         cardsHTML = '<div class="helpful-cards-list">';
         topCards.forEach(cardInfo => {
-            const cardClass = cardInfo.is_dead ? 'helpful-card dead' : 'helpful-card';
-            cardsHTML += `<span class="${cardClass}" title="Reduces deadwood by ${cardInfo.reduction}">${cardInfo.card} (-${cardInfo.reduction})</span>`;
+            let cardClass = 'helpful-card';
+            if (cardInfo.is_dead) {
+                cardClass += ' dead';
+            }
+            if (cardInfo.completes_meld) {
+                cardClass += ' meld-completing';
+            }
+            const tooltip = cardInfo.completes_meld
+                ? `Completes a meld! Reduces deadwood by ${cardInfo.reduction}`
+                : `Reduces deadwood by ${cardInfo.reduction}`;
+            cardsHTML += `<span class="${cardClass}" title="${tooltip}">${cardInfo.card} (-${cardInfo.reduction})</span>`;
         });
         cardsHTML += '</div>';
     }

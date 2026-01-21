@@ -441,11 +441,22 @@ body {
     font-size: 0.85rem;
     font-weight: 500;
     cursor: help;
-    transition: background 0.2s;
+    transition: background 0.2s, border 0.2s;
 }
 
 .helpful-card:hover {
     background: rgba(33, 150, 243, 0.3);
+}
+
+.helpful-card.meld-completing {
+    background: rgba(255, 193, 7, 0.15);
+    border: 2px solid rgba(255, 193, 7, 0.8);
+    box-shadow: 0 0 8px rgba(255, 193, 7, 0.3);
+}
+
+.helpful-card.meld-completing:hover {
+    background: rgba(255, 193, 7, 0.25);
+    box-shadow: 0 0 12px rgba(255, 193, 7, 0.5);
 }
 
 .helpful-card.dead {
@@ -457,6 +468,12 @@ body {
 
 .helpful-card.dead:hover {
     background: rgba(50, 50, 50, 0.4);
+}
+
+.helpful-card.meld-completing.dead {
+    background: rgba(50, 50, 50, 0.3);
+    border: 2px solid rgba(100, 100, 100, 0.5);
+    box-shadow: none;
 }
 
 /* Card Tracker */

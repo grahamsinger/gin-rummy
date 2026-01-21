@@ -126,11 +126,27 @@ def calculate_card_helpfulness(hand: list[Card], dead_cards: frozenset[Card]) ->
             # Only include cards that help (positive reduction)
             if reduction > 0:
                 is_dead = card in dead_cards
+
+                # Check if this card completes a meld (not just reduces deadwood)
+                completes_meld = False
+                for meld in test_analysis_11.melds:
+                    if card in meld.cards:
+                        # Check if this meld is new (wasn't possible without this card)
+                        meld_cards_set = set(meld.cards)
+                        is_new_meld = not any(
+                            set(m.cards) == meld_cards_set
+                            for m in current_analysis.melds
+                        )
+                        if is_new_meld:
+                            completes_meld = True
+                            break
+
                 helpful_cards.append({
                     'card': str(card),  # Format with suit symbols
                     'card_id': card_to_id(card),  # ASCII format for frontend
                     'reduction': reduction,
                     'is_dead': is_dead,
+                    'completes_meld': completes_meld,
                 })
 
     # Sort by reduction (most helpful first)
