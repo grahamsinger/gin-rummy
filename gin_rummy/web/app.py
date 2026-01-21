@@ -8,7 +8,10 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from gin_rummy.web.game_session import GameSession
-from gin_rummy.database import get_game_hands, get_all_players, delete_player_stats
+from gin_rummy.database import (
+    get_game_hands, get_all_players, delete_player_stats,
+    get_hand_turns, get_connection
+)
 
 
 # Create FastAPI app
@@ -194,6 +197,7 @@ async def get_score_history():
         # else: draw, no points awarded
 
         rounds.append({
+            'hand_id': hand['id'],
             'hand_number': hand['hand_number'],
             'winner': hand['winner_name'],
             'points': hand['points_awarded'],
@@ -209,3 +213,92 @@ async def get_score_history():
         'player2_name': player2_name,
         'rounds': rounds
     }
+
+
+@app.get("/api/hands/{hand_id}/turns")
+async def get_turns_for_hand(hand_id: int):
+    """Get all turns for a specific hand."""
+    import json
+    turns = get_hand_turns(hand_id)
+
+    if not turns:
+        raise HTTPException(status_code=404, detail=f"No turns found for hand {hand_id}")
+
+    # Convert sqlite3.Row objects to dicts and parse JSON fields
+    result = []
+    for turn in turns:
+        turn_dict = dict(turn)
+        # Parse JSON fields
+        if turn_dict.get('cards_before'):
+            turn_dict['cards_before'] = json.loads(turn_dict['cards_before'])
+        if turn_dict.get('cards_after'):
+            turn_dict['cards_after'] = json.loads(turn_dict['cards_after'])
+        result.append(turn_dict)
+
+    return {'hand_id': hand_id, 'turns': result}
+
+
+@app.get("/api/history")
+async def get_history(
+    player_name: str | None = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """Get game and hand history with optional filtering.
+
+    Args:
+        player_name: Filter by player name (optional)
+        limit: Maximum number of games to return (default 50)
+        offset: Number of games to skip for pagination (default 0)
+    """
+    import json
+
+    with get_connection() as conn:
+        # Build query with optional player filter
+        if player_name:
+            query = """
+                SELECT g.id as game_id, g.player1_name, g.player2_name,
+                       g.started_at, g.ended_at, g.winner_name,
+                       g.final_score_p1, g.final_score_p2,
+                       COUNT(h.id) as hand_count
+                FROM games g
+                LEFT JOIN hands h ON g.id = h.game_id
+                WHERE g.player1_name = ? OR g.player2_name = ?
+                GROUP BY g.id
+                ORDER BY g.started_at DESC
+                LIMIT ? OFFSET ?
+            """
+            cursor = conn.execute(query, (player_name, player_name, limit, offset))
+        else:
+            query = """
+                SELECT g.id as game_id, g.player1_name, g.player2_name,
+                       g.started_at, g.ended_at, g.winner_name,
+                       g.final_score_p1, g.final_score_p2,
+                       COUNT(h.id) as hand_count
+                FROM games g
+                LEFT JOIN hands h ON g.id = h.game_id
+                GROUP BY g.id
+                ORDER BY g.started_at DESC
+                LIMIT ? OFFSET ?
+            """
+            cursor = conn.execute(query, (limit, offset))
+
+        games = [dict(row) for row in cursor.fetchall()]
+
+        # Get hands for each game
+        for game in games:
+            hands_cursor = conn.execute(
+                """SELECT id, hand_number, dealer_name, winner_name,
+                          points_awarded, is_gin, is_undercut, is_draw
+                   FROM hands WHERE game_id = ? ORDER BY hand_number""",
+                (game['game_id'],)
+            )
+            game['hands'] = [dict(h) for h in hands_cursor.fetchall()]
+
+    return {'games': games, 'limit': limit, 'offset': offset}
+
+
+@app.get("/history")
+async def history_page():
+    """Serve the hand history explorer page."""
+    return FileResponse(STATIC_DIR / "history.html")

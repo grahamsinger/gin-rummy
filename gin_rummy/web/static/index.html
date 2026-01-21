@@ -247,10 +247,18 @@
         <div id="score-history-modal" class="modal hidden">
             <div class="modal-content score-history-modal-content">
                 <h2>Score History</h2>
+                <p class="score-history-hint">Click any round to view turn-by-turn replay</p>
                 <div id="score-history-content" class="score-history-content">
                     <div class="score-loading">Loading history...</div>
                 </div>
                 <button id="score-history-close-btn" class="score-history-close-btn">Close</button>
+            </div>
+        </div>
+
+        <!-- Hand Replay modal -->
+        <div id="replay-modal" class="modal hidden">
+            <div class="modal-content replay-modal-content">
+                <div id="replay-container"></div>
             </div>
         </div>
 
@@ -269,6 +277,7 @@
         </div>
     </div>
 
+    <script src="/static/replay.js"></script>
     <script src="/static/game.js"></script>
 </body>
 </html>

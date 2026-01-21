@@ -84,6 +84,8 @@ const elements = {
     scoreHistoryModal: document.getElementById('score-history-modal'),
     scoreHistoryContent: document.getElementById('score-history-content'),
     scoreHistoryCloseBtn: document.getElementById('score-history-close-btn'),
+    replayModal: document.getElementById('replay-modal'),
+    replayContainer: document.getElementById('replay-container'),
     oklahomaGinCheckbox: document.getElementById('oklahoma-gin'),
     spadeDoublingCheckbox: document.getElementById('spade-doubling'),
     spadeDoublingField: document.getElementById('spade-doubling-field'),
@@ -1543,6 +1545,9 @@ function showGameOver(winner, scores, targetScore, matchMode, gamesWon, matchWin
     elements.gameOverModal.classList.remove('hidden');
 }
 
+// Store player names for replay
+let scoreHistoryPlayerNames = { player1: '', player2: '' };
+
 async function showScoreHistory() {
     elements.scoreHistoryModal.classList.remove('hidden');
     elements.scoreHistoryContent.innerHTML = '<div class="score-loading">Loading history...</div>';
@@ -1552,6 +1557,10 @@ async function showScoreHistory() {
         if (!response.ok) throw new Error('Failed to load history');
 
         const history = await response.json();
+
+        // Store player names for replay
+        scoreHistoryPlayerNames.player1 = history.player1_name;
+        scoreHistoryPlayerNames.player2 = history.player2_name;
 
         if (!history.rounds || history.rounds.length === 0) {
             elements.scoreHistoryContent.innerHTML = `
@@ -1584,7 +1593,7 @@ async function showScoreHistory() {
             if (round.is_draw) badges.push('<span class="score-badge score-badge-draw">DRAW</span>');
 
             html += `
-                <tr>
+                <tr class="score-history-row clickable" data-hand-id="${round.hand_id}" title="Click to view turn-by-turn replay">
                     <td>${round.hand_number}</td>
                     <td>${round.winner || 'Draw'}${badges.join('')}</td>
                     <td>${round.points}</td>
@@ -1601,6 +1610,14 @@ async function showScoreHistory() {
 
         elements.scoreHistoryContent.innerHTML = html;
 
+        // Add click handlers for replay
+        elements.scoreHistoryContent.querySelectorAll('.score-history-row.clickable').forEach(row => {
+            row.addEventListener('click', () => {
+                const handId = parseInt(row.dataset.handId, 10);
+                openHandReplay(handId);
+            });
+        });
+
     } catch (error) {
         console.error('Failed to load score history:', error);
         elements.scoreHistoryContent.innerHTML = `
@@ -1609,6 +1626,35 @@ async function showScoreHistory() {
             </div>
         `;
     }
+}
+
+// Hand replay instance
+let handReplay = null;
+
+function openHandReplay(handId) {
+    // Hide score history modal
+    elements.scoreHistoryModal.classList.add('hidden');
+
+    // Show replay modal
+    elements.replayModal.classList.remove('hidden');
+
+    // Create or reuse replay instance
+    if (!handReplay) {
+        handReplay = new HandReplay('replay-container', {
+            showControls: true,
+            showTurnList: true,
+            onClose: closeHandReplay
+        });
+    }
+
+    // Load the hand
+    handReplay.loadHand(handId, scoreHistoryPlayerNames.player1, scoreHistoryPlayerNames.player2);
+}
+
+function closeHandReplay() {
+    elements.replayModal.classList.add('hidden');
+    // Show score history modal again
+    elements.scoreHistoryModal.classList.remove('hidden');
 }
 
 // Start the game when page loads
