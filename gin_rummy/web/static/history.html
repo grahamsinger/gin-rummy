@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand History - Gin Rummy</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* History-specific styles */
+        .history-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 1rem;
+        }
+
+        .history-header h1 {
+            margin: 0;
+            color: #fff;
+        }
+
+        .back-to-game {
+            background: #424242;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .back-to-game:hover {
+            background: #555;
+        }
+
+        /* Filters */
+        .history-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .filter-group label {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 0.5rem;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #333;
+            color: #fff;
+            min-width: 150px;
+        }
+
+        .filter-btn {
+            background: #4fc3f7;
+            color: #000;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .filter-btn:hover {
+            background: #29b6f6;
+        }
+
+        /* Games list */
+        .games-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .game-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .game-header:hover {
+            background: rgba(79, 195, 247, 0.1);
+        }
+
+        .game-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .game-players {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .game-date {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .game-result {
+            text-align: right;
+        }
+
+        .game-winner {
+            font-weight: bold;
+            color: #4caf50;
+        }
+
+        .game-score {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .game-expand-icon {
+            font-size: 1.5rem;
+            color: rgba(255, 255, 255, 0.5);
+            transition: transform 0.2s;
+        }
+
+        .game-card.expanded .game-expand-icon {
+            transform: rotate(180deg);
+        }
+
+        .game-hands {
+            display: none;
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .game-card.expanded .game-hands {
+            display: block;
+        }
+
+        .hands-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .hands-table th,
+        .hands-table td {
+            padding: 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .hands-table th {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+        }
+
+        .hands-table tr.hand-row {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .hands-table tr.hand-row:hover {
+            background: rgba(79, 195, 247, 0.1);
+        }
+
+        .hand-badge {
+            display: inline-block;
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-left: 0.5rem;
+        }
+
+        .hand-badge.gin { background: #ffc107; color: #000; }
+        .hand-badge.undercut { background: #ff5722; color: #fff; }
+        .hand-badge.draw { background: #9e9e9e; color: #fff; }
+
+        /* Replay panel */
+        .replay-panel {
+            display: none;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .replay-panel.visible {
+            display: block;
+        }
+
+        /* Loading and empty states */
+        .loading-state,
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .loading-spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #4fc3f7;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+        }
+
+        .pagination button {
+            background: #424242;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #555;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="history-container">
+        <header class="history-header">
+            <h1>Hand History</h1>
+            <a href="/" class="back-to-game">Back to Game</a>
+        </header>
+
+        <div class="history-filters">
+            <div class="filter-group">
+                <label for="player-filter">Player</label>
+                <select id="player-filter">
+                    <option value="">All Players</option>
+                </select>
+            </div>
+            <button id="apply-filters" class="filter-btn">Apply</button>
+        </div>
+
+        <div id="games-container" class="games-list">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Loading game history...</p>
+            </div>
+        </div>
+
+        <div id="pagination" class="pagination" style="display: none;">
+            <button id="prev-page" disabled>Previous</button>
+            <span id="page-info">Page 1</span>
+            <button id="next-page">Next</button>
+        </div>
+
+        <div id="replay-panel" class="replay-panel">
+            <div id="history-replay-container"></div>
+        </div>
+    </div>
+
+    <script src="/static/replay.js"></script>
+    <script src="/static/history.js"></script>
+</body>
+</html>
