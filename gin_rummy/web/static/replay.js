@@ -127,6 +127,7 @@
             this.currentTurnIndex = 0;
             this.player1Name = '';
             this.player2Name = '';
+            this.playerFilter = 'all';  // 'all', 'player1', 'player2'
         }
 
         /**
@@ -137,6 +138,7 @@
             this.player1Name = player1Name;
             this.player2Name = player2Name;
             this.currentTurnIndex = 0;
+            this.playerFilter = 'all';  // Reset filter on new hand
 
             try {
                 const response = await fetch(`/api/hands/${handId}/turns`);
@@ -160,6 +162,53 @@
         }
 
         /**
+         * Check if a turn passes the current filter
+         */
+        turnPassesFilter(turn) {
+            if (this.playerFilter === 'all') return true;
+            if (this.playerFilter === 'player1') return turn.player_name === this.player1Name;
+            if (this.playerFilter === 'player2') return turn.player_name === this.player2Name;
+            return true;
+        }
+
+        /**
+         * Get indices of turns that pass the current filter
+         */
+        getFilteredIndices() {
+            return this.turns
+                .map((turn, index) => ({ turn, index }))
+                .filter(({ turn }) => this.turnPassesFilter(turn))
+                .map(({ index }) => index);
+        }
+
+        /**
+         * Set the player filter and navigate to nearest visible turn
+         */
+        setPlayerFilter(filter) {
+            this.playerFilter = filter;
+
+            // If current turn doesn't pass filter, find nearest one that does
+            if (!this.turnPassesFilter(this.turns[this.currentTurnIndex])) {
+                const filteredIndices = this.getFilteredIndices();
+                if (filteredIndices.length > 0) {
+                    // Find nearest filtered index
+                    let nearest = filteredIndices[0];
+                    let minDist = Math.abs(this.currentTurnIndex - nearest);
+                    for (const idx of filteredIndices) {
+                        const dist = Math.abs(this.currentTurnIndex - idx);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            nearest = idx;
+                        }
+                    }
+                    this.currentTurnIndex = nearest;
+                }
+            }
+
+            this.render();
+        }
+
+        /**
          * Navigate to a specific turn
          */
         goToTurn(index) {
@@ -170,31 +219,53 @@
         }
 
         /**
-         * Go to the next turn
+         * Go to the next turn (respects filter)
          */
         nextTurn() {
-            this.goToTurn(this.currentTurnIndex + 1);
+            const filteredIndices = this.getFilteredIndices();
+            const currentFilteredPos = filteredIndices.indexOf(this.currentTurnIndex);
+            if (currentFilteredPos >= 0 && currentFilteredPos < filteredIndices.length - 1) {
+                this.goToTurn(filteredIndices[currentFilteredPos + 1]);
+            } else if (currentFilteredPos === -1) {
+                // Current turn not in filter, find next one after current
+                const nextIdx = filteredIndices.find(i => i > this.currentTurnIndex);
+                if (nextIdx !== undefined) this.goToTurn(nextIdx);
+            }
         }
 
         /**
-         * Go to the previous turn
+         * Go to the previous turn (respects filter)
          */
         prevTurn() {
-            this.goToTurn(this.currentTurnIndex - 1);
+            const filteredIndices = this.getFilteredIndices();
+            const currentFilteredPos = filteredIndices.indexOf(this.currentTurnIndex);
+            if (currentFilteredPos > 0) {
+                this.goToTurn(filteredIndices[currentFilteredPos - 1]);
+            } else if (currentFilteredPos === -1) {
+                // Current turn not in filter, find prev one before current
+                const prevIdx = [...filteredIndices].reverse().find(i => i < this.currentTurnIndex);
+                if (prevIdx !== undefined) this.goToTurn(prevIdx);
+            }
         }
 
         /**
-         * Go to the first turn
+         * Go to the first turn (respects filter)
          */
         firstTurn() {
-            this.goToTurn(0);
+            const filteredIndices = this.getFilteredIndices();
+            if (filteredIndices.length > 0) {
+                this.goToTurn(filteredIndices[0]);
+            }
         }
 
         /**
-         * Go to the last turn
+         * Go to the last turn (respects filter)
          */
         lastTurn() {
-            this.goToTurn(this.turns.length - 1);
+            const filteredIndices = this.getFilteredIndices();
+            if (filteredIndices.length > 0) {
+                this.goToTurn(filteredIndices[filteredIndices.length - 1]);
+            }
         }
 
         /**
@@ -258,16 +329,29 @@
          * Render navigation controls
          */
         renderControls() {
-            const isFirst = this.currentTurnIndex === 0;
-            const isLast = this.currentTurnIndex === this.turns.length - 1;
+            const filteredIndices = this.getFilteredIndices();
+            const currentFilteredPos = filteredIndices.indexOf(this.currentTurnIndex);
+            const isFirst = currentFilteredPos <= 0;
+            const isLast = currentFilteredPos >= filteredIndices.length - 1;
+
+            // Position display shows filtered position if filter is active
+            const positionDisplay = this.playerFilter === 'all'
+                ? `${this.currentTurnIndex + 1} / ${this.turns.length}`
+                : `${currentFilteredPos + 1} / ${filteredIndices.length} (filtered)`;
 
             return `
                 <div class="replay-controls">
                     <button class="replay-btn" ${isFirst ? 'disabled' : ''} data-action="first">|◀</button>
                     <button class="replay-btn" ${isFirst ? 'disabled' : ''} data-action="prev">◀</button>
-                    <span class="replay-position">${this.currentTurnIndex + 1} / ${this.turns.length}</span>
+                    <span class="replay-position">${positionDisplay}</span>
                     <button class="replay-btn" ${isLast ? 'disabled' : ''} data-action="next">▶</button>
                     <button class="replay-btn" ${isLast ? 'disabled' : ''} data-action="last">▶|</button>
+                </div>
+                <div class="replay-filter">
+                    <span class="filter-label">Show:</span>
+                    <button class="filter-btn ${this.playerFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
+                    <button class="filter-btn ${this.playerFilter === 'player1' ? 'active' : ''}" data-filter="player1">${this.player1Name}</button>
+                    <button class="filter-btn ${this.playerFilter === 'player2' ? 'active' : ''}" data-filter="player2">${this.player2Name}</button>
                 </div>
             `;
         }
@@ -279,10 +363,11 @@
             const turnItems = this.turns.map((turn, index) => {
                 const isActive = index === this.currentTurnIndex;
                 const colorClass = turn.player_name === this.player1Name ? 'player1' : 'player2';
+                const isFiltered = !this.turnPassesFilter(turn);
                 return `
-                    <div class="turn-list-item ${isActive ? 'active' : ''} ${colorClass}" data-turn-index="${index}">
+                    <div class="turn-list-item ${isActive ? 'active' : ''} ${colorClass} ${isFiltered ? 'filtered-out' : ''}" data-turn-index="${index}">
                         <span class="turn-number">${index + 1}</span>
-                        <span class="turn-player">${turn.player_name}</span>
+                        <span class="turn-player">${turn.player_name} <span class="turn-deadwood">(${turn.deadwood_after})</span></span>
                         <span class="turn-action">${formatCard(turn.card_drawn)} → ${formatCard(turn.card_discarded)}</span>
                         ${turn.did_knock ? '<span class="knock-indicator">K</span>' : ''}
                     </div>
@@ -502,6 +587,14 @@
                         case 'next': this.nextTurn(); break;
                         case 'last': this.lastTurn(); break;
                     }
+                });
+            });
+
+            // Filter buttons
+            this.container.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const filter = btn.dataset.filter;
+                    this.setPlayerFilter(filter);
                 });
             });
 
