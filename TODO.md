@@ -235,6 +235,12 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Makes it easier to follow one player's hand progression without skipping every other turn
   - Navigation would skip filtered-out turns
   - Turn list should visually indicate filtered state
+- [ ] **History Viewer: Show deadwood in turn list**
+  - Add deadwood_after value to each row in the "All Turns" list
+  - Currently shows: "1 | Computer | 8♠ → J♣"
+  - Should show: "1 | Computer | 8♠ → J♣ | 24" (or similar format)
+  - Allows quick scanning of deadwood progression without clicking each turn
+  - Data already available in turn.deadwood_after
 
 ## Game Variants & Modes
 - [x] **Oklahoma Gin / Match Play Format** (COMPLETED)
