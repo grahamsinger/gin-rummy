@@ -1254,7 +1254,31 @@ function init() {
     // Initialize sort button active state
     updateSortButtonStates();
 
-    // Auto-start game with saved settings
+    // Try to restore existing game, or start new one
+    restoreOrStartGame();
+}
+
+// Try to restore an existing game session, or start a new game
+async function restoreOrStartGame() {
+    try {
+        // Check if there's an existing game in progress
+        const response = await fetch(`${API_BASE}/state`);
+        const state = await response.json();
+
+        // Check if we got a valid game state (not an error)
+        if (state && !state.error && state.hand && state.hand.length > 0) {
+            // Existing game found - restore it
+            console.log('Restoring existing game session');
+            renderGameState(state);
+            return;
+        }
+    } catch (e) {
+        // Error fetching state - start fresh
+        console.log('Error checking for existing game:', e);
+    }
+
+    // No existing game - start a new one with saved settings
+    console.log('Starting new game');
     const settings = {
         player_name: savedSettings.playerName,
         ai_difficulty: savedSettings.aiDifficulty
