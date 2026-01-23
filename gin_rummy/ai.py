@@ -34,6 +34,40 @@ class AIDecision:
     should_knock: bool
 
 
+@dataclass
+class DrawReasoning:
+    """Reasoning for a draw decision."""
+    choice: DrawChoice
+    reasoning: str  # e.g., "Took Q♠ from discard: reduces deadwood by 8"
+    factors: list[str]
+
+
+@dataclass
+class DiscardReasoning:
+    """Reasoning for a discard decision."""
+    card: Card
+    reasoning: str  # e.g., "Discarded 7♥: highest deadwood, no meld potential"
+    factors: list[str]
+    options_considered: list[tuple[str, int]]  # [(card_str, deadwood), ...]
+
+
+@dataclass
+class KnockReasoning:
+    """Reasoning for a knock decision."""
+    should_knock: bool
+    reasoning: str  # e.g., "Knocked with score 0.65"
+    score: float | None  # knock score (for context-aware AI)
+    factors: list[str]
+
+
+@dataclass
+class TurnReasoning:
+    """Complete reasoning for an AI turn."""
+    draw: DrawReasoning
+    discard: DiscardReasoning
+    knock: KnockReasoning | None = None
+
+
 class BasicAI:
     """Basic AI opponent with configurable heuristics.
 
@@ -236,6 +270,169 @@ class BasicAI:
                 self.knock_strategy,
             )
             return True
+
+    def decide_draw_with_reasoning(
+        self, hand: Hand, discard_top: Card | None
+    ) -> DrawReasoning:
+        """Decide where to draw with detailed reasoning.
+
+        Args:
+            hand: Current hand.
+            discard_top: Top card of discard pile, or None if empty.
+
+        Returns:
+            DrawReasoning with choice, reasoning string, and factors.
+        """
+        current_deadwood = hand.deadwood_total
+        factors: list[str] = [f"Current deadwood: {current_deadwood}"]
+
+        if discard_top is None:
+            return DrawReasoning(
+                choice=DrawChoice.DECK,
+                reasoning="Drew from DECK: discard pile empty",
+                factors=factors,
+            )
+
+        # Check if taking the discard would improve our hand
+        helps, reason = self._card_helps_hand(hand, discard_top)
+
+        if helps:
+            # Parse the improvement from reason
+            factors.append(f"Discard top: {discard_top}")
+            factors.append(reason)
+            return DrawReasoning(
+                choice=DrawChoice.DISCARD,
+                reasoning=f"Drew {discard_top} from DISCARD: {reason}",
+                factors=factors,
+            )
+
+        factors.append(f"Discard top: {discard_top}")
+        factors.append(reason)
+        return DrawReasoning(
+            choice=DrawChoice.DECK,
+            reasoning=f"Drew from DECK: {discard_top} doesn't help ({reason})",
+            factors=factors,
+        )
+
+    def decide_discard_with_reasoning(self, hand: Hand) -> DiscardReasoning:
+        """Decide which card to discard with detailed reasoning.
+
+        Args:
+            hand: Current hand (should have 11 cards after drawing).
+
+        Returns:
+            DiscardReasoning with card, reasoning string, factors, and options.
+        """
+        cards = list(hand)
+        best_discard = None
+        best_deadwood = float('inf')
+        discard_options: list[tuple[Card, int]] = []
+
+        # Try discarding each card and see which leaves lowest deadwood
+        for i, card in enumerate(cards):
+            remaining = cards[:i] + cards[i+1:]
+            analysis = analyze_hand(remaining)
+            discard_options.append((card, analysis.deadwood_value))
+            if analysis.deadwood_value < best_deadwood:
+                best_deadwood = analysis.deadwood_value
+                best_discard = card
+
+        # Sort options by resulting deadwood
+        discard_options.sort(key=lambda x: x[1])
+
+        # Convert to string format for the dataclass
+        options_str = [(str(c), dw) for c, dw in discard_options]
+
+        factors: list[str] = []
+        factors.append(f"Hand size: {len(cards)} cards")
+        factors.append(f"Best resulting deadwood: {int(best_deadwood)}")
+
+        # Fallback: discard highest value card
+        if best_discard is None:
+            best_discard = max(cards, key=lambda c: c.deadwood_value)
+            return DiscardReasoning(
+                card=best_discard,
+                reasoning=f"Discarded {best_discard}: fallback to highest deadwood value",
+                factors=factors,
+                options_considered=options_str[:5],  # Top 5 options
+            )
+
+        return DiscardReasoning(
+            card=best_discard,
+            reasoning=f"Discarded {best_discard}: leaves deadwood={int(best_deadwood)} (best of {len(cards)} options)",
+            factors=factors,
+            options_considered=options_str[:5],  # Top 5 options
+        )
+
+    def should_knock_with_reasoning(self, hand: Hand) -> KnockReasoning:
+        """Decide whether to knock with detailed reasoning.
+
+        Args:
+            hand: Current hand (should have 10 cards).
+
+        Returns:
+            KnockReasoning with decision, reasoning string, and factors.
+        """
+        deadwood = hand.deadwood_total
+        can_knock = deadwood <= 10
+        is_gin = deadwood == 0
+
+        factors: list[str] = [f"Deadwood: {deadwood}"]
+        factors.append(f"Strategy: {self.knock_strategy}")
+
+        if is_gin:
+            factors.append("GIN achieved!")
+            return KnockReasoning(
+                should_knock=True,
+                reasoning="Knocked: GIN! (deadwood=0)",
+                score=None,
+                factors=factors,
+            )
+
+        if not can_knock:
+            factors.append("Cannot knock: deadwood > 10")
+            return KnockReasoning(
+                should_knock=False,
+                reasoning=f"No knock: deadwood={deadwood} > 10",
+                score=None,
+                factors=factors,
+            )
+
+        if self.knock_strategy == "always":
+            factors.append("Strategy=always: knock when able")
+            return KnockReasoning(
+                should_knock=True,
+                reasoning=f"Knocked: deadwood={deadwood} (strategy=always)",
+                score=None,
+                factors=factors,
+            )
+
+        if self.knock_strategy == "conservative":
+            if deadwood <= self.conservative_knock_threshold:
+                factors.append(f"Conservative: {deadwood} <= {self.conservative_knock_threshold}")
+                return KnockReasoning(
+                    should_knock=True,
+                    reasoning=f"Knocked: deadwood={deadwood} <= {self.conservative_knock_threshold} (strategy=conservative)",
+                    score=None,
+                    factors=factors,
+                )
+            else:
+                factors.append(f"Conservative: {deadwood} > {self.conservative_knock_threshold}")
+                return KnockReasoning(
+                    should_knock=False,
+                    reasoning=f"No knock: deadwood={deadwood} > {self.conservative_knock_threshold} (strategy=conservative)",
+                    score=None,
+                    factors=factors,
+                )
+
+        # Unknown strategy, default to always knock
+        factors.append(f"Unknown strategy '{self.knock_strategy}', defaulting to knock")
+        return KnockReasoning(
+            should_knock=True,
+            reasoning=f"Knocked: deadwood={deadwood} (unknown strategy, default=always)",
+            score=None,
+            factors=factors,
+        )
 
     def make_turn_decision(
         self,
@@ -760,6 +957,310 @@ class ContextAwareAI(BasicAI):
         )
 
         return discard, should_knock
+
+    def decide_draw_with_reasoning(
+        self,
+        hand: Hand,
+        discard_top: Card | None,
+        context: GameContext | None = None,
+    ) -> DrawReasoning:
+        """Context-aware draw decision with detailed reasoning.
+
+        Currently delegates to BasicAI as context-aware draw was found to underperform.
+
+        Args:
+            hand: Current hand.
+            discard_top: Top card of discard pile, or None if empty.
+            context: Optional game context (currently unused).
+
+        Returns:
+            DrawReasoning with choice, reasoning string, and factors.
+        """
+        # Delegate to BasicAI's proven draw logic
+        return super().decide_draw_with_reasoning(hand, discard_top)
+
+    def decide_discard_with_reasoning(self, hand: Hand) -> DiscardReasoning:
+        """Context-aware discard decision with detailed reasoning.
+
+        Extends BasicAI's reasoning with safety scoring and live outs analysis.
+
+        Args:
+            hand: Current hand (should have 11 cards after drawing).
+
+        Returns:
+            DiscardReasoning with card, reasoning string, factors, and options.
+        """
+        cards = list(hand)
+        best_discard = None
+        best_score = float('inf')  # Lower is better
+        discard_options: list[tuple[Card, float, int, str]] = []
+
+        # Get context for dead cards calculation
+        ctx = self._current_context
+        dead_cards = ctx.dead_cards if ctx else set()
+        deck_position = ctx.deck_position_pct if ctx else 0.0
+
+        # Find cards in melds
+        current_analysis = hand.analyze()
+        cards_in_3card_melds = set()
+        for meld in current_analysis.melds:
+            if len(meld.cards) == 3:
+                cards_in_3card_melds.update(meld.cards)
+
+        for i, card in enumerate(cards):
+            remaining = cards[:i] + cards[i + 1:]
+            analysis = analyze_hand(remaining)
+
+            # Base score is resulting deadwood (lower = better)
+            deadwood = analysis.deadwood_value
+            score = float(deadwood)
+            flags: list[str] = []
+
+            # Calculate live outs for the remaining hand
+            if self.context_config.live_outs_discard_weight > 0:
+                remaining_hand = Hand(remaining)
+                outs_analysis = self.outs_calculator.calculate_outs(
+                    remaining_hand, dead_cards, deck_position
+                )
+                live_outs_bonus = (
+                    outs_analysis.weighted_value
+                    * self.context_config.live_outs_discard_weight
+                )
+                score -= live_outs_bonus
+                if outs_analysis.live_out_count > 0:
+                    flags.append(f"outs={outs_analysis.live_out_count}")
+
+            # Apply safety scoring
+            if self.opponent_model.is_rank_safe(card.rank):
+                score -= self.context_config.safe_rank_discard_bonus
+                flags.append("safe")
+
+            if self.opponent_model.is_card_dangerous(card):
+                score += self.context_config.danger_card_penalty
+                flags.append("dangerous")
+            else:
+                if self.opponent_model.is_rank_dangerous(card.rank):
+                    score += self.context_config.dangerous_rank_penalty
+                    flags.append("risky_rank")
+                if self.opponent_model.is_suit_dangerous(card.suit):
+                    score += self.context_config.dangerous_suit_penalty
+                    flags.append("risky_suit")
+
+            if card in cards_in_3card_melds:
+                score += 100
+                flags.append("IN_MELD")
+
+            flag_str = ",".join(flags) if flags else ""
+            discard_options.append((card, score, deadwood, flag_str))
+
+            if score < best_score:
+                best_score = score
+                best_discard = card
+
+        # Sort options by score
+        discard_options.sort(key=lambda x: x[1])
+
+        # Convert to string format for the dataclass
+        options_str = [(str(c), dw) for c, _, dw, _ in discard_options[:5]]
+
+        factors: list[str] = []
+        factors.append(f"Hand size: {len(cards)} cards")
+
+        # Fallback
+        if best_discard is None:
+            best_discard = max(cards, key=lambda c: c.deadwood_value)
+            return DiscardReasoning(
+                card=best_discard,
+                reasoning=f"Discarded {best_discard}: fallback to highest deadwood value",
+                factors=factors,
+                options_considered=options_str,
+            )
+
+        # Find the chosen option's details
+        chosen = next((opt for opt in discard_options if opt[0] == best_discard), None)
+        if chosen:
+            _, score, deadwood, flags = chosen
+            flag_str = f" [{flags}]" if flags else ""
+            factors.append(f"Score: {score:.1f}")
+            factors.append(f"Resulting deadwood: {deadwood}")
+            if flags:
+                factors.append(f"Flags: {flags}")
+
+            return DiscardReasoning(
+                card=best_discard,
+                reasoning=f"Discarded {best_discard}: score={score:.1f}, deadwood={deadwood}{flag_str}",
+                factors=factors,
+                options_considered=options_str,
+            )
+
+        return DiscardReasoning(
+            card=best_discard,
+            reasoning=f"Discarded {best_discard}",
+            factors=factors,
+            options_considered=options_str,
+        )
+
+    def should_knock_with_reasoning(
+        self, hand: Hand, context: GameContext | None = None
+    ) -> KnockReasoning:
+        """Context-aware knock decision with detailed reasoning.
+
+        Args:
+            hand: Current hand (should have 10 cards).
+            context: Optional game context. If None, falls back to BasicAI.
+
+        Returns:
+            KnockReasoning with decision, reasoning string, score, and factors.
+        """
+        deadwood = hand.deadwood_total
+        is_gin = deadwood == 0
+
+        factors: list[str] = [f"Deadwood: {deadwood}"]
+
+        # Edge case 1: Always knock with gin
+        if is_gin:
+            factors.append("GIN achieved!")
+            return KnockReasoning(
+                should_knock=True,
+                reasoning="Knocked: GIN!",
+                score=1.0,
+                factors=factors,
+            )
+
+        # Can't knock if deadwood > 10
+        if deadwood > 10:
+            factors.append("Cannot knock: deadwood > 10")
+            return KnockReasoning(
+                should_knock=False,
+                reasoning=f"No knock: deadwood={deadwood} > 10",
+                score=None,
+                factors=factors,
+            )
+
+        # Use stored context if not provided
+        ctx = context or self._current_context
+
+        # Fall back to BasicAI if no context or context-knock disabled
+        if ctx is None or not self.context_config.use_context_knock:
+            factors.append("Falling back to BasicAI (no context)")
+            return super().should_knock_with_reasoning(hand)
+
+        # Edge case 2: Always knock if deck nearly empty (avoid draw)
+        if ctx.deck_remaining <= 4:
+            factors.append(f"Deck nearly empty: {ctx.deck_remaining} cards")
+            return KnockReasoning(
+                should_knock=True,
+                reasoning=f"Knocked: deck nearly empty ({ctx.deck_remaining} cards remain)",
+                score=1.0,
+                factors=factors,
+            )
+
+        # Edge case 3: Always knock if it would win the game
+        potential_points = 25 if deadwood == 0 else 10 - deadwood
+        if ctx.my_score + potential_points >= ctx.target_score:
+            factors.append("Game-winning knock!")
+            return KnockReasoning(
+                should_knock=True,
+                reasoning="Knocked: game-winning!",
+                score=1.0,
+                factors=factors,
+            )
+
+        # Calculate knock score with detailed factor tracking
+        knock_score, score_factors = self._calculate_knock_score_with_factors(hand, ctx)
+        factors.extend(score_factors)
+
+        # Make decision
+        threshold = self.context_config.knock_decision_threshold
+        should_knock = knock_score >= threshold
+        factors.append(f"Threshold: {threshold:.2f}")
+
+        if should_knock:
+            return KnockReasoning(
+                should_knock=True,
+                reasoning=f"Knocked with score {knock_score:.2f} (threshold={threshold:.2f})",
+                score=knock_score,
+                factors=factors,
+            )
+        else:
+            return KnockReasoning(
+                should_knock=False,
+                reasoning=f"No knock: score {knock_score:.2f} < threshold {threshold:.2f}",
+                score=knock_score,
+                factors=factors,
+            )
+
+    def _calculate_knock_score_with_factors(
+        self, hand: Hand, context: GameContext
+    ) -> tuple[float, list[str]]:
+        """Calculate knock score and return detailed factors.
+
+        Args:
+            hand: Current hand.
+            context: Game context.
+
+        Returns:
+            Tuple of (knock_score, list of factor strings).
+        """
+        deadwood = hand.deadwood_total
+        factors: list[str] = []
+
+        # Base score: (10 - deadwood) / 10
+        base_score = (10 - deadwood) / 10.0
+        factors.append(f"Base score: {base_score:.2f}")
+        score = base_score
+
+        # Gin pursuit modifier
+        if deadwood <= self.context_config.gin_pursuit_threshold:
+            pursue_gin, gin_prob = self._should_pursue_gin(hand, context)
+            if pursue_gin:
+                gin_modifier = -self.context_config.gin_pursuit_weight
+                score += gin_modifier
+                factors.append(f"Gin pursuit: {gin_modifier:+.2f} (prob={gin_prob:.2f})")
+
+        # Undercut risk modifier
+        threat_level = self.opponent_model.estimate_threat_level(context)
+        if threat_level >= self.context_config.undercut_risk_threshold:
+            undercut_modifier = -self.context_config.undercut_risk_weight * threat_level
+            score += undercut_modifier
+            factors.append(f"Undercut risk: {undercut_modifier:+.2f} (threat={threat_level:.2f})")
+
+        # Deck urgency modifier
+        deck_remaining_pct = 1.0 - context.deck_position_pct
+        if deck_remaining_pct < self.context_config.late_game_knock_threshold:
+            urgency = 1.0 - (deck_remaining_pct / self.context_config.late_game_knock_threshold)
+            urgency_modifier = self.context_config.deck_urgency_weight * urgency
+            score += urgency_modifier
+            factors.append(f"Deck urgency: {urgency_modifier:+.2f} (deck={deck_remaining_pct:.0%})")
+
+        # Score pressure modifier
+        points_to_win = context.points_to_win
+        opp_points_to_win = context.opponent_points_to_win
+
+        if points_to_win <= 10 - deadwood:
+            score += 0.5
+            factors.append("Game-winning: +0.50")
+        elif opp_points_to_win <= 15:
+            score += 0.3
+            factors.append("Opponent close: +0.30")
+        elif context.score_differential < -self.context_config.knock_trailing_threshold:
+            score += 0.2
+            factors.append("Trailing: +0.20")
+        elif context.score_differential > self.context_config.knock_leading_threshold:
+            score -= 0.2
+            factors.append("Leading: -0.20")
+
+        # Opponent strength modifier
+        estimated_opp_deadwood = self.opponent_model.estimate_deadwood(context)
+        if estimated_opp_deadwood >= self.context_config.opponent_high_deadwood_threshold:
+            score += 0.3
+            factors.append(f"Opponent weak: +0.30 (est={estimated_opp_deadwood})")
+        elif estimated_opp_deadwood <= self.context_config.opponent_low_deadwood_threshold:
+            score -= 0.2
+            factors.append(f"Opponent strong: -0.20 (est={estimated_opp_deadwood})")
+
+        factors.append(f"Final score: {score:.2f}")
+        return score, factors
 
 
 def _card_to_index(card: Card) -> int:

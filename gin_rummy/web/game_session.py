@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -327,12 +328,63 @@ class GameSession:
         self.tracker.start_game(self.player_name, "Computer")
         self.tracker.start_hand(self.pending_dealer_name)
 
-        # Flush any buffered AI turns
+        # Flush any buffered AI turns (including reasoning if captured)
         for turn_data in self.buffered_ai_turns:
-            self.tracker.record_turn(**turn_data)
+            # Pop reasoning before recording turn (not a DB field)
+            reasoning = turn_data.pop('_reasoning', None)
+            turn_id = self.tracker.record_turn(**turn_data)
+            # Record AI decisions if reasoning was captured
+            if reasoning:
+                self._record_ai_decisions(turn_id, reasoning)
         self.buffered_ai_turns = []
 
         self.db_game_started = True
+
+    def _record_ai_decisions(self, turn_id: int, reasoning: Any) -> None:
+        """Record AI decision reasoning to the database.
+
+        Args:
+            turn_id: The turn ID to associate decisions with.
+            reasoning: TurnReasoning object with draw, discard, and knock decisions.
+        """
+        from gin_rummy.ai import TurnReasoning
+
+        if not isinstance(reasoning, TurnReasoning):
+            return
+
+        # Record draw decision
+        if reasoning.draw:
+            self.tracker.record_ai_decision(
+                turn_id=turn_id,
+                decision_type='draw',
+                choice=reasoning.draw.choice.name,
+                reasoning=reasoning.draw.reasoning,
+                options_considered=reasoning.draw.factors,
+            )
+
+        # Record discard decision
+        if reasoning.discard:
+            # Include both factors and options_considered
+            options = reasoning.discard.factors.copy()
+            for card_str, dw in reasoning.discard.options_considered:
+                options.append(f"{card_str} → dw={dw}")
+            self.tracker.record_ai_decision(
+                turn_id=turn_id,
+                decision_type='discard',
+                choice=str(reasoning.discard.card),
+                reasoning=reasoning.discard.reasoning,
+                options_considered=options,
+            )
+
+        # Record knock decision
+        if reasoning.knock:
+            self.tracker.record_ai_decision(
+                turn_id=turn_id,
+                decision_type='knock',
+                choice='knock' if reasoning.knock.should_knock else 'no_knock',
+                reasoning=reasoning.knock.reasoning,
+                options_considered=reasoning.knock.factors,
+            )
 
     def get_state(self) -> dict[str, Any]:
         """Get current game state as JSON-serializable dict."""
@@ -652,8 +704,10 @@ class GameSession:
         cards_before = cards_to_db_list(list(ai_player.hand))
         deadwood_before = ai_player.hand.analyze().deadwood_value
 
-        # Execute AI turn
-        turn_result, actions, round_result = execute_ai_turn(self.game, self.ai)
+        # Execute AI turn with reasoning capture
+        turn_result, actions, round_result = execute_ai_turn(
+            self.game, self.ai, capture_reasoning=True
+        )
 
         # Build AI action first (before checking result type) so it's available for round result modal
         if actions:
@@ -686,8 +740,13 @@ class GameSession:
 
             # Buffer AI turn if DB not started, otherwise record directly
             if self.db_game_started:
-                self.tracker.record_turn(**turn_data)
+                turn_id = self.tracker.record_turn(**turn_data)
+                # Record AI decisions if reasoning was captured
+                if actions.reasoning:
+                    self._record_ai_decisions(turn_id, actions.reasoning)
             else:
+                # Buffer turn data along with reasoning for later recording
+                turn_data['_reasoning'] = actions.reasoning
                 self.buffered_ai_turns.append(turn_data)
 
         if turn_result == TurnResult.DRAW:

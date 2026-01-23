@@ -10,7 +10,8 @@ from pydantic import BaseModel
 from gin_rummy.web.game_session import GameSession
 from gin_rummy.database import (
     get_game_hands, get_all_players, delete_player_stats,
-    get_hand_turns, get_connection, cleanup_empty_games
+    get_hand_turns, get_connection, cleanup_empty_games,
+    get_ai_decisions_for_turn,
 )
 
 
@@ -231,7 +232,7 @@ async def get_score_history():
 
 @app.get("/api/hands/{hand_id}/turns")
 async def get_turns_for_hand(hand_id: int):
-    """Get all turns for a specific hand."""
+    """Get all turns for a specific hand, including AI decision reasoning."""
     import json
     turns = get_hand_turns(hand_id)
 
@@ -247,6 +248,19 @@ async def get_turns_for_hand(hand_id: int):
             turn_dict['cards_before'] = json.loads(turn_dict['cards_before'])
         if turn_dict.get('cards_after'):
             turn_dict['cards_after'] = json.loads(turn_dict['cards_after'])
+
+        # Get AI decisions for this turn
+        ai_decisions = get_ai_decisions_for_turn(turn_dict['id'])
+        turn_dict['ai_decisions'] = [
+            {
+                'decision_type': d['decision_type'],
+                'choice': d['choice'],
+                'reasoning': d['reasoning'],
+                'factors': json.loads(d['options_considered']) if d['options_considered'] else [],
+            }
+            for d in ai_decisions
+        ]
+
         result.append(turn_dict)
 
     return {'hand_id': hand_id, 'turns': result}

@@ -451,3 +451,150 @@ class TestOpponentEstimation:
 
         # High card discards = lower estimated deadwood
         assert after_discards < initial_estimate
+
+
+class TestReasoningMethods:
+    """Tests for AI *_with_reasoning() methods."""
+
+    def test_basic_ai_draw_with_reasoning_deck_empty_discard(self):
+        """BasicAI should return proper reasoning when discard pile is empty."""
+        from gin_rummy.ai import DrawReasoning, DrawChoice
+
+        ai = BasicAI()
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.THREE, Suit.HEARTS),
+        ])
+        reasoning = ai.decide_draw_with_reasoning(hand, None)
+
+        assert isinstance(reasoning, DrawReasoning)
+        assert reasoning.choice == DrawChoice.DECK
+        assert "empty" in reasoning.reasoning.lower()
+        assert len(reasoning.factors) > 0
+
+    def test_basic_ai_draw_with_reasoning_takes_helpful_card(self):
+        """BasicAI should explain why it takes a helpful card."""
+        from gin_rummy.ai import DrawReasoning, DrawChoice
+
+        ai = BasicAI()
+        # Hand with two aces - third ace would form a set
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.KING, Suit.CLUBS),
+        ])
+        discard = Card(Rank.ACE, Suit.CLUBS)
+        reasoning = ai.decide_draw_with_reasoning(hand, discard)
+
+        assert isinstance(reasoning, DrawReasoning)
+        assert reasoning.choice == DrawChoice.DISCARD
+        assert str(discard) in reasoning.reasoning or "DISCARD" in reasoning.reasoning
+
+    def test_basic_ai_discard_with_reasoning(self):
+        """BasicAI should provide discard reasoning with options."""
+        from gin_rummy.ai import DiscardReasoning
+
+        ai = BasicAI()
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.TWO, Suit.HEARTS),
+            Card(Rank.KING, Suit.CLUBS),
+        ])
+        reasoning = ai.decide_discard_with_reasoning(hand)
+
+        assert isinstance(reasoning, DiscardReasoning)
+        assert reasoning.card in list(hand)
+        assert len(reasoning.reasoning) > 0
+        assert len(reasoning.factors) > 0
+        assert len(reasoning.options_considered) > 0
+
+    def test_basic_ai_knock_with_reasoning_gin(self):
+        """BasicAI should always knock with gin and explain why."""
+        from gin_rummy.ai import KnockReasoning
+
+        ai = BasicAI()
+        # Hand with all cards in melds - gin
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.FIVE, Suit.DIAMONDS),
+            Card(Rank.SIX, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.DIAMONDS),
+        ])
+        reasoning = ai.should_knock_with_reasoning(hand)
+
+        assert isinstance(reasoning, KnockReasoning)
+        assert reasoning.should_knock is True
+        assert "gin" in reasoning.reasoning.lower()
+
+    def test_basic_ai_knock_with_reasoning_cannot_knock(self):
+        """BasicAI should explain when it can't knock due to high deadwood."""
+        from gin_rummy.ai import KnockReasoning
+
+        ai = BasicAI()
+        hand = Hand([
+            Card(Rank.KING, Suit.SPADES),
+            Card(Rank.QUEEN, Suit.HEARTS),
+        ])  # 20 deadwood
+        reasoning = ai.should_knock_with_reasoning(hand)
+
+        assert isinstance(reasoning, KnockReasoning)
+        assert reasoning.should_knock is False
+        assert "20" in reasoning.reasoning or "> 10" in reasoning.reasoning
+
+    def test_context_aware_ai_knock_with_reasoning_includes_score(self):
+        """ContextAwareAI should include knock score in reasoning."""
+        from gin_rummy.ai import KnockReasoning
+        from gin_rummy.context import GameContext
+
+        ai = ContextAwareAI()
+        # Hand with 5 deadwood
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+        context = GameContext(
+            deck_remaining=20,
+            deck_position_pct=0.35,
+            my_score=0,
+            opponent_score=0,
+            target_score=100,
+        )
+        reasoning = ai.should_knock_with_reasoning(hand, context)
+
+        assert isinstance(reasoning, KnockReasoning)
+        # Should have a numeric score
+        assert reasoning.score is not None
+        # Should have multiple factors
+        assert len(reasoning.factors) >= 2
+
+    def test_context_aware_ai_discard_with_reasoning_includes_flags(self):
+        """ContextAwareAI should include safety flags in discard reasoning."""
+        from gin_rummy.ai import DiscardReasoning
+
+        ai = ContextAwareAI()
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.KING, Suit.DIAMONDS),
+        ])
+        reasoning = ai.decide_discard_with_reasoning(hand)
+
+        assert isinstance(reasoning, DiscardReasoning)
+        assert reasoning.card in list(hand)
+        # Should have factors explaining the decision
+        assert len(reasoning.factors) > 0

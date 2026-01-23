@@ -182,6 +182,8 @@
                         </div>
                     </div>
 
+                    ${this.renderAIReasoning(turn)}
+
                     ${this.options.showTurnList ? this.renderTurnList() : ''}
                 </div>
             `;
@@ -232,6 +234,66 @@
                     </div>
                 </div>
             `;
+        }
+
+        /**
+         * Render AI reasoning section for a turn
+         */
+        renderAIReasoning(turn) {
+            // Only show AI reasoning for Computer turns
+            if (turn.player_name !== 'Computer' || !turn.ai_decisions?.length) {
+                return '';
+            }
+
+            const decisions = turn.ai_decisions.map(d => {
+                const typeIcon = {
+                    'draw': '🎴',
+                    'discard': '🗑️',
+                    'knock': '🚪'
+                }[d.decision_type] || '📋';
+
+                const typeLabel = d.decision_type.charAt(0).toUpperCase() + d.decision_type.slice(1);
+
+                const factorsHtml = d.factors?.length ? `
+                    <details class="ai-factors">
+                        <summary>Factors (${d.factors.length})</summary>
+                        <ul>
+                            ${d.factors.map(f => `<li>${this.escapeHtml(f)}</li>`).join('')}
+                        </ul>
+                    </details>
+                ` : '';
+
+                return `
+                    <div class="ai-decision ai-decision-${d.decision_type}">
+                        <div class="ai-decision-header">
+                            <span class="ai-decision-icon">${typeIcon}</span>
+                            <span class="ai-decision-type">${typeLabel}:</span>
+                            <span class="ai-decision-choice">${this.escapeHtml(d.choice)}</span>
+                        </div>
+                        <div class="ai-decision-reasoning">${this.escapeHtml(d.reasoning)}</div>
+                        ${factorsHtml}
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="ai-reasoning-section">
+                    <h4>🤖 AI Reasoning</h4>
+                    <div class="ai-decisions">
+                        ${decisions}
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Escape HTML to prevent XSS
+         */
+        escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         /**

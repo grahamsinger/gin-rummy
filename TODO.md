@@ -217,6 +217,22 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Should work alongside existing sort buttons (suit/rank/value)
   - Add "Reset" button to return to last sort mode
   - See docs/web_ui_spec.md for detailed implementation notes
+- [ ] **History Viewer: Display hands like player view**
+  - Currently shows raw card list in replay viewer
+  - Should display hands the same way user sees their own hand during gameplay:
+    - Group melded cards together (with brackets or visual grouping)
+    - Sort remaining deadwood cards by rank
+  - Apply to both "Hand Before" and "Hand After" displays in turn replay
+  - Use existing meld detection logic (`analyze_hand`) on stored card arrays
+  - Makes it easier to understand game progression and AI decisions
+- [ ] **History Viewer: Deadwood progression graph**
+  - Add line graph showing deadwood over time for both players
+  - X-axis: turn number, Y-axis: deadwood value
+  - Two lines: one for player (blue), one for computer (red)
+  - Data already available: `deadwood_before`/`deadwood_after` in turns table
+  - Show current turn position as highlighted point on graph
+  - Could use lightweight chart library (Chart.js) or pure SVG/canvas
+  - Helps visualize momentum shifts and who was "winning" at each point
 
 ## Game Variants & Modes
 - [x] **Oklahoma Gin / Match Play Format** (COMPLETED)

@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Protocol
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
+from gin_rummy.ai import (
+    BasicAI, ContextAwareAI, DrawChoice,
+    TurnReasoning, DrawReasoning, DiscardReasoning, KnockReasoning,
+)
 from gin_rummy.models import Card, Hand, Player, analyze_hand
 from gin_rummy.game import Game, InvalidActionError, RoundResult
 
@@ -32,6 +35,7 @@ class TurnActions:
     did_knock: bool
     deadwood_before: int
     deadwood_after: int
+    reasoning: TurnReasoning | None = None  # AI reasoning (if capture_reasoning=True)
 
 
 class TurnCallbacks(Protocol):
@@ -172,6 +176,7 @@ def execute_ai_turn(
     ai: BasicAI,
     other_ai: BasicAI | None = None,
     callbacks: TurnCallbacks | None = None,
+    capture_reasoning: bool = False,
 ) -> tuple[TurnResult, TurnActions | None, RoundResult | None]:
     """Execute a full AI turn using shared game logic.
 
@@ -183,6 +188,7 @@ def execute_ai_turn(
         ai: The AI making decisions this turn.
         other_ai: The opponent AI (for tracking pickups/discards), or None.
         callbacks: Optional callbacks for side effects (UI, metrics, etc.).
+        capture_reasoning: If True, capture detailed AI reasoning in actions.reasoning.
 
     Returns:
         Tuple of (TurnResult, TurnActions or None if deck exhausted, RoundResult or None if no knock).
@@ -199,8 +205,20 @@ def execute_ai_turn(
     # Build context for ContextAwareAI
     context = get_ai_context(game, ai, current_idx)
 
-    # AI decides where to draw
-    draw_choice = get_ai_draw_decision(ai, current.hand, game.top_of_discard, context)
+    # AI decides where to draw (with optional reasoning capture)
+    draw_reasoning: DrawReasoning | None = None
+    if capture_reasoning:
+        if isinstance(ai, ContextAwareAI) and context is not None:
+            draw_reasoning = ai.decide_draw_with_reasoning(
+                current.hand, game.top_of_discard, context
+            )
+        else:
+            draw_reasoning = ai.decide_draw_with_reasoning(
+                current.hand, game.top_of_discard
+            )
+        draw_choice = draw_reasoning.choice
+    else:
+        draw_choice = get_ai_draw_decision(ai, current.hand, game.top_of_discard, context)
 
     # Track top of discard before draw (for opponent pickup tracking)
     discard_top_before = game.top_of_discard
@@ -218,16 +236,56 @@ def execute_ai_turn(
     # Callback: draw complete
     callbacks.on_draw(current, draw_choice, card)
 
-    # AI decides what to discard and whether to knock
-    discard, should_knock = ai.make_turn_decision(
-        current.hand, game.top_of_discard, card
-    )
+    # AI decides what to discard (with optional reasoning capture)
+    discard_reasoning: DiscardReasoning | None = None
+    if capture_reasoning:
+        discard_reasoning = ai.decide_discard_with_reasoning(current.hand)
+        discard = discard_reasoning.card
+    else:
+        discard = ai.decide_discard(current.hand)
 
     # Calculate post-discard deadwood for actions record
     deadwood_after = calculate_post_discard_deadwood(current.hand, discard)
 
     # Check if can knock based on post-discard deadwood (not current 11-card hand)
     can_knock_after_discard = deadwood_after <= game.knock_threshold
+
+    # AI decides whether to knock (with optional reasoning capture)
+    knock_reasoning: KnockReasoning | None = None
+    if can_knock_after_discard:
+        test_cards = [c for c in current.hand if c != discard]
+        test_hand = Hand(test_cards)
+
+        if capture_reasoning:
+            if isinstance(ai, ContextAwareAI) and context is not None:
+                knock_reasoning = ai.should_knock_with_reasoning(test_hand, context)
+            else:
+                knock_reasoning = ai.should_knock_with_reasoning(test_hand)
+            should_knock = knock_reasoning.should_knock
+        else:
+            if isinstance(ai, ContextAwareAI):
+                should_knock = ai.should_knock(test_hand, context)
+            else:
+                should_knock = ai.should_knock(test_hand)
+    else:
+        should_knock = False
+        if capture_reasoning:
+            # Create a knock reasoning for "can't knock"
+            knock_reasoning = KnockReasoning(
+                should_knock=False,
+                reasoning=f"Cannot knock: deadwood={deadwood_after} > {game.knock_threshold}",
+                score=None,
+                factors=[f"Deadwood: {deadwood_after}", "Cannot knock: deadwood too high"],
+            )
+
+    # Build turn reasoning if capturing
+    turn_reasoning: TurnReasoning | None = None
+    if capture_reasoning and draw_reasoning and discard_reasoning:
+        turn_reasoning = TurnReasoning(
+            draw=draw_reasoning,
+            discard=discard_reasoning,
+            knock=knock_reasoning,
+        )
 
     if should_knock and can_knock_after_discard:
         # First discard the card (game.knock expects 10-card hand)
@@ -248,6 +306,7 @@ def execute_ai_turn(
             did_knock=True,
             deadwood_before=deadwood_before,
             deadwood_after=deadwood_after,
+            reasoning=turn_reasoning,
         )
         callbacks.on_turn_complete(current, actions)
 
@@ -270,6 +329,7 @@ def execute_ai_turn(
             did_knock=False,
             deadwood_before=deadwood_before,
             deadwood_after=current.hand.deadwood_total,
+            reasoning=turn_reasoning,
         )
         callbacks.on_turn_complete(current, actions)
 
