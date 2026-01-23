@@ -1663,6 +1663,110 @@ body {
     font-family: 'Courier New', monospace;
 }
 
+/* Deadwood Graph */
+.deadwood-graph-section {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.deadwood-graph-section h4 {
+    margin: 0 0 0.75rem 0;
+    color: #e0e0e0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.deadwood-graph-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.deadwood-graph {
+    width: 100%;
+    max-width: 400px;
+    height: auto;
+}
+
+.graph-axis {
+    stroke: #555;
+    stroke-width: 1;
+}
+
+.graph-grid {
+    stroke: #333;
+    stroke-width: 0.5;
+    stroke-dasharray: 2, 2;
+}
+
+.graph-label {
+    fill: #888;
+    font-size: 10px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.graph-line {
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.player1-line {
+    stroke: #4fc3f7;
+}
+
+.player2-line {
+    stroke: #ef5350;
+}
+
+.graph-point {
+    stroke: none;
+}
+
+.player1-point {
+    fill: #4fc3f7;
+}
+
+.player2-point {
+    fill: #ef5350;
+}
+
+.graph-current-point {
+    fill: none;
+    stroke: #ffc107;
+    stroke-width: 2;
+}
+
+.graph-legend {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.85rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #b0bec5;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.player1-legend .legend-dot {
+    background: #4fc3f7;
+}
+
+.player2-legend .legend-dot {
+    background: #ef5350;
+}
+
 /* Score history clickable rows */
 .score-history-row.clickable {
     cursor: pointer;

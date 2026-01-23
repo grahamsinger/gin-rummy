@@ -182,6 +182,8 @@
                         </div>
                     </div>
 
+                    ${this.renderDeadwoodGraph()}
+
                     ${this.renderAIReasoning(turn)}
 
                     ${this.options.showTurnList ? this.renderTurnList() : ''}
@@ -231,6 +233,109 @@
                     <h4>All Turns</h4>
                     <div class="turn-list-scroll">
                         ${turnItems}
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Render deadwood progression graph
+         */
+        renderDeadwoodGraph() {
+            if (this.turns.length < 2) return '';
+
+            // Graph dimensions
+            const width = 400;
+            const height = 120;
+            const padding = { top: 15, right: 15, bottom: 25, left: 35 };
+            const graphWidth = width - padding.left - padding.right;
+            const graphHeight = height - padding.top - padding.bottom;
+
+            // Separate turns by player and build data points
+            const player1Data = [];  // Human player
+            const player2Data = [];  // Computer
+
+            this.turns.forEach((turn, index) => {
+                const point = { turn: index + 1, deadwood: turn.deadwood_after };
+                if (turn.player_name === this.player1Name) {
+                    player1Data.push(point);
+                } else {
+                    player2Data.push(point);
+                }
+            });
+
+            // Find max deadwood for y-axis scale
+            const allDeadwood = this.turns.map(t => Math.max(t.deadwood_before, t.deadwood_after));
+            const maxDeadwood = Math.max(50, ...allDeadwood);  // At least 50 for scale
+            const numTurns = this.turns.length;
+
+            // Scale functions
+            const xScale = (turnNum) => padding.left + ((turnNum - 1) / Math.max(1, numTurns - 1)) * graphWidth;
+            const yScale = (dw) => padding.top + (1 - dw / maxDeadwood) * graphHeight;
+
+            // Generate path for a dataset
+            const generatePath = (data) => {
+                if (data.length === 0) return '';
+                return data.map((p, i) =>
+                    `${i === 0 ? 'M' : 'L'} ${xScale(p.turn).toFixed(1)} ${yScale(p.deadwood).toFixed(1)}`
+                ).join(' ');
+            };
+
+            // Generate Y-axis labels (0, 25, 50, etc.)
+            const yLabels = [];
+            const yStep = maxDeadwood <= 30 ? 10 : 25;
+            for (let y = 0; y <= maxDeadwood; y += yStep) {
+                yLabels.push(`
+                    <text x="${padding.left - 5}" y="${yScale(y)}" class="graph-label" text-anchor="end" dominant-baseline="middle">${y}</text>
+                    <line x1="${padding.left}" y1="${yScale(y)}" x2="${width - padding.right}" y2="${yScale(y)}" class="graph-grid" />
+                `);
+            }
+
+            // Current turn indicator
+            const currentTurn = this.turns[this.currentTurnIndex];
+            const currentX = xScale(this.currentTurnIndex + 1);
+            const currentY = yScale(currentTurn.deadwood_after);
+
+            return `
+                <div class="deadwood-graph-section">
+                    <h4>Deadwood Progression</h4>
+                    <div class="deadwood-graph-container">
+                        <svg class="deadwood-graph" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+                            <!-- Grid lines -->
+                            ${yLabels.join('')}
+
+                            <!-- X-axis -->
+                            <line x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}" class="graph-axis" />
+
+                            <!-- Y-axis -->
+                            <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}" class="graph-axis" />
+
+                            <!-- Player 1 line (human) -->
+                            <path d="${generatePath(player1Data)}" class="graph-line player1-line" fill="none" />
+
+                            <!-- Player 2 line (computer) -->
+                            <path d="${generatePath(player2Data)}" class="graph-line player2-line" fill="none" />
+
+                            <!-- Data points for player 1 -->
+                            ${player1Data.map(p => `
+                                <circle cx="${xScale(p.turn)}" cy="${yScale(p.deadwood)}" r="3" class="graph-point player1-point" />
+                            `).join('')}
+
+                            <!-- Data points for player 2 -->
+                            ${player2Data.map(p => `
+                                <circle cx="${xScale(p.turn)}" cy="${yScale(p.deadwood)}" r="3" class="graph-point player2-point" />
+                            `).join('')}
+
+                            <!-- Current turn indicator -->
+                            <circle cx="${currentX}" cy="${currentY}" r="6" class="graph-current-point" />
+
+                            <!-- X-axis label -->
+                            <text x="${width / 2}" y="${height - 3}" class="graph-label" text-anchor="middle">Turn</text>
+                        </svg>
+                        <div class="graph-legend">
+                            <span class="legend-item player1-legend"><span class="legend-dot"></span>${this.player1Name}</span>
+                            <span class="legend-item player2-legend"><span class="legend-dot"></span>${this.player2Name}</span>
+                        </div>
                     </div>
                 </div>
             `;

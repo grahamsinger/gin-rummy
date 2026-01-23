@@ -225,14 +225,13 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Apply to both "Hand Before" and "Hand After" displays in turn replay
   - Use existing meld detection logic (`analyze_hand`) on stored card arrays
   - Makes it easier to understand game progression and AI decisions
-- [ ] **History Viewer: Deadwood progression graph**
-  - Add line graph showing deadwood over time for both players
+- [x] **History Viewer: Deadwood progression graph** (COMPLETED)
+  - SVG line graph showing deadwood over time for both players
   - X-axis: turn number, Y-axis: deadwood value
-  - Two lines: one for player (blue), one for computer (red)
-  - Data already available: `deadwood_before`/`deadwood_after` in turns table
-  - Show current turn position as highlighted point on graph
-  - Could use lightweight chart library (Chart.js) or pure SVG/canvas
-  - Helps visualize momentum shifts and who was "winning" at each point
+  - Two lines: player (blue) and computer (red)
+  - Current turn highlighted with yellow ring
+  - Legend showing player names
+  - Pure SVG implementation (no external libraries)
 
 ## Game Variants & Modes
 - [x] **Oklahoma Gin / Match Play Format** (COMPLETED)
