@@ -1277,11 +1277,22 @@ async function restoreOrStartGame() {
         console.log('Error checking for existing game:', e);
     }
 
-    // No existing game - start a new one with saved settings
-    console.log('Starting new game');
+    // No existing game - start a new one with all saved settings
+    console.log('Starting new game with saved settings');
+    const gameMode = localStorage.getItem('gameMode') || 'target';
+    const targetScore = localStorage.getItem('targetScore') || '100';
+    const oklahomaGin = localStorage.getItem('oklahomaGin') === 'true';
+    const spadeDoubling = localStorage.getItem('spadeDoubling') !== 'false';
+    const matchMode = localStorage.getItem('matchMode') === 'true';
+
     const settings = {
         player_name: savedSettings.playerName,
-        ai_difficulty: savedSettings.aiDifficulty
+        ai_difficulty: savedSettings.aiDifficulty,
+        game_mode: gameMode,
+        target_score: gameMode === 'target' ? parseInt(targetScore) : null,
+        oklahoma_gin: oklahomaGin,
+        spade_doubling: spadeDoubling,
+        match_mode: matchMode,
     };
     newGame(settings);
 }
