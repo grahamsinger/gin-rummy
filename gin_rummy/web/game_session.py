@@ -878,6 +878,10 @@ class GameSession:
         if self.game is None:
             return {'error': 'No game in progress'}
 
+        # Don't start a new round if the game is over
+        if self.game_over:
+            return self.get_state()
+
         self.game.new_round()
         self.game.deal()
 

@@ -68,6 +68,15 @@ body {
     font-weight: bold;
 }
 
+.game-format {
+    color: #81d4fa;
+    font-weight: 500;
+}
+
+.game-format:empty {
+    display: none;
+}
+
 .settings-help-text {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.6);

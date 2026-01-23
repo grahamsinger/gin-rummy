@@ -95,6 +95,7 @@ const elements = {
     spadeIndicator: document.getElementById('spade-indicator'),
     matchProgress: document.getElementById('match-progress'),
     gamesWonDisplay: document.getElementById('games-won-display'),
+    gameFormatDisplay: document.getElementById('game-format-display'),
 };
 
 // Suit symbols
@@ -457,6 +458,18 @@ function renderGameState(state) {
     if (state.ai_action) {
         updateLastAiMove(state.ai_action);
     }
+
+    // Display game format info
+    const formatParts = [];
+    if (state.oklahoma_gin) {
+        formatParts.push('Oklahoma Gin');
+    }
+    if (state.match_mode) {
+        formatParts.push('Best of 3');
+    } else if (state.game_mode === 'target' && state.target_score) {
+        formatParts.push(`First to ${state.target_score}`);
+    }
+    elements.gameFormatDisplay.textContent = formatParts.length > 0 ? formatParts.join(' • ') : '';
 
     // Display Oklahoma Gin info
     if (state.oklahoma_gin) {
