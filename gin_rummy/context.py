@@ -644,6 +644,77 @@ class OpponentModel:
         self.picked_up_cards.clear()
         self.inferred_melds.clear()
 
+    def estimate_deadwood(self, context: GameContext) -> int:
+        """Estimate opponent's current deadwood based on observable behavior.
+
+        Uses several heuristics:
+        - Base estimate decreases as game progresses (hands improve over time)
+        - Each pickup from discard suggests meld building (-2 per pickup)
+        - Each inferred meld suggests completed melds (-4 per meld)
+        - High card discards suggest opponent has melds to hold (-1 per face card)
+
+        Args:
+            context: Current game context with deck position.
+
+        Returns:
+            Estimated opponent deadwood (clamped to 0-100 range).
+        """
+        # Base estimate: starts at 35, decreases as game progresses
+        # deck_position_pct: 0.0 = full deck, 1.0 = nearly empty
+        base = 35 - int(20 * context.deck_position_pct)
+
+        # Adjust for pickups (each suggests active meld building)
+        pickup_adjustment = -2 * self.total_pickups
+
+        # Adjust for inferred melds (likely completed or near-complete)
+        meld_adjustment = -4 * len(self.inferred_melds)
+
+        # Count high card discards (10, J, Q, K) - suggests they have melds to hold
+        high_ranks = {Rank.TEN, Rank.JACK, Rank.QUEEN, Rank.KING}
+        high_card_discards = sum(
+            1 for rank in self.discarded_ranks.elements() if rank in high_ranks
+        )
+        high_card_adjustment = -1 * high_card_discards
+
+        estimated = base + pickup_adjustment + meld_adjustment + high_card_adjustment
+
+        # Clamp to reasonable range
+        return max(0, min(100, estimated))
+
+    def estimate_threat_level(self, context: GameContext) -> float:
+        """Estimate how threatening the opponent is (0.0-1.0).
+
+        Higher threat = opponent likely has low deadwood and may undercut.
+
+        Factors:
+        - Estimated deadwood (lower = more threatening)
+        - Number of inferred melds (more = more threatening)
+        - Game position (late game with active opponent = more threatening)
+
+        Args:
+            context: Current game context.
+
+        Returns:
+            Threat level from 0.0 (minimal) to 1.0 (maximum).
+        """
+        # Base threat from estimated deadwood
+        # If estimated at 0, threat = 1.0; if at 30+, threat = 0.0
+        estimated_dw = self.estimate_deadwood(context)
+        deadwood_threat = max(0.0, 1.0 - (estimated_dw / 30.0))
+
+        # Threat from inferred melds (each meld adds 0.1, capped at 0.3)
+        meld_threat = min(0.3, len(self.inferred_melds) * 0.1)
+
+        # Late game threat bonus (opponent still in game = dangerous)
+        late_game_bonus = 0.0
+        if context.deck_position_pct > 0.5:
+            late_game_bonus = 0.1 * (context.deck_position_pct - 0.5) * 2
+
+        # Combine factors (weighted average)
+        threat = 0.6 * deadwood_threat + 0.25 * meld_threat + 0.15 * late_game_bonus
+
+        return min(1.0, max(0.0, threat))
+
 
 class DynamicThresholdCalculator:
     """Calculates dynamic min_deadwood_improvement threshold based on game context."""

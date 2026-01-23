@@ -16,7 +16,7 @@ class TestGameSetup:
         game = Game("Alice", "Bob")
         assert len(game.deck) == 52
         assert len(game.discard_pile) == 0
-        assert game.dealer_idx == 0
+        assert game.dealer_idx in (0, 1)  # Randomized starting dealer
 
 
 class TestDealing:
@@ -500,13 +500,13 @@ class TestLayingOff:
 class TestNewRound:
     def test_new_round_alternates_dealer(self):
         game = Game("Alice", "Bob")
-        assert game.dealer_idx == 0
+        initial_dealer = game.dealer_idx
 
         game.new_round()
-        assert game.dealer_idx == 1
+        assert game.dealer_idx == 1 - initial_dealer
 
         game.new_round()
-        assert game.dealer_idx == 0
+        assert game.dealer_idx == initial_dealer
 
     def test_new_round_resets_phase(self):
         game = Game("Alice", "Bob")

@@ -356,91 +356,22 @@ class ContextAwareAI(BasicAI):
         discard_top: Card | None,
         context: GameContext | None = None,
     ) -> DrawChoice:
-        """Context-aware draw decision.
+        """Draw decision - delegates to BasicAI for now.
 
-        If context is provided, uses dynamic threshold and outs analysis.
-        Otherwise falls back to BasicAI behavior.
+        Context-aware draw logic was found to underperform BasicAI's simpler
+        approach. This delegates directly to BasicAI until better heuristics
+        are developed.
 
         Args:
             hand: Current hand.
             discard_top: Top card of discard pile, or None if empty.
-            context: Optional game context for smarter decisions.
+            context: Optional game context (currently unused).
 
         Returns:
             DrawChoice indicating where to draw from.
         """
-        # Use provided context or fall back to stored context
-        ctx = context or self._current_context
-
-        # Fall back to BasicAI if no context
-        if ctx is None:
-            logger.debug("ContextAwareAI: No context, falling back to BasicAI")
-            return super().decide_draw(hand, discard_top)
-
-        if discard_top is None:
-            logger.info("Draw decision: DECK (discard pile empty)")
-            return DrawChoice.DECK
-
-        # Calculate outs for this hand
-        outs_analysis = self.outs_calculator.calculate_outs(
-            hand,
-            dead_cards=ctx.dead_cards,
-            deck_position_pct=ctx.deck_position_pct,
-        )
-        ctx.my_outs = outs_analysis
-
-        # Calculate dynamic threshold
-        threshold = self.threshold_calculator.calculate_threshold(ctx)
-
-        # Calculate base improvement (same as BasicAI)
-        current_deadwood = hand.deadwood_total
-        helps, reason = self._card_helps_hand(hand, discard_top)
-
-        # Calculate improvement value
-        improvement = 0.0
-        if helps:
-            # Extract improvement from reason string or recalculate
-            test_cards = list(hand) + [discard_top]
-            best_new_deadwood = float('inf')
-            for i, candidate in enumerate(test_cards):
-                remaining = test_cards[:i] + test_cards[i + 1 :]
-                analysis = analyze_hand(remaining)
-                if analysis.deadwood_value < best_new_deadwood:
-                    best_new_deadwood = analysis.deadwood_value
-            improvement = current_deadwood - best_new_deadwood
-
-        # Denial bonus: take if opponent wants it badly
-        opponent_want_prob = self.opponent_model.predict_will_take(discard_top)
-        if opponent_want_prob >= self.context_config.denial_probability_threshold:
-            improvement += self.context_config.denial_bonus
-            logger.debug(
-                "Denial bonus: +%d (opponent want prob=%.2f)",
-                self.context_config.denial_bonus,
-                opponent_want_prob,
-            )
-
-        # Make decision
-        if improvement >= threshold:
-            logger.info(
-                "Draw decision: DISCARD - taking %s (improvement=%.1f >= threshold=%d, "
-                "outs=%d live)",
-                discard_top,
-                improvement,
-                threshold,
-                outs_analysis.live_out_count,
-            )
-            return DrawChoice.DISCARD
-        else:
-            logger.info(
-                "Draw decision: DECK - %s (improvement=%.1f < threshold=%d, "
-                "deck_pos=%.0f%%, outs=%d live)",
-                discard_top,
-                improvement,
-                threshold,
-                ctx.deck_position_pct * 100,
-                outs_analysis.live_out_count,
-            )
-            return DrawChoice.DECK
+        # Delegate to BasicAI's proven draw logic
+        return super().decide_draw(hand, discard_top)
 
     def decide_discard(self, hand: Hand) -> Card:
         """Context-aware discard decision with safety scoring.
@@ -567,6 +498,268 @@ class ContextAwareAI(BasicAI):
                 )
 
         return best_discard
+
+    def should_knock(
+        self, hand: Hand, context: GameContext | None = None
+    ) -> bool:
+        """Context-aware knock decision.
+
+        Calculates a knock score from multiple factors:
+        - Base score from deadwood (lower = higher score)
+        - Gin pursuit modifier (wait for gin when close?)
+        - Undercut risk modifier (opponent looks strong?)
+        - Deck urgency modifier (deck running out?)
+        - Score pressure modifier (game situation?)
+        - Opponent strength modifier (opponent deadwood estimate)
+
+        Args:
+            hand: Current hand (should have 10 cards).
+            context: Optional game context. If None, falls back to BasicAI.
+
+        Returns:
+            True if AI should knock.
+        """
+        deadwood = hand.deadwood_total
+        is_gin = deadwood == 0
+
+        # Edge case 1: Always knock with gin
+        if is_gin:
+            logger.info("Knock decision: YES - GIN!")
+            return True
+
+        # Can't knock if deadwood > 10
+        if deadwood > 10:
+            logger.debug("Knock decision: NO (deadwood=%d > 10)", deadwood)
+            return False
+
+        # Use stored context if not provided
+        ctx = context or self._current_context
+
+        # Fall back to BasicAI if no context or context-knock disabled
+        if ctx is None or not self.context_config.use_context_knock:
+            logger.debug("Knock decision: falling back to BasicAI")
+            return super().should_knock(hand)
+
+        # Edge case 2: Always knock if deck nearly empty (avoid draw)
+        if ctx.deck_remaining <= 4:
+            logger.info(
+                "Knock decision: YES (deck nearly empty, %d cards remain)",
+                ctx.deck_remaining,
+            )
+            return True
+
+        # Edge case 3: Always knock if it would win the game
+        if ctx.my_score + (25 if deadwood == 0 else 10 - deadwood) >= ctx.target_score:
+            logger.info("Knock decision: YES (game-winning knock)")
+            return True
+
+        # Calculate knock score
+        knock_score = self._calculate_knock_score(hand, ctx)
+
+        # Make decision
+        should_knock = knock_score >= self.context_config.knock_decision_threshold
+
+        logger.info(
+            "Knock decision: %s (score=%.2f, threshold=%.2f, deadwood=%d)",
+            "YES" if should_knock else "NO",
+            knock_score,
+            self.context_config.knock_decision_threshold,
+            deadwood,
+        )
+
+        return should_knock
+
+    def _calculate_knock_score(self, hand: Hand, context: GameContext) -> float:
+        """Calculate knock score from multiple factors.
+
+        Args:
+            hand: Current hand.
+            context: Game context.
+
+        Returns:
+            Knock score from 0.0 to 1.0+ (can exceed 1.0 with bonuses).
+        """
+        deadwood = hand.deadwood_total
+        factors: list[str] = []
+
+        # Base score: (10 - deadwood) / 10 → lower deadwood = higher score
+        base_score = (10 - deadwood) / 10.0
+        factors.append(f"base={base_score:.2f}")
+
+        score = base_score
+
+        # Gin pursuit modifier: wait for gin when close?
+        if deadwood <= self.context_config.gin_pursuit_threshold:
+            pursue_gin, gin_prob = self._should_pursue_gin(hand, context)
+            if pursue_gin:
+                gin_modifier = -self.context_config.gin_pursuit_weight
+                score += gin_modifier
+                factors.append(f"gin_pursuit={gin_modifier:.2f}(prob={gin_prob:.2f})")
+
+        # Undercut risk modifier: opponent looks strong?
+        threat_level = self.opponent_model.estimate_threat_level(context)
+        if threat_level >= self.context_config.undercut_risk_threshold:
+            undercut_modifier = (
+                -self.context_config.undercut_risk_weight * threat_level
+            )
+            score += undercut_modifier
+            factors.append(f"undercut_risk={undercut_modifier:.2f}(threat={threat_level:.2f})")
+
+        # Deck urgency modifier: knock as deck empties
+        deck_remaining_pct = 1.0 - context.deck_position_pct
+        if deck_remaining_pct < self.context_config.late_game_knock_threshold:
+            # Urgency increases as deck empties
+            urgency = 1.0 - (
+                deck_remaining_pct / self.context_config.late_game_knock_threshold
+            )
+            urgency_modifier = self.context_config.deck_urgency_weight * urgency
+            score += urgency_modifier
+            factors.append(f"urgency={urgency_modifier:.2f}(deck={deck_remaining_pct:.0%})")
+
+        # Score pressure modifier
+        score_modifier = 0.0
+        points_to_win = context.points_to_win
+        opp_points_to_win = context.opponent_points_to_win
+
+        # Game-winning potential
+        if points_to_win <= 10 - deadwood:
+            score_modifier += 0.5
+            factors.append("game_winning=+0.5")
+        # Opponent close to winning
+        elif opp_points_to_win <= 15:
+            score_modifier += 0.3
+            factors.append("opp_close=+0.3")
+        # Trailing significantly
+        elif context.score_differential < -self.context_config.knock_trailing_threshold:
+            score_modifier += 0.2
+            factors.append("trailing=+0.2")
+        # Leading significantly
+        elif context.score_differential > self.context_config.knock_leading_threshold:
+            score_modifier -= 0.2
+            factors.append("leading=-0.2")
+
+        score += score_modifier
+
+        # Opponent strength modifier
+        estimated_opp_deadwood = self.opponent_model.estimate_deadwood(context)
+        if estimated_opp_deadwood >= self.context_config.opponent_high_deadwood_threshold:
+            # Opponent weak - good time to knock
+            score += 0.3
+            factors.append(f"opp_weak=+0.3(est_dw={estimated_opp_deadwood})")
+        elif estimated_opp_deadwood <= self.context_config.opponent_low_deadwood_threshold:
+            # Opponent strong - risky to knock
+            score -= 0.2
+            factors.append(f"opp_strong=-0.2(est_dw={estimated_opp_deadwood})")
+
+        logger.debug("Knock score factors: %s", ", ".join(factors))
+
+        return score
+
+    def _should_pursue_gin(
+        self, hand: Hand, context: GameContext
+    ) -> tuple[bool, float]:
+        """Determine if we should wait for gin instead of knocking.
+
+        Args:
+            hand: Current hand with low deadwood (1-3).
+            context: Game context.
+
+        Returns:
+            Tuple of (should_pursue: bool, gin_probability: float).
+        """
+        deadwood = hand.deadwood_total
+
+        if deadwood == 0:
+            # Already gin!
+            return False, 1.0
+
+        if deadwood > self.context_config.gin_pursuit_threshold:
+            # Too far from gin
+            return False, 0.0
+
+        # Calculate outs for gin
+        if context.my_outs is None:
+            outs_analysis = self.outs_calculator.calculate_outs(
+                hand,
+                dead_cards=context.dead_cards,
+                deck_position_pct=context.deck_position_pct,
+            )
+        else:
+            outs_analysis = context.my_outs
+
+        # Count live meld-completing outs
+        live_outs = outs_analysis.live_out_count
+
+        # Estimate probability of hitting gin
+        # Rough estimate: live_outs / remaining_unknown_cards
+        unknown_cards = max(1, context.deck_remaining)
+        gin_probability = min(1.0, live_outs / unknown_cards)
+
+        # Simple expected value calculation
+        # EV(knock) = 10 - deadwood (assuming no undercut)
+        # EV(gin) = gin_prob * 25 + (1 - gin_prob) * (10 - deadwood)
+        ev_knock = 10 - deadwood
+        ev_gin = gin_probability * 25 + (1 - gin_probability) * ev_knock
+
+        should_pursue = (
+            gin_probability >= self.context_config.min_gin_probability
+            and ev_gin > ev_knock
+        )
+
+        logger.debug(
+            "Gin pursuit: prob=%.2f, EV(knock)=%d, EV(gin)=%.1f, pursue=%s",
+            gin_probability,
+            ev_knock,
+            ev_gin,
+            should_pursue,
+        )
+
+        return should_pursue, gin_probability
+
+    def make_turn_decision(
+        self,
+        hand: Hand,
+        discard_top: Card | None,
+        drawn_card: Card,
+        context: GameContext | None = None,
+    ) -> tuple[Card, bool]:
+        """Make discard and knock decisions after drawing.
+
+        Extends BasicAI to pass context to should_knock.
+
+        Args:
+            hand: Hand after drawing (11 cards).
+            discard_top: What was on top of discard (for context).
+            drawn_card: The card that was drawn.
+            context: Optional game context.
+
+        Returns:
+            Tuple of (card to discard, whether to knock).
+        """
+        logger.debug("--- ContextAwareAI Turn Start ---")
+        logger.debug("Drew: %s", drawn_card)
+
+        # Use provided context or stored context
+        ctx = context or self._current_context
+
+        discard = self.decide_discard(hand)
+
+        # Check if we can knock after discarding
+        test_cards = [c for c in hand if c != discard]
+        test_hand = Hand(test_cards)
+        test_analysis = test_hand.analyze()
+        can_knock = test_analysis.deadwood_value <= 10
+
+        # Use context-aware knock decision
+        should_knock = can_knock and self.should_knock(test_hand, ctx)
+
+        logger.debug(
+            "--- ContextAwareAI Turn End --- (discard=%s, knock=%s)",
+            discard,
+            should_knock,
+        )
+
+        return discard, should_knock
 
 
 def _card_to_index(card: Card) -> int:

@@ -70,7 +70,7 @@ class AssistConfig:
 class ContextAwareAIConfig:
     """Configuration for ContextAwareAI behavior."""
 
-    # Base threshold before modifiers
+    # Base threshold before modifiers (matches BasicAI's min_deadwood_improvement)
     base_draw_threshold: int = 1
 
     # Outs calculation weights
@@ -90,21 +90,69 @@ class ContextAwareAIConfig:
     leading_conservative_threshold: int = 30  # Points ahead to get conservative
 
     # Bonus adjustments
-    denial_bonus: int = 2  # Bonus for denying opponent
-    safe_rank_discard_bonus: int = 1  # Bonus for discarding safe ranks
-    dangerous_rank_penalty: int = 2  # Penalty for discarding ranks opponent picked up
-    dangerous_suit_penalty: int = 1  # Penalty for discarding suits opponent picked up
-    danger_card_penalty: int = 3  # Penalty for cards that complete opponent's inferred melds
-    denial_probability_threshold: float = 0.7  # Opponent want probability to trigger
+    # NOTE: Danger penalties disabled by default - they cause ContextAwareAI to keep
+    # higher deadwood to avoid helping opponent, which hurts performance overall.
+    denial_bonus: int = 0  # Bonus for denying opponent (disabled)
+    safe_rank_discard_bonus: int = 0  # Bonus for discarding safe ranks (disabled)
+    dangerous_rank_penalty: int = 0  # Penalty for discarding ranks opponent picked up (disabled)
+    dangerous_suit_penalty: int = 0  # Penalty for discarding suits opponent picked up (disabled)
+    danger_card_penalty: int = 0  # Penalty for cards that complete opponent's inferred melds (disabled)
+    denial_probability_threshold: float = 1.0  # Opponent want probability to trigger (disabled)
 
     # Live outs consideration for discards
     # Weight given to live outs when choosing discards (higher = prefer keeping cards with live outs)
     # Applied to weighted_value (not just count), so strategic importance matters
     # Pairs worth 4.0, run extensions 5.0, meld completions 10.0
-    live_outs_discard_weight: float = 0.5  # Multiplier for weighted outs value
+    # NOTE: Disabled by default - similar to danger penalties, this can cause suboptimal discards
+    live_outs_discard_weight: float = 0.0  # Multiplier for weighted outs value (disabled)
 
     # Opponent modeling
     track_opponent_patterns: bool = True
+
+    # --- Knock Decision Parameters ---
+    # Whether to use context-aware knock decisions (vs. BasicAI behavior)
+    use_context_knock: bool = True
+
+    # Threshold for knock score (0.0-1.0). Knock if score >= threshold.
+    knock_decision_threshold: float = 0.5
+
+    # --- Gin Pursuit ---
+    # Maximum deadwood to consider waiting for gin
+    gin_pursuit_threshold: int = 3
+
+    # Weight for gin pursuit penalty (reduces knock score when gin is likely)
+    gin_pursuit_weight: float = 0.5
+
+    # Minimum probability of achieving gin to wait for it
+    min_gin_probability: float = 0.15
+
+    # --- Undercut Risk ---
+    # Opponent threat level threshold to apply undercut risk penalty
+    undercut_risk_threshold: float = 0.6
+
+    # Weight for undercut risk penalty
+    undercut_risk_weight: float = 0.3
+
+    # --- Deck Urgency ---
+    # Deck position threshold (% remaining) to start applying urgency bonus
+    late_game_knock_threshold: float = 0.7
+
+    # Weight for deck urgency bonus
+    deck_urgency_weight: float = 0.4
+
+    # --- Score Pressure ---
+    # Points behind opponent to get aggressive with knocking
+    knock_trailing_threshold: int = 30
+
+    # Points ahead to be selective with knocking
+    knock_leading_threshold: int = 30
+
+    # --- Opponent Strength Estimation ---
+    # Opponent estimated deadwood above which they are "weak"
+    opponent_high_deadwood_threshold: int = 15
+
+    # Opponent estimated deadwood below which they are "strong"
+    opponent_low_deadwood_threshold: int = 8
 
 
 @dataclass

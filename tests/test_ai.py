@@ -1,8 +1,21 @@
 """Tests for AI module."""
 
 import pytest
-from gin_rummy.ai import BasicAI, DrawChoice
+from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
 from gin_rummy.models import Hand, Card, Suit, Rank
+from gin_rummy.context import GameContext, OpponentModel
+from gin_rummy.config import Config, AIConfig, ContextAwareAIConfig
+
+
+def make_test_config(knock_strategy: str = "always") -> Config:
+    """Create a test config with specified knock strategy."""
+    config = Config()
+    config.ai = AIConfig(
+        knock_strategy=knock_strategy,
+        conservative_knock_threshold=5,
+        min_deadwood_improvement=1,
+    )
+    return config
 
 
 class TestBasicAI:
@@ -64,7 +77,8 @@ class TestBasicAI:
         assert discard == Card(Rank.KING, Suit.DIAMONDS)
 
     def test_should_knock_when_able(self):
-        ai = BasicAI()
+        # Use "always" knock strategy to test basic knock behavior
+        ai = BasicAI(config=make_test_config(knock_strategy="always"))
         # Hand with 10 or less deadwood
         hand = Hand([
             Card(Rank.ACE, Suit.SPADES),
@@ -133,3 +147,307 @@ class TestBasicAI:
                     f"AI picked up {discard_top} and immediately discarded it! "
                     f"This wastes the turn and can create infinite loops."
                 )
+
+
+class TestContextAwareAIKnock:
+    """Tests for ContextAwareAI context-aware knock decisions."""
+
+    def _make_context(
+        self,
+        deck_remaining: int = 30,
+        my_score: int = 0,
+        opponent_score: int = 0,
+        target_score: int = 100,
+    ) -> GameContext:
+        """Helper to create a GameContext for testing."""
+        deck_position_pct = 1.0 - (deck_remaining / 31.0)
+        return GameContext(
+            deck_remaining=deck_remaining,
+            deck_position_pct=deck_position_pct,
+            my_score=my_score,
+            opponent_score=opponent_score,
+            target_score=target_score,
+        )
+
+    def test_always_knock_with_gin(self):
+        """Should always knock with gin (0 deadwood)."""
+        ai = ContextAwareAI()
+        # Hand with all cards in melds - gin
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.FIVE, Suit.DIAMONDS),
+            Card(Rank.SIX, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.DIAMONDS),
+        ])
+        context = self._make_context()
+        assert ai.should_knock(hand, context) is True
+
+    def test_always_knock_when_deck_nearly_empty(self):
+        """Should always knock when deck has ≤4 cards (avoid draw)."""
+        ai = ContextAwareAI()
+        # Hand with 8 deadwood (knocking would be marginal normally)
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.SPADES),  # 8 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+        context = self._make_context(deck_remaining=3)
+        assert ai.should_knock(hand, context) is True
+
+    def test_always_knock_for_game_winning(self):
+        """Should always knock if it wins the game."""
+        ai = ContextAwareAI()
+        # Hand with 5 deadwood → 5 points if we knock
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+        # Score is 95, knock would give 5 points → win
+        context = self._make_context(my_score=95, target_score=100)
+        assert ai.should_knock(hand, context) is True
+
+    def test_deck_urgency_increases_knock_score(self):
+        """Late game should increase knock score via urgency modifier."""
+        ai = ContextAwareAI()
+        # Hand with marginal deadwood (6)
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.SIX, Suit.SPADES),  # 6 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+
+        # Early game context (lots of deck remaining)
+        early_context = self._make_context(deck_remaining=25)
+        early_score = ai._calculate_knock_score(hand, early_context)
+
+        # Late game context (deck running low)
+        late_context = self._make_context(deck_remaining=8)
+        late_score = ai._calculate_knock_score(hand, late_context)
+
+        # Late game should have higher knock score due to urgency
+        assert late_score > early_score
+
+    def test_trailing_score_increases_aggressiveness(self):
+        """When trailing significantly, should knock more aggressively."""
+        ai = ContextAwareAI()
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.SPADES),  # 7 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+
+        # Even score
+        even_context = self._make_context(my_score=50, opponent_score=50)
+        even_score = ai._calculate_knock_score(hand, even_context)
+
+        # Trailing significantly
+        trailing_context = self._make_context(my_score=20, opponent_score=70)
+        trailing_score = ai._calculate_knock_score(hand, trailing_context)
+
+        # Trailing should have higher knock score
+        assert trailing_score > even_score
+
+    def test_leading_score_decreases_aggressiveness(self):
+        """When leading significantly, should be more selective with knocking."""
+        ai = ContextAwareAI()
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.SPADES),  # 7 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+
+        # Even score
+        even_context = self._make_context(my_score=50, opponent_score=50)
+        even_score = ai._calculate_knock_score(hand, even_context)
+
+        # Leading significantly
+        leading_context = self._make_context(my_score=80, opponent_score=30)
+        leading_score = ai._calculate_knock_score(hand, leading_context)
+
+        # Leading should have lower knock score (more selective)
+        assert leading_score < even_score
+
+    def test_opponent_weak_increases_knock_score(self):
+        """When opponent estimated weak, should be more willing to knock."""
+        ai = ContextAwareAI()
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.SPADES),  # 8 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+
+        # Fresh opponent (estimated ~35 deadwood)
+        fresh_context = self._make_context(deck_remaining=30)
+        fresh_score = ai._calculate_knock_score(hand, fresh_context)
+
+        # Opponent has made no pickups - estimated high deadwood (weak)
+        # The opponent model starts fresh with high estimated deadwood
+        assert fresh_score > 0.3  # Should be willing to knock
+
+    def test_fallback_to_basic_ai_without_context(self):
+        """Without context, should fall back to BasicAI behavior."""
+        # Use "always" knock strategy to test fallback knocks with any deadwood ≤10
+        ai = ContextAwareAI(config=make_test_config(knock_strategy="always"))
+        # Hand with 5 deadwood - BasicAI with "always" strategy should knock
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+        # No context provided - falls back to BasicAI "always" strategy
+        assert ai.should_knock(hand) is True
+
+    def test_no_knock_when_cannot_knock(self):
+        """Should not knock when deadwood > 10."""
+        ai = ContextAwareAI()
+        hand = Hand([
+            Card(Rank.KING, Suit.SPADES),
+            Card(Rank.QUEEN, Suit.HEARTS),
+        ])  # 20 deadwood
+        context = self._make_context()
+        assert ai.should_knock(hand, context) is False
+
+
+class TestOpponentEstimation:
+    """Tests for opponent deadwood and threat estimation."""
+
+    def _make_context(self, deck_remaining: int = 20) -> GameContext:
+        """Helper to create a GameContext."""
+        deck_position_pct = 1.0 - (deck_remaining / 31.0)
+        return GameContext(
+            deck_remaining=deck_remaining,
+            deck_position_pct=deck_position_pct,
+            my_score=0,
+            opponent_score=0,
+        )
+
+    def test_estimate_deadwood_decreases_with_pickups(self):
+        """Opponent pickups should decrease estimated deadwood."""
+        model = OpponentModel()
+        context = self._make_context()
+
+        initial_estimate = model.estimate_deadwood(context)
+
+        # Simulate opponent picking up cards
+        model.record_pickup(Card(Rank.FIVE, Suit.HEARTS))
+        model.record_pickup(Card(Rank.SIX, Suit.HEARTS))
+
+        pickup_estimate = model.estimate_deadwood(context)
+
+        # More pickups = lower estimated deadwood (building melds)
+        assert pickup_estimate < initial_estimate
+
+    def test_estimate_deadwood_decreases_with_game_progress(self):
+        """Estimated deadwood should decrease as game progresses."""
+        model = OpponentModel()
+
+        early_context = self._make_context(deck_remaining=28)
+        late_context = self._make_context(deck_remaining=8)
+
+        early_estimate = model.estimate_deadwood(early_context)
+        late_estimate = model.estimate_deadwood(late_context)
+
+        # Later in game = lower expected deadwood
+        assert late_estimate < early_estimate
+
+    def test_threat_level_increases_with_pickups(self):
+        """Opponent pickups should increase threat level."""
+        model = OpponentModel()
+        context = self._make_context()
+
+        initial_threat = model.estimate_threat_level(context)
+
+        # Simulate active opponent picking up cards (building melds)
+        model.record_pickup(Card(Rank.FIVE, Suit.HEARTS))
+        model.record_pickup(Card(Rank.SIX, Suit.HEARTS))
+        model.record_pickup(Card(Rank.SEVEN, Suit.HEARTS))
+
+        active_threat = model.estimate_threat_level(context)
+
+        # Active opponent = higher threat
+        assert active_threat > initial_threat
+
+    def test_threat_level_capped_at_one(self):
+        """Threat level should never exceed 1.0."""
+        model = OpponentModel()
+        context = self._make_context(deck_remaining=2)  # Very late game
+
+        # Simulate very active opponent
+        for i in range(10):
+            model.record_pickup(Card(Rank(i % 13 + 1), Suit.HEARTS))
+
+        threat = model.estimate_threat_level(context)
+        assert threat <= 1.0
+
+    def test_high_card_discards_lower_estimated_deadwood(self):
+        """Discarding face cards suggests opponent has melds to hold."""
+        model = OpponentModel()
+        context = self._make_context()
+
+        initial_estimate = model.estimate_deadwood(context)
+
+        # Opponent discards high cards (suggests they have melds)
+        model.record_discard(Card(Rank.KING, Suit.SPADES))
+        model.record_discard(Card(Rank.QUEEN, Suit.HEARTS))
+        model.record_discard(Card(Rank.JACK, Suit.CLUBS))
+
+        after_discards = model.estimate_deadwood(context)
+
+        # High card discards = lower estimated deadwood
+        assert after_discards < initial_estimate

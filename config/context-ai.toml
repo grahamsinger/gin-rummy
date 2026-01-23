@@ -9,8 +9,8 @@
 [context_aware_ai]
 # Base draw threshold before modifiers are applied.
 # This is the minimum deadwood improvement needed to take from discard pile.
-# Same as BasicAI to start, then modifiers apply.
-base_draw_threshold = 3
+# Matches BasicAI's min_deadwood_improvement for fair comparison.
+base_draw_threshold = 1
 
 # --- Outs Calculation Weights ---
 # Higher values make those outs more attractive.
@@ -39,45 +39,108 @@ late_game_threshold = 0.3
 
 # --- Dynamic Threshold Modifiers ---
 # How much context affects the draw threshold.
+# NOTE: All modifiers disabled by default. Testing showed that dynamic thresholds
+# cause inconsistent play that hurts overall performance.
 
 # Max reduction to threshold from deck running low (more desperate = lower threshold).
-# Disabled - keep threshold stable.
 max_deck_modifier = 0.0
 
 # Max increase to threshold from having many outs (can wait = higher threshold).
-# Disabled - having outs doesn't mean you should wait.
 max_outs_modifier = 0.0
 
 # --- Score Differential Thresholds ---
+# NOTE: Set very high to effectively disable score-based threshold changes.
+# Testing showed that becoming "aggressive when trailing" actually hurts -
+# taking marginal cards doesn't help build toward gin.
 
 # When trailing by this many points or more, play more aggressively.
-trailing_aggressive_threshold = 50
+trailing_aggressive_threshold = 999
 
 # When leading by this many points or more, play more conservatively.
-leading_conservative_threshold = 30
+leading_conservative_threshold = 999
 
 # --- Bonus Adjustments ---
+# NOTE: Danger penalties are disabled by default. Testing showed they cause
+# ContextAwareAI to keep higher deadwood to avoid helping opponent, which
+# hurts overall performance. The cost of slower hand development outweighs
+# the benefit of not helping opponent.
 
 # Extra "improvement" points for denying opponent a card they likely want.
 denial_bonus = 0
 
 # Bonus for discarding a "safe" rank (opponent discarded same rank).
-# When choosing between discards with similar deadwood impact,
-# prefer ranks the opponent has shown they don't want.
-safe_rank_discard_bonus = 1
+safe_rank_discard_bonus = 0
 
 # Penalty for discarding a "dangerous" rank (opponent picked up same rank).
-# Opponent likely building a set - avoid giving them what they want.
-dangerous_rank_penalty = 2
+dangerous_rank_penalty = 0
 
 # Penalty for discarding a "dangerous" suit (opponent picked up same suit).
-# Opponent likely building a run - avoid giving them what they want.
-dangerous_suit_penalty = 1
+dangerous_suit_penalty = 0
 
 # Opponent must want card with this probability to trigger denial bonus.
-denial_probability_threshold = 0.7
+denial_probability_threshold = 1.0
 
 # --- Opponent Modeling ---
 
 # Whether to track opponent discard/pickup patterns for predictions.
 track_opponent_patterns = true
+
+# --- Knock Decision Parameters ---
+# Context-aware knock decisions consider game state, opponent strength, etc.
+
+# Whether to use context-aware knock decisions (false = BasicAI behavior).
+use_context_knock = true
+
+# Knock score threshold (0.0-1.0). Knock when calculated score >= threshold.
+# Lower = more aggressive knocking, higher = more selective.
+# 0.4 balances gin pursuit with avoiding undercuts.
+knock_decision_threshold = 0.4
+
+# --- Gin Pursuit ---
+# When close to gin, should we wait for it instead of knocking?
+
+# Maximum deadwood to consider waiting for gin (typically 1-3).
+gin_pursuit_threshold = 3
+
+# Weight for gin pursuit penalty (reduces knock score when gin is likely).
+gin_pursuit_weight = 0.5
+
+# Minimum probability of achieving gin to justify waiting.
+min_gin_probability = 0.15
+
+# --- Undercut Risk ---
+# Avoid knocking when opponent appears strong (risk of undercut).
+
+# Opponent threat level (0.0-1.0) above which we apply undercut penalty.
+undercut_risk_threshold = 0.6
+
+# Weight for undercut risk penalty (multiplied by threat level).
+undercut_risk_weight = 0.3
+
+# --- Deck Urgency ---
+# Knock more aggressively as deck runs low to avoid draws.
+
+# Deck position (% remaining) below which urgency bonus applies.
+# 0.7 = urgency starts when 30% of deck remains.
+late_game_knock_threshold = 0.7
+
+# Weight for deck urgency bonus.
+deck_urgency_weight = 0.4
+
+# --- Score Pressure ---
+# Adjust knock aggressiveness based on game score.
+
+# Points behind opponent to become aggressive with knocking.
+knock_trailing_threshold = 30
+
+# Points ahead to become selective with knocking.
+knock_leading_threshold = 30
+
+# --- Opponent Strength Estimation ---
+# Thresholds for estimating opponent's hand strength.
+
+# Estimated opponent deadwood above which they are considered "weak".
+opponent_high_deadwood_threshold = 15
+
+# Estimated opponent deadwood below which they are considered "strong".
+opponent_low_deadwood_threshold = 8

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
@@ -86,7 +87,8 @@ class Game:
         self.discard_pile: list[Card] = []
         self.phase = GamePhase.DEALING
         self.current_player_idx = 0
-        self.dealer_idx = 0
+        # Randomize starting dealer to eliminate positional advantage
+        self.dealer_idx = random.randint(0, 1)
         self._card_drawn_this_turn: Card | None = None
 
         # Assist mode tracking
