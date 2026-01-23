@@ -40,6 +40,43 @@ def cards_to_db_list(cards: list[Card]) -> list[str]:
     return [card_to_db_str(c) for c in cards]
 
 
+def db_str_to_card(s: str) -> Card:
+    """Parse a database format card string back to a Card object.
+
+    Args:
+        s: Card string like "AS", "10H", "KD"
+
+    Returns:
+        Card object
+    """
+    from gin_rummy.models.card import Card, Rank, Suit
+
+    rank_map = {
+        "A": Rank.ACE, "2": Rank.TWO, "3": Rank.THREE, "4": Rank.FOUR,
+        "5": Rank.FIVE, "6": Rank.SIX, "7": Rank.SEVEN, "8": Rank.EIGHT,
+        "9": Rank.NINE, "10": Rank.TEN, "J": Rank.JACK, "Q": Rank.QUEEN,
+        "K": Rank.KING,
+    }
+    suit_map = {
+        "S": Suit.SPADES, "H": Suit.HEARTS, "D": Suit.DIAMONDS, "C": Suit.CLUBS,
+    }
+
+    # Handle "10" specially (two-character rank)
+    if s.startswith("10"):
+        rank_str = "10"
+        suit_str = s[2]
+    else:
+        rank_str = s[0]
+        suit_str = s[1]
+
+    return Card(rank_map[rank_str], suit_map[suit_str])
+
+
+def db_list_to_cards(card_strs: list[str]) -> list[Card]:
+    """Parse a list of database format card strings to Card objects."""
+    return [db_str_to_card(s) for s in card_strs]
+
+
 # Schema version for migrations
 SCHEMA_VERSION = 2
 

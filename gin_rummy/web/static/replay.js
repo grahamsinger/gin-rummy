@@ -35,7 +35,7 @@
     }
 
     /**
-     * Render a list of cards as HTML
+     * Render a list of cards as HTML (simple, no meld grouping)
      */
     function renderCards(cards, highlightCard = null) {
         if (!cards || cards.length === 0) return '<span class="no-cards">No cards</span>';
@@ -46,6 +46,67 @@
             const highlightClass = card === highlightCard ? 'highlight-card' : '';
             return `<span class="replay-card ${colorClass} ${highlightClass}">${formatted}</span>`;
         }).join(' ');
+    }
+
+    /**
+     * Render a list of cards with melds grouped visually
+     */
+    function renderCardsWithMelds(cards, melds, highlightCard = null) {
+        if (!cards || cards.length === 0) return '<span class="no-cards">No cards</span>';
+
+        // If no melds, fall back to simple rendering
+        if (!melds || melds.length === 0) {
+            return renderCards(cards, highlightCard);
+        }
+
+        // Build set of cards in each meld
+        const cardToMeldIdx = new Map();
+        melds.forEach((meld, idx) => {
+            meld.cards.forEach(card => cardToMeldIdx.set(card, idx));
+        });
+
+        // Group cards by meld
+        const meldGroups = new Map();
+        const deadwoodCards = [];
+
+        cards.forEach(card => {
+            if (cardToMeldIdx.has(card)) {
+                const meldIdx = cardToMeldIdx.get(card);
+                if (!meldGroups.has(meldIdx)) {
+                    meldGroups.set(meldIdx, { cards: [], type: melds[meldIdx].type });
+                }
+                meldGroups.get(meldIdx).cards.push(card);
+            } else {
+                deadwoodCards.push(card);
+            }
+        });
+
+        let html = '';
+
+        // Render meld groups
+        meldGroups.forEach((group, idx) => {
+            const meldTypeClass = group.type === 'run' ? 'meld-run' : 'meld-set';
+            html += `<span class="replay-meld-group ${meldTypeClass}">`;
+            html += group.cards.map(card => {
+                const formatted = formatCard(card);
+                const colorClass = getCardColorClass(card);
+                const highlightClass = card === highlightCard ? 'highlight-card' : '';
+                return `<span class="replay-card melded ${colorClass} ${highlightClass}">${formatted}</span>`;
+            }).join(' ');
+            html += '</span> ';
+        });
+
+        // Render deadwood cards
+        if (deadwoodCards.length > 0) {
+            html += deadwoodCards.map(card => {
+                const formatted = formatCard(card);
+                const colorClass = getCardColorClass(card);
+                const highlightClass = card === highlightCard ? 'highlight-card' : '';
+                return `<span class="replay-card deadwood ${colorClass} ${highlightClass}">${formatted}</span>`;
+            }).join(' ');
+        }
+
+        return html;
     }
 
     /**
@@ -174,11 +235,11 @@
                     <div class="replay-hands">
                         <div class="replay-hand-section">
                             <h4>Hand Before</h4>
-                            <div class="replay-cards">${renderCards(turn.cards_before, turn.card_drawn)}</div>
+                            <div class="replay-cards">${renderCardsWithMelds(turn.cards_before, turn.melds_before, turn.card_drawn)}</div>
                         </div>
                         <div class="replay-hand-section">
                             <h4>Hand After</h4>
-                            <div class="replay-cards">${renderCards(turn.cards_after)}</div>
+                            <div class="replay-cards">${renderCardsWithMelds(turn.cards_after, turn.melds_after)}</div>
                         </div>
                     </div>
 

@@ -721,7 +721,7 @@ async function displayAiAction(action, state) {
         // Highlight discard pile if drawing from it
         if (action.draw_from === 'discard') {
             elements.discardPile.classList.add('highlight-pickup');
-            elements.playerStatus.textContent = `Computer picked up ${action.drew_card} from discard pile`;
+            elements.playerStatus.textContent = `Computer picked up ${formatCardId(action.drew_card)} from discard pile`;
             elements.playerStatus.classList.remove('thinking');
             elements.playerStatus.classList.add('ai-pickup');
         } else {
@@ -737,7 +737,7 @@ async function displayAiAction(action, state) {
         elements.discardPile.classList.remove('highlight-pickup');
 
         // Show the discard action
-        elements.playerStatus.textContent = `Computer discarded ${action.discarded}`;
+        elements.playerStatus.textContent = `Computer discarded ${formatCardId(action.discarded)}`;
         elements.playerStatus.classList.remove('ai-pickup', 'ai-draw');
         elements.playerStatus.classList.add('ai-discard');
 
@@ -753,7 +753,7 @@ async function displayAiAction(action, state) {
         // Persist the last AI move summary
         updateLastAiMove(action);
     } else if (action.type === 'first_discard') {
-        elements.playerStatus.textContent = `Computer discarded ${action.discarded}`;
+        elements.playerStatus.textContent = `Computer discarded ${formatCardId(action.discarded)}`;
         elements.playerStatus.classList.remove('thinking');
         renderGameState(state);
         await new Promise(resolve => setTimeout(resolve, 800));
