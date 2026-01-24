@@ -9,6 +9,12 @@ let pendingMeldDiscardCard = null;  // Card waiting for meld confirmation
 let sortMode = localStorage.getItem('sortMode') || 'value';  // 'suit', 'rank', or 'value'
 let drawnCardId = null;  // ID of the card just drawn (for highlighting)
 
+// Generate a random player name like "Guest_a3f7"
+function generatePlayerName() {
+    const suffix = Math.random().toString(16).substring(2, 6);
+    return `Guest_${suffix}`;
+}
+
 // Settings persistence
 const savedSettings = {
     playerName: localStorage.getItem('playerName') || null,
@@ -27,6 +33,7 @@ const elements = {
     deckCount: document.getElementById('deck-count'),
     deadwood: document.getElementById('deadwood'),
     playerStatus: document.getElementById('player-status'),
+    playerNameDisplay: document.getElementById('player-name-display'),
     playerScore: document.getElementById('player-score'),
     opponentScore: document.getElementById('opponent-score'),
     knockCheckbox: document.getElementById('knock-checkbox'),
@@ -357,6 +364,12 @@ function updateClickableStates(phase, yourTurn) {
 function renderGameState(state) {
     gameState = state;
 
+    // Update player name in header dynamically
+    const playerName = state.player_name || savedSettings.playerName || 'Player';
+    if (elements.playerNameDisplay) {
+        elements.playerNameDisplay.textContent = playerName;
+    }
+
     // Scores - dynamically determine player names from scores object
     if (state.scores) {
         const playerNames = Object.keys(state.scores);
@@ -493,7 +506,8 @@ function renderGameState(state) {
         elements.matchProgress.classList.remove('hidden');
         const playerGames = state.games_won[state.player_name] || 0;
         const aiGames = state.games_won['Computer'] || 0;
-        elements.gamesWonDisplay.textContent = `You ${playerGames} - ${aiGames} Computer`;
+        const playerDisplayName = state.player_name || savedSettings.playerName || 'Player';
+        elements.gamesWonDisplay.textContent = `${playerDisplayName} ${playerGames} - ${aiGames} Computer`;
     } else {
         elements.matchProgress.classList.add('hidden');
     }
@@ -550,7 +564,7 @@ async function showSettingsModal() {
     // Clear player name initially to show all options in datalist
     // User can then select from list or type a new name
     elements.playerNameInput.value = '';
-    elements.playerNameInput.placeholder = savedSettings.playerName || 'You';
+    elements.playerNameInput.placeholder = savedSettings.playerName || 'Enter name...';
     elements.aiDifficultySelect.value = savedSettings.aiDifficulty;
 
     // Load saved game mode settings
@@ -1013,8 +1027,8 @@ function showRoundResult(result) {
     elements.roundResultTitle.textContent = result.is_draw ? 'Round Draw' : 'Round Over';
 
     // Get player names from game state scores
-    const playerNames = gameState && gameState.scores ? Object.keys(gameState.scores) : ['You', 'Computer'];
-    const humanName = playerNames[0] || 'You';
+    const playerNames = gameState && gameState.scores ? Object.keys(gameState.scores) : [];
+    const humanName = playerNames[0] || savedSettings.playerName || 'Player';
     const opponentName = playerNames[1] || 'Computer';
     const humanWon = result.winner === humanName;
 
@@ -1148,10 +1162,10 @@ function init() {
     // Settings form submission
     elements.settingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        let playerName = elements.playerNameInput.value.trim() || null;
+        let playerName = elements.playerNameInput.value.trim() || generatePlayerName();
 
         // Prevent using "Computer" as player name
-        if (playerName && playerName.toLowerCase() === 'computer') {
+        if (playerName.toLowerCase() === 'computer') {
             alert('You cannot use "Computer" as your name - that\'s reserved for the AI!');
             return;
         }
@@ -1163,12 +1177,8 @@ function init() {
         const spadeDoubling = elements.spadeDoublingCheckbox.checked;
         const matchMode = elements.matchModeCheckbox.checked;
 
-        // Save to localStorage
-        if (playerName) {
-            localStorage.setItem('playerName', playerName);
-        } else {
-            localStorage.removeItem('playerName');
-        }
+        // Save to localStorage (always save - either user-provided or generated)
+        localStorage.setItem('playerName', playerName);
         localStorage.setItem('aiDifficulty', aiDifficulty);
         localStorage.setItem('gameMode', gameMode);
         if (targetScore) {
@@ -1178,7 +1188,7 @@ function init() {
         localStorage.setItem('spadeDoubling', spadeDoubling);
         localStorage.setItem('matchMode', matchMode);
 
-        // Update savedSettings
+        // Update savedSettings (playerName is always set now)
         savedSettings.playerName = playerName;
         savedSettings.aiDifficulty = aiDifficulty;
 
@@ -1283,6 +1293,9 @@ function init() {
     // Initialize sort button active state
     updateSortButtonStates();
 
+    // Load player names for autocomplete (settings modal is visible by default on page load)
+    loadPlayerNamesForSettings();
+
     // Try to restore existing game, or start new one
     restoreOrStartGame();
 }
@@ -1308,6 +1321,13 @@ async function restoreOrStartGame() {
 
     // No existing game - start a new one with all saved settings
     console.log('Starting new game with saved settings');
+
+    // Generate player name if none saved
+    if (!savedSettings.playerName) {
+        savedSettings.playerName = generatePlayerName();
+        localStorage.setItem('playerName', savedSettings.playerName);
+    }
+
     const gameMode = localStorage.getItem('gameMode') || 'target';
     const targetScore = localStorage.getItem('targetScore') || '100';
     const oklahomaGin = localStorage.getItem('oklahomaGin') === 'true';
@@ -1349,7 +1369,7 @@ let currentViewedPlayer = null;
 // Fetch and display player stats
 async function showPlayerStats() {
     // Get player name from current game state if available, otherwise use saved settings
-    let playerName = savedSettings.playerName || 'You';
+    let playerName = savedSettings.playerName || 'Player';
     if (gameState && gameState.scores) {
         const playerNames = Object.keys(gameState.scores);
         if (playerNames.length > 0 && playerNames[0] !== 'Computer') {
@@ -1384,7 +1404,7 @@ async function loadPlayerList() {
         ).join('');
 
         // If current player not in list, add them
-        let currentPlayerName = savedSettings.playerName || 'You';
+        let currentPlayerName = savedSettings.playerName || 'Player';
         if (gameState && gameState.scores) {
             const playerNames = Object.keys(gameState.scores);
             if (playerNames.length > 0 && playerNames[0] !== 'Computer') {
@@ -1412,7 +1432,7 @@ async function loadSelectedPlayerStats() {
 
     // Enable/disable clear button based on whether viewing current player
     // Get current player name from game state if available
-    let currentPlayerName = savedSettings.playerName || 'You';
+    let currentPlayerName = savedSettings.playerName || 'Player';
     if (gameState && gameState.scores) {
         const playerNames = Object.keys(gameState.scores);
         if (playerNames.length > 0 && playerNames[0] !== 'Computer') {
@@ -1558,6 +1578,7 @@ function showGameOver(winner, scores, targetScore, matchMode, gamesWon, matchWin
 
     // Build game over details based on match mode
     if (matchMode && gamesWon) {
+        const playerDisplayName = gameState.player_name || savedSettings.playerName || 'Player';
         if (matchWinner) {
             // Match is complete
             elements.gameOverTitle.textContent = `🎉 Match Complete!`;
@@ -1570,7 +1591,7 @@ function showGameOver(winner, scores, targetScore, matchMode, gamesWon, matchWin
                     </p>
                     <div style="font-size: 1.2em; margin: 20px 0;">
                         <div style="margin: 10px 0;">
-                            Match Score: You ${playerGames} - ${aiGames} Computer
+                            Match Score: ${playerDisplayName} ${playerGames} - ${aiGames} Computer
                         </div>
                     </div>
                 </div>
@@ -1587,7 +1608,7 @@ function showGameOver(winner, scores, targetScore, matchMode, gamesWon, matchWin
                     </p>
                     <div style="font-size: 1.2em; margin: 20px 0;">
                         <div style="margin: 10px 0;">
-                            Match Score: You ${playerGames} - ${aiGames} Computer
+                            Match Score: ${playerDisplayName} ${playerGames} - ${aiGames} Computer
                         </div>
                         <div style="margin: 10px 0;">
                             First to win 2 games wins the match!

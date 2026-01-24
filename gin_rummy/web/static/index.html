@@ -12,7 +12,7 @@
         <header class="header">
             <h1>Gin Rummy</h1>
             <div class="scores">
-                <span class="score">You: <span id="player-score">0</span></span>
+                <span class="score"><span id="player-name-display">Player</span>: <span id="player-score">0</span></span>
                 <span class="score-divider">|</span>
                 <span class="score">Computer: <span id="opponent-score">0</span></span>
             </div>
@@ -106,7 +106,7 @@
                 <form id="settings-form">
                     <div class="settings-field">
                         <label for="player-name">Your Name:</label>
-                        <input type="text" id="player-name" name="player_name" placeholder="You" maxlength="20" list="player-names-list" autocomplete="off">
+                        <input type="text" id="player-name" name="player_name" placeholder="Enter name..." maxlength="20" list="player-names-list">
                         <datalist id="player-names-list">
                             <!-- Filled by JS -->
                         </datalist>

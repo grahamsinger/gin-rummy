@@ -196,7 +196,7 @@ class GameSession:
         self.human_idx: int = 0  # Human is always player 0
         self.last_round_result: RoundResultData | None = None
         self.last_ai_action: dict[str, Any] | None = None  # Structured action data
-        self.player_name: str = "You"
+        self.player_name: str = ""  # Will be set by new_game() or generated
         self.ai_difficulty: str = "medium"
         self.game_mode: str = "practice"  # "practice" or "target"
         self.target_score: int | None = None  # Target score for "target" mode
@@ -244,6 +244,10 @@ class GameSession:
         # Save settings
         if player_name:
             self.player_name = player_name
+        elif not self.player_name:
+            # Fallback: generate on server side (shouldn't happen normally)
+            import secrets
+            self.player_name = f"Guest_{secrets.token_hex(2)}"
         if ai_difficulty:
             self.ai_difficulty = ai_difficulty
         if game_mode:
