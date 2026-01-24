@@ -367,7 +367,8 @@
                 return `
                     <div class="turn-list-item ${isActive ? 'active' : ''} ${colorClass} ${isFiltered ? 'filtered-out' : ''}" data-turn-index="${index}">
                         <span class="turn-number">${index + 1}</span>
-                        <span class="turn-player">${turn.player_name} <span class="turn-deadwood">(${turn.deadwood_after})</span></span>
+                        <span class="turn-deadwood">${turn.deadwood_after}</span>
+                        <span class="turn-player">${turn.player_name}</span>
                         <span class="turn-action">${formatCard(turn.card_drawn)} → ${formatCard(turn.card_discarded)}</span>
                         ${turn.did_knock ? '<span class="knock-indicator">K</span>' : ''}
                     </div>
