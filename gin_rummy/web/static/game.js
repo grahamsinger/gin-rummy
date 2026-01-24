@@ -1008,8 +1008,9 @@ function renderModalHand(container, handData) {
         container.appendChild(groupDiv);
     });
 
-    // Render deadwood cards
-    deadwoodCards.forEach(card => {
+    // Render deadwood cards (sorted by rank)
+    const sortedDeadwood = [...deadwoodCards].sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+    sortedDeadwood.forEach(card => {
         container.appendChild(createCardElement(card));
     });
 
