@@ -1070,6 +1070,14 @@ function showRoundResult(result) {
         details += ` and discarded ${formatCardId(action.discarded)}`;
     }
 
+    // Add cumulative score display
+    if (gameState && gameState.scores) {
+        const humanScore = gameState.scores[humanName] || 0;
+        const opponentScore = gameState.scores[opponentName] || 0;
+        const targetInfo = gameState.target_score ? ` / ${gameState.target_score}` : '';
+        details += `\n\nScore: ${humanName} ${humanScore}${targetInfo} - ${opponentName} ${opponentScore}${targetInfo}`;
+    }
+
     elements.roundResultDetails.textContent = details;
 
     // Update modal labels with actual player names
