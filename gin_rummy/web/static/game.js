@@ -66,6 +66,7 @@ const elements = {
     targetScoreSelect: document.getElementById('target-score'),
     targetScoreField: document.getElementById('target-score-field'),
     gameOverModal: document.getElementById('game-over-modal'),
+    changeSettingsAfterWinBtn: document.getElementById('change-settings-after-win-btn'),
     gameOverTitle: document.getElementById('game-over-title'),
     gameOverDetails: document.getElementById('game-over-details'),
     newGameAfterWinBtn: document.getElementById('new-game-after-win-btn'),
@@ -1200,13 +1201,33 @@ function init() {
     elements.nextRoundBtn.addEventListener('click', nextRound);
 
     // Game over modal buttons
-    elements.newGameAfterWinBtn.addEventListener('click', () => {
+    elements.newGameAfterWinBtn.addEventListener('click', async () => {
         elements.gameOverModal.classList.add('hidden');
-        showSettingsModal();
+        // Start new game immediately with saved settings (Play Again)
+        const gameMode = localStorage.getItem('gameMode') || 'target';
+        const targetScore = localStorage.getItem('targetScore') || '100';
+        const oklahomaGin = localStorage.getItem('oklahomaGin') === 'true';
+        const spadeDoubling = localStorage.getItem('spadeDoubling') !== 'false';
+        const matchMode = localStorage.getItem('matchMode') === 'true';
+
+        const settings = {
+            player_name: savedSettings.playerName,
+            ai_difficulty: savedSettings.aiDifficulty,
+            game_mode: gameMode,
+            target_score: gameMode === 'target' ? parseInt(targetScore) : null,
+            oklahoma_gin: oklahomaGin,
+            spade_doubling: spadeDoubling,
+            match_mode: matchMode,
+        };
+        await newGame(settings);
     });
     elements.viewStatsAfterWinBtn.addEventListener('click', () => {
         elements.gameOverModal.classList.add('hidden');
         showPlayerStats();
+    });
+    elements.changeSettingsAfterWinBtn.addEventListener('click', () => {
+        elements.gameOverModal.classList.add('hidden');
+        showSettingsModal();
     });
 
     // Assist mode toggle
