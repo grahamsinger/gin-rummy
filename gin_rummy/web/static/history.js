@@ -21,7 +21,7 @@ const elements = {
     prevPage: document.getElementById('prev-page'),
     nextPage: document.getElementById('next-page'),
     pageInfo: document.getElementById('page-info'),
-    replayPanel: document.getElementById('replay-panel'),
+    replayModal: document.getElementById('replay-modal'),
     replayContainer: document.getElementById('history-replay-container'),
     deleteModal: document.getElementById('delete-modal'),
     deleteModalText: document.getElementById('delete-modal-text'),
@@ -62,6 +62,9 @@ async function init() {
     elements.deleteConfirm.addEventListener('click', confirmDelete);
     elements.deleteModal.addEventListener('click', (e) => {
         if (e.target === elements.deleteModal) hideDeleteModal();
+    });
+    elements.replayModal.addEventListener('click', (e) => {
+        if (e.target === elements.replayModal) closeReplay();
     });
 }
 
@@ -181,7 +184,7 @@ function formatGameSettings(game) {
         parts.push('Oklahoma Gin');
     }
 
-    if (game.spade_doubling) {
+    if (game.oklahoma_gin && game.spade_doubling) {
         parts.push('Spade Doubling');
     }
 
@@ -338,14 +341,11 @@ function updatePagination(loadedCount) {
 }
 
 /**
- * Open replay panel for a hand
+ * Open replay modal for a hand
  */
 function openReplay(handId, player1Name, player2Name) {
-    // Show replay panel
-    elements.replayPanel.classList.add('visible');
-
-    // Scroll to replay
-    elements.replayPanel.scrollIntoView({ behavior: 'smooth' });
+    // Show replay modal
+    elements.replayModal.classList.remove('hidden');
 
     // Create or reuse replay instance
     if (!handReplay) {
@@ -361,10 +361,10 @@ function openReplay(handId, player1Name, player2Name) {
 }
 
 /**
- * Close replay panel
+ * Close replay modal
  */
 function closeReplay() {
-    elements.replayPanel.classList.remove('visible');
+    elements.replayModal.classList.add('hidden');
 }
 
 /**
