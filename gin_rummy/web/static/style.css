@@ -641,6 +641,10 @@ body {
     color: #ffeb3b;
 }
 
+.modal-hand .deadwood-after-layoff {
+    font-size: 1.15em;
+}
+
 .modal-hand .meld-group {
     display: inline-flex;
     gap: 0.15rem;
@@ -915,8 +919,6 @@ body {
 /* Stats Modal */
 .stats-modal-content {
     max-width: 400px;
-    max-height: 80vh;
-    overflow-y: auto;
 }
 
 .stats-content {

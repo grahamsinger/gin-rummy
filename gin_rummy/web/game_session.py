@@ -329,7 +329,16 @@ class GameSession:
             return
 
         # Start game and hand in database
-        self.tracker.start_game(self.player_name, "Computer")
+        self.tracker.start_game(
+            self.player_name,
+            "Computer",
+            oklahoma_gin=self.oklahoma_gin,
+            spade_doubling=self.spade_doubling,
+            game_mode=self.game_mode,
+            target_score=self.target_score,
+            ai_difficulty=self.ai_difficulty,
+            match_mode=self.match_mode,
+        )
         self.tracker.start_hand(self.pending_dealer_name)
 
         # Flush any buffered AI turns (including reasoning if captured)

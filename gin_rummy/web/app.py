@@ -341,6 +341,8 @@ async def get_history(
                 SELECT g.id as game_id, g.player1_name, g.player2_name,
                        g.started_at, g.ended_at, g.winner_name,
                        g.final_score_p1, g.final_score_p2,
+                       g.oklahoma_gin, g.spade_doubling, g.game_mode,
+                       g.target_score, g.ai_difficulty, g.match_mode,
                        COUNT(h.id) as hand_count
                 FROM games g
                 LEFT JOIN hands h ON g.id = h.game_id
@@ -355,6 +357,8 @@ async def get_history(
                 SELECT g.id as game_id, g.player1_name, g.player2_name,
                        g.started_at, g.ended_at, g.winner_name,
                        g.final_score_p1, g.final_score_p2,
+                       g.oklahoma_gin, g.spade_doubling, g.game_mode,
+                       g.target_score, g.ai_difficulty, g.match_mode,
                        COUNT(h.id) as hand_count
                 FROM games g
                 LEFT JOIN hands h ON g.id = h.game_id

@@ -963,7 +963,8 @@ function handleCardClick(card) {
 }
 
 // Render a hand with melds grouped for the modal
-function renderModalHand(container, handData) {
+// deadwoodAfterLayoff: if provided, shows "before → after" transition for layoff
+function renderModalHand(container, handData, deadwoodAfterLayoff) {
     container.innerHTML = '';
 
     if (!handData || !handData.cards) return;
@@ -1017,7 +1018,12 @@ function renderModalHand(container, handData) {
     // Add deadwood label
     const deadwoodLabel = document.createElement('div');
     deadwoodLabel.className = 'deadwood-label';
-    deadwoodLabel.textContent = `Deadwood: ${handData.deadwood}`;
+    if (deadwoodAfterLayoff !== undefined && deadwoodAfterLayoff !== handData.deadwood) {
+        deadwoodLabel.innerHTML =
+            `Deadwood: ${handData.deadwood} → <span class="deadwood-after-layoff">${deadwoodAfterLayoff}</span>`;
+    } else {
+        deadwoodLabel.textContent = `Deadwood: ${handData.deadwood}`;
+    }
     container.appendChild(deadwoodLabel);
 }
 
@@ -1052,10 +1058,12 @@ function showRoundResult(result) {
         }
     }
 
-    // Add layoff information if cards were laid off
+    // Compute layoff info (used in details text and hand deadwood display)
+    let defenderIsHuman = false;
+    let defenderDeadwoodAfter = undefined;
     if (result.layoff_cards && result.layoff_cards.length > 0) {
         const layoffCardsStr = result.layoff_cards.map(formatCardId).join(' ');
-        const deadwoodAfter = result.defender_deadwood_before -
+        defenderDeadwoodAfter = result.defender_deadwood_before -
             result.layoff_cards.reduce((sum, card) => {
                 // Calculate deadwood value from card id (e.g., "10H" -> 10, "KS" -> 10, "AS" -> 1)
                 const rankPart = card.slice(0, -1);
@@ -1069,9 +1077,10 @@ function showRoundResult(result) {
         // Determine who the defender is (opposite of winner in knock, same as winner in undercut)
         const defenderName = result.is_undercut ? result.winner :
             (humanWon ? opponentName : humanName);
+        defenderIsHuman = defenderName === humanName;
 
         details += `\n\n${defenderName} laid off: ${layoffCardsStr}`;
-        details += `\n(Deadwood: ${result.defender_deadwood_before} → ${deadwoodAfter})`;
+        details += `\n(Deadwood: ${result.defender_deadwood_before} → ${defenderDeadwoodAfter})`;
     }
 
     // Add computer's final action if available (helps understand what happened)
@@ -1100,9 +1109,11 @@ function showRoundResult(result) {
     elements.modalPlayerLabel.textContent = `${humanName}'s Hand`;
     elements.modalOpponentLabel.textContent = `${opponentName}'s Hand`;
 
-    // Render hands in modal with melds grouped
-    renderModalHand(elements.modalPlayerHand, result.player_hand);
-    renderModalHand(elements.modalOpponentHand, result.opponent_hand);
+    // Render hands in modal with melds grouped (pass layoff deadwood for defender's hand)
+    renderModalHand(elements.modalPlayerHand, result.player_hand,
+        defenderIsHuman ? defenderDeadwoodAfter : undefined);
+    renderModalHand(elements.modalOpponentHand, result.opponent_hand,
+        !defenderIsHuman ? defenderDeadwoodAfter : undefined);
 
     elements.roundModal.classList.remove('hidden');
 }
@@ -1273,6 +1284,11 @@ function init() {
     elements.viewStatsBtn.addEventListener('click', showPlayerStats);
     elements.statsCloseBtn.addEventListener('click', () => {
         elements.statsModal.classList.add('hidden');
+    });
+    elements.statsModal.addEventListener('click', (e) => {
+        if (e.target === elements.statsModal) {
+            elements.statsModal.classList.add('hidden');
+        }
     });
 
     // Player selection - auto-load on change

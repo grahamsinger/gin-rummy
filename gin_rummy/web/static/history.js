@@ -166,6 +166,37 @@ function renderGames(games) {
 }
 
 /**
+ * Format game settings into a compact summary string.
+ * Returns empty string if no settings are stored (old games).
+ */
+function formatGameSettings(game) {
+    const parts = [];
+
+    if (game.ai_difficulty) {
+        const label = game.ai_difficulty.charAt(0).toUpperCase() + game.ai_difficulty.slice(1);
+        parts.push(`${label} AI`);
+    }
+
+    if (game.oklahoma_gin) {
+        parts.push('Oklahoma Gin');
+    }
+
+    if (game.spade_doubling) {
+        parts.push('Spade Doubling');
+    }
+
+    if (game.match_mode) {
+        parts.push('Match');
+    }
+
+    if (game.game_mode === 'target' && game.target_score) {
+        parts.push(`Target: ${game.target_score}`);
+    }
+
+    return parts.join(' · ');
+}
+
+/**
  * Render a single game card
  */
 function renderGameCard(game) {
@@ -197,12 +228,15 @@ function renderGameCard(game) {
         handsHtml = '<p style="color: rgba(255,255,255,0.5);">No hands recorded</p>';
     }
 
+    const settingsText = formatGameSettings(game);
+
     return `
         <div class="game-card" data-game-id="${game.game_id}">
             <div class="game-header">
                 <div class="game-info">
                     <div class="game-players">${game.player1_name} vs ${game.player2_name}</div>
                     <div class="game-date">${dateDisplay} - ${game.hand_count} hand(s)</div>
+                    ${settingsText ? `<div class="game-settings">${settingsText}</div>` : ''}
                 </div>
                 <div class="game-result">
                     <div class="game-winner">${winner}</div>

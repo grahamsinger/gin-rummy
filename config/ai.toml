@@ -9,7 +9,7 @@
 #   "conservative" - Only knock when deadwood <= conservative_knock_threshold (cautious)
 # BasicAI uses "always" for a straightforward, aggressive playstyle.
 # ContextAwareAI overrides this with smarter context-aware knock decisions.
-knock_strategy = "always"
+knock_strategy = "conservative"
 
 # When knock_strategy is "conservative", the AI will only knock if deadwood
 # is at or below this value. Ignored when knock_strategy is "always".

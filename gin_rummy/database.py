@@ -78,7 +78,7 @@ def db_list_to_cards(card_strs: list[str]) -> list[Card]:
 
 
 # Schema version for migrations
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 -- Track schema version for future migrations
@@ -93,6 +93,12 @@ CREATE TABLE IF NOT EXISTS games (
     ended_at TEXT,
     player1_name TEXT NOT NULL,
     player2_name TEXT NOT NULL,
+    oklahoma_gin INTEGER DEFAULT 0,
+    spade_doubling INTEGER DEFAULT 0,
+    game_mode TEXT,
+    target_score INTEGER,
+    ai_difficulty TEXT,
+    match_mode INTEGER DEFAULT 0,
     winner_name TEXT,
     final_score_p1 INTEGER,
     final_score_p2 INTEGER,
@@ -197,8 +203,26 @@ def init_db(db_path: Path | None = None) -> None:
         conn.executescript(SCHEMA)
         # Set schema version if not exists
         cursor = conn.execute("SELECT version FROM schema_info LIMIT 1")
-        if cursor.fetchone() is None:
+        row = cursor.fetchone()
+        if row is None:
             conn.execute("INSERT INTO schema_info (version) VALUES (?)", (SCHEMA_VERSION,))
+        else:
+            current_version = row[0]
+            if current_version < 3:
+                # Migration: add game settings columns to games table
+                for col_sql in [
+                    "ALTER TABLE games ADD COLUMN oklahoma_gin INTEGER DEFAULT 0",
+                    "ALTER TABLE games ADD COLUMN spade_doubling INTEGER DEFAULT 0",
+                    "ALTER TABLE games ADD COLUMN game_mode TEXT",
+                    "ALTER TABLE games ADD COLUMN target_score INTEGER",
+                    "ALTER TABLE games ADD COLUMN ai_difficulty TEXT",
+                    "ALTER TABLE games ADD COLUMN match_mode INTEGER DEFAULT 0",
+                ]:
+                    try:
+                        conn.execute(col_sql)
+                    except sqlite3.OperationalError:
+                        pass  # Column already exists
+                conn.execute("UPDATE schema_info SET version = ?", (SCHEMA_VERSION,))
         conn.commit()
 
 
@@ -234,13 +258,29 @@ class GameTracker:
     def hand_id(self) -> int | None:
         return self._hand_id
 
-    def start_game(self, player1_name: str, player2_name: str) -> int:
+    def start_game(
+        self,
+        player1_name: str,
+        player2_name: str,
+        oklahoma_gin: bool = False,
+        spade_doubling: bool = False,
+        game_mode: str | None = None,
+        target_score: int | None = None,
+        ai_difficulty: str | None = None,
+        match_mode: bool = False,
+    ) -> int:
         """Record start of a new game. Returns game_id."""
         with get_connection(self.db_path) as conn:
             cursor = conn.execute(
-                """INSERT INTO games (started_at, player1_name, player2_name)
-                   VALUES (?, ?, ?)""",
-                (datetime.now().isoformat(), player1_name, player2_name)
+                """INSERT INTO games (started_at, player1_name, player2_name,
+                       oklahoma_gin, spade_doubling, game_mode,
+                       target_score, ai_difficulty, match_mode)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    datetime.now().isoformat(), player1_name, player2_name,
+                    int(oklahoma_gin), int(spade_doubling), game_mode,
+                    target_score, ai_difficulty, int(match_mode),
+                )
             )
             conn.commit()
             assert cursor.lastrowid is not None
