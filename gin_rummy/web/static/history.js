@@ -207,23 +207,37 @@ function renderGameCard(game) {
     const relTime = game.started_at ? formatRelativeTime(game.started_at) : '';
     const dateDisplay = relTime ? `${startDate} (${relTime})` : startDate;
     const winner = game.winner_name || 'In Progress';
-    const score = game.final_score_p1 !== null && game.final_score_p2 !== null
-        ? `${game.final_score_p1} - ${game.final_score_p2}`
+    const hasScores = game.final_score_p1 !== null && game.final_score_p2 !== null;
+    const scoreDisplay = hasScores
+        ? `${game.player1_name} ${game.final_score_p1} - ${game.final_score_p2} ${game.player2_name}`
         : '';
 
     let handsHtml = '';
     if (game.hands && game.hands.length > 0) {
+        // Pre-compute cumulative scores for each hand
+        let cumP1 = 0;
+        let cumP2 = 0;
+        const handsWithScores = game.hands.map(hand => {
+            const pts = hand.points_awarded || 0;
+            if (hand.winner_name === game.player1_name) cumP1 += pts;
+            else if (hand.winner_name === game.player2_name) cumP2 += pts;
+            return { ...hand, cumP1, cumP2 };
+        });
+
         handsHtml = `
+            ${renderScoreGraph(game)}
             <table class="hands-table">
                 <thead>
                     <tr>
-                        <th>Hand</th>
-                        <th>Winner</th>
-                        <th>Points</th>
+                        <th></th>
+                        <th style="text-align:right">${game.player1_name}</th>
+                        <th style="text-align:center"></th>
+                        <th style="text-align:left">${game.player2_name}</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${game.hands.map(hand => renderHandRow(hand, game.player1_name, game.player2_name)).join('')}
+                    ${handsWithScores.map(hand => renderHandRow(hand, game.player1_name, game.player2_name)).join('')}
                 </tbody>
             </table>
         `;
@@ -243,13 +257,97 @@ function renderGameCard(game) {
                 </div>
                 <div class="game-result">
                     <div class="game-winner">${winner}</div>
-                    <div class="game-score">${score}</div>
+                    <div class="game-score">${scoreDisplay}</div>
                 </div>
                 <button class="delete-game-btn" data-game-id="${game.game_id}" data-players="${game.player1_name} vs ${game.player2_name}" title="Delete game">&#128465;</button>
                 <span class="game-expand-icon">▼</span>
             </div>
             <div class="game-hands">
                 ${handsHtml}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render a score progression graph for a game
+ */
+function renderScoreGraph(game) {
+    if (!game.hands || game.hands.length < 2) return '';
+
+    // Compute cumulative scores from hand data
+    const p1Data = [{ hand: 0, score: 0 }];
+    const p2Data = [{ hand: 0, score: 0 }];
+    let cumP1 = 0;
+    let cumP2 = 0;
+
+    game.hands.forEach((hand, idx) => {
+        const pts = hand.points_awarded || 0;
+        if (hand.winner_name === game.player1_name) {
+            cumP1 += pts;
+        } else if (hand.winner_name === game.player2_name) {
+            cumP2 += pts;
+        }
+        const handNum = idx + 1;
+        p1Data.push({ hand: handNum, score: cumP1 });
+        p2Data.push({ hand: handNum, score: cumP2 });
+    });
+
+    const maxScore = Math.max(cumP1, cumP2, 25);
+    const numHands = game.hands.length;
+
+    // Graph dimensions
+    const width = 400;
+    const height = 140;
+    const padding = { top: 15, right: 15, bottom: 25, left: 40 };
+    const graphWidth = width - padding.left - padding.right;
+    const graphHeight = height - padding.top - padding.bottom;
+
+    const xScale = (h) => padding.left + (h / numHands) * graphWidth;
+    const yScale = (s) => padding.top + (1 - s / maxScore) * graphHeight;
+
+    const generatePath = (data) => {
+        return data.map((p, i) =>
+            `${i === 0 ? 'M' : 'L'} ${xScale(p.hand).toFixed(1)} ${yScale(p.score).toFixed(1)}`
+        ).join(' ');
+    };
+
+    // Y-axis labels
+    const yStep = maxScore <= 50 ? 10 : maxScore <= 150 ? 25 : 50;
+    const yLabels = [];
+    for (let y = 0; y <= maxScore; y += yStep) {
+        yLabels.push(`
+            <text x="${padding.left - 5}" y="${yScale(y)}" class="graph-label" text-anchor="end" dominant-baseline="middle">${y}</text>
+            <line x1="${padding.left}" y1="${yScale(y)}" x2="${width - padding.right}" y2="${yScale(y)}" class="graph-grid" />
+        `);
+    }
+
+    // Target score line
+    let targetLine = '';
+    if (game.target_score && game.target_score <= maxScore * 1.1) {
+        const ty = yScale(game.target_score);
+        targetLine = `<line x1="${padding.left}" y1="${ty}" x2="${width - padding.right}" y2="${ty}" stroke="#ffc107" stroke-width="1" stroke-dasharray="4,3" opacity="0.6" />`;
+    }
+
+    return `
+        <div class="deadwood-graph-section">
+            <h4>Score Progression</h4>
+            <div class="deadwood-graph-container">
+                <svg class="deadwood-graph" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+                    ${yLabels.join('')}
+                    <line x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}" class="graph-axis" />
+                    <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}" class="graph-axis" />
+                    ${targetLine}
+                    <path d="${generatePath(p1Data)}" class="graph-line player1-line" fill="none" />
+                    <path d="${generatePath(p2Data)}" class="graph-line player2-line" fill="none" />
+                    ${p1Data.slice(1).map(p => `<circle cx="${xScale(p.hand)}" cy="${yScale(p.score)}" r="3" class="graph-point player1-point" />`).join('')}
+                    ${p2Data.slice(1).map(p => `<circle cx="${xScale(p.hand)}" cy="${yScale(p.score)}" r="3" class="graph-point player2-point" />`).join('')}
+                    <text x="${width / 2}" y="${height - 3}" class="graph-label" text-anchor="middle">Hand</text>
+                </svg>
+                <div class="graph-legend">
+                    <span class="legend-item player1-legend"><span class="legend-dot"></span>${game.player1_name}</span>
+                    <span class="legend-item player2-legend"><span class="legend-dot"></span>${game.player2_name}</span>
+                </div>
             </div>
         </div>
     `;
@@ -264,14 +362,21 @@ function renderHandRow(hand, player1Name, player2Name) {
     if (hand.is_undercut) badges += '<span class="hand-badge undercut">UNDERCUT</span>';
     if (hand.is_draw) badges += '<span class="hand-badge draw">DRAW</span>';
 
-    const winner = hand.winner_name || 'Draw';
-    const points = hand.points_awarded !== null ? hand.points_awarded : '-';
+    const p1Won = hand.winner_name === player1Name;
+    const p2Won = hand.winner_name === player2Name;
+    const pts = hand.points_awarded || 0;
+    const p1Score = p1Won ? `(+${pts}) <strong>${hand.cumP1}</strong>` : `${hand.cumP1}`;
+    const p2Score = p2Won ? `<strong>${hand.cumP2}</strong> (+${pts})` : `${hand.cumP2}`;
+    const leftBadges = p1Won ? badges : '';
+    const rightBadges = p2Won ? badges : '';
 
     return `
         <tr class="hand-row" data-hand-id="${hand.id}" data-player1="${player1Name}" data-player2="${player2Name}" title="Click to view replay">
-            <td>Hand ${hand.hand_number}</td>
-            <td>${winner}${badges}</td>
-            <td>${points}</td>
+            <td>${hand.hand_number}</td>
+            <td style="text-align:right">${leftBadges} ${p1Score}</td>
+            <td style="text-align:center">-</td>
+            <td style="text-align:left">${p2Score} ${rightBadges}</td>
+            <td></td>
         </tr>
     `;
 }
