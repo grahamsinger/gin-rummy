@@ -12,6 +12,7 @@ from gin_rummy.database import (
     get_game_hands, get_all_players, delete_player_stats,
     get_hand_turns, get_connection, cleanup_empty_games,
     get_ai_decisions_for_turn, db_list_to_cards, card_to_db_str,
+    delete_game,
 )
 from gin_rummy.models import analyze_hand
 
@@ -382,6 +383,15 @@ async def get_history(
     games = [g for g in games if g['hands']]
 
     return {'games': games, 'limit': limit, 'offset': offset}
+
+
+@app.delete("/api/games/{game_id}")
+async def delete_game_endpoint(game_id: int):
+    """Delete a game and all its related data."""
+    success = delete_game(game_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Game {game_id} not found")
+    return {"message": f"Game {game_id} deleted", "success": True}
 
 
 @app.get("/history")

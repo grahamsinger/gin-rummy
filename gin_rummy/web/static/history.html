@@ -261,6 +261,93 @@
             opacity: 0.4;
             cursor: not-allowed;
         }
+
+        /* Delete button */
+        .delete-game-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.4);
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: color 0.2s, background 0.2s;
+        }
+
+        .delete-game-btn:hover {
+            color: #ef5350;
+            background: rgba(239, 83, 80, 0.15);
+        }
+
+        /* Delete confirmation modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.hidden {
+            display: none;
+        }
+
+        .modal-content {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .modal-content h3 {
+            margin: 0 0 1rem;
+            color: #fff;
+        }
+
+        .modal-content p {
+            color: rgba(255, 255, 255, 0.7);
+            margin: 0 0 1.5rem;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            padding: 0.5rem 1.5rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+
+        .modal-btn.cancel {
+            background: #424242;
+            color: #fff;
+        }
+
+        .modal-btn.cancel:hover {
+            background: #555;
+        }
+
+        .modal-btn.confirm-delete {
+            background: #ef5350;
+            color: #fff;
+        }
+
+        .modal-btn.confirm-delete:hover {
+            background: #e53935;
+        }
     </style>
 </head>
 <body>
@@ -295,6 +382,17 @@
 
         <div id="replay-panel" class="replay-panel">
             <div id="history-replay-container"></div>
+        </div>
+    </div>
+
+    <div id="delete-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Delete Game</h3>
+            <p id="delete-modal-text">Are you sure you want to delete this game? This cannot be undone.</p>
+            <div class="modal-buttons">
+                <button id="delete-cancel" class="modal-btn cancel">Cancel</button>
+                <button id="delete-confirm" class="modal-btn confirm-delete">Delete</button>
+            </div>
         </div>
     </div>
 

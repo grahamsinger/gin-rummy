@@ -663,6 +663,57 @@ def delete_player_stats(player_name: str, db_path: Path | None = None) -> bool:
         return cursor.rowcount > 0
 
 
+def delete_game(game_id: int, db_path: Path | None = None) -> bool:
+    """Delete a game and all related data (hands, turns, ai_decisions).
+
+    Returns True if the game existed and was deleted, False otherwise.
+    """
+    with get_connection(db_path) as conn:
+        # Check game exists
+        row = conn.execute("SELECT id FROM games WHERE id = ?", (game_id,)).fetchone()
+        if not row:
+            return False
+
+        # Get hand IDs for this game
+        hand_ids = [
+            r['id'] for r in conn.execute(
+                "SELECT id FROM hands WHERE game_id = ?", (game_id,)
+            ).fetchall()
+        ]
+
+        if hand_ids:
+            placeholders = ','.join('?' * len(hand_ids))
+
+            # Get turn IDs for these hands
+            turn_ids = [
+                r['id'] for r in conn.execute(
+                    f"SELECT id FROM turns WHERE hand_id IN ({placeholders})", hand_ids
+                ).fetchall()
+            ]
+
+            if turn_ids:
+                turn_placeholders = ','.join('?' * len(turn_ids))
+                # Delete ai_decisions for these turns
+                conn.execute(
+                    f"DELETE FROM ai_decisions WHERE turn_id IN ({turn_placeholders})",
+                    turn_ids,
+                )
+
+            # Delete turns for these hands
+            conn.execute(
+                f"DELETE FROM turns WHERE hand_id IN ({placeholders})", hand_ids
+            )
+
+        # Delete hands for this game
+        conn.execute("DELETE FROM hands WHERE game_id = ?", (game_id,))
+
+        # Delete the game itself
+        conn.execute("DELETE FROM games WHERE id = ?", (game_id,))
+
+        conn.commit()
+        return True
+
+
 def cleanup_empty_games(db_path: Path | None = None) -> dict[str, int]:
     """Remove games and hands that have no turn data.
 

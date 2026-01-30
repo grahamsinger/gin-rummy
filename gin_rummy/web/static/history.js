@@ -10,6 +10,8 @@ let totalGames = 0;
 let currentFilter = '';
 let handReplay = null;
 
+let pendingDeleteGameId = null;
+
 // DOM Elements
 const elements = {
     playerFilter: document.getElementById('player-filter'),
@@ -20,7 +22,11 @@ const elements = {
     nextPage: document.getElementById('next-page'),
     pageInfo: document.getElementById('page-info'),
     replayPanel: document.getElementById('replay-panel'),
-    replayContainer: document.getElementById('history-replay-container')
+    replayContainer: document.getElementById('history-replay-container'),
+    deleteModal: document.getElementById('delete-modal'),
+    deleteModalText: document.getElementById('delete-modal-text'),
+    deleteCancel: document.getElementById('delete-cancel'),
+    deleteConfirm: document.getElementById('delete-confirm'),
 };
 
 /**
@@ -50,6 +56,12 @@ async function init() {
     elements.nextPage.addEventListener('click', () => {
         currentPage++;
         loadGames();
+    });
+
+    elements.deleteCancel.addEventListener('click', hideDeleteModal);
+    elements.deleteConfirm.addEventListener('click', confirmDelete);
+    elements.deleteModal.addEventListener('click', (e) => {
+        if (e.target === elements.deleteModal) hideDeleteModal();
     });
 }
 
@@ -131,6 +143,16 @@ function renderGames(games) {
         });
     });
 
+    // Add event listeners for delete buttons
+    elements.gamesContainer.querySelectorAll('.delete-game-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const gameId = parseInt(btn.dataset.gameId, 10);
+            const players = btn.dataset.players;
+            showDeleteModal(gameId, players);
+        });
+    });
+
     // Add event listeners for hand rows
     elements.gamesContainer.querySelectorAll('.hand-row').forEach(row => {
         row.addEventListener('click', (e) => {
@@ -148,6 +170,8 @@ function renderGames(games) {
  */
 function renderGameCard(game) {
     const startDate = game.started_at ? formatDate(game.started_at) : 'Unknown date';
+    const relTime = game.started_at ? formatRelativeTime(game.started_at) : '';
+    const dateDisplay = relTime ? `${startDate} (${relTime})` : startDate;
     const winner = game.winner_name || 'In Progress';
     const score = game.final_score_p1 !== null && game.final_score_p2 !== null
         ? `${game.final_score_p1} - ${game.final_score_p2}`
@@ -178,12 +202,13 @@ function renderGameCard(game) {
             <div class="game-header">
                 <div class="game-info">
                     <div class="game-players">${game.player1_name} vs ${game.player2_name}</div>
-                    <div class="game-date">${startDate} - ${game.hand_count} hand(s)</div>
+                    <div class="game-date">${dateDisplay} - ${game.hand_count} hand(s)</div>
                 </div>
                 <div class="game-result">
                     <div class="game-winner">${winner}</div>
                     <div class="game-score">${score}</div>
                 </div>
+                <button class="delete-game-btn" data-game-id="${game.game_id}" data-players="${game.player1_name} vs ${game.player2_name}" title="Delete game">&#128465;</button>
                 <span class="game-expand-icon">▼</span>
             </div>
             <div class="game-hands">
@@ -233,6 +258,38 @@ function formatDate(dateStr) {
 }
 
 /**
+ * Format a date string as relative time (e.g. "2 hours ago", "yesterday")
+ */
+function formatRelativeTime(dateStr) {
+    try {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHr = Math.floor(diffMin / 60);
+        const diffDays = Math.floor(diffHr / 24);
+        const diffWeeks = Math.floor(diffDays / 7);
+        const diffMonths = Math.floor(diffDays / 30);
+
+        if (diffSec < 60) return 'just now';
+        if (diffMin === 1) return '1 minute ago';
+        if (diffMin < 60) return `${diffMin} minutes ago`;
+        if (diffHr === 1) return '1 hour ago';
+        if (diffHr < 24) return `${diffHr} hours ago`;
+        if (diffDays === 1) return 'yesterday';
+        if (diffDays < 7) return `${diffDays} days ago`;
+        if (diffWeeks === 1) return '1 week ago';
+        if (diffWeeks < 5) return `${diffWeeks} weeks ago`;
+        if (diffMonths === 1) return '1 month ago';
+        if (diffMonths < 12) return `${diffMonths} months ago`;
+        return formatDate(dateStr);
+    } catch (e) {
+        return '';
+    }
+}
+
+/**
  * Update pagination controls
  */
 function updatePagination(loadedCount) {
@@ -274,6 +331,41 @@ function openReplay(handId, player1Name, player2Name) {
  */
 function closeReplay() {
     elements.replayPanel.classList.remove('visible');
+}
+
+/**
+ * Show the delete confirmation modal
+ */
+function showDeleteModal(gameId, players) {
+    pendingDeleteGameId = gameId;
+    elements.deleteModalText.textContent = `Delete game "${players}"? This cannot be undone.`;
+    elements.deleteModal.classList.remove('hidden');
+}
+
+/**
+ * Hide the delete confirmation modal
+ */
+function hideDeleteModal() {
+    pendingDeleteGameId = null;
+    elements.deleteModal.classList.add('hidden');
+}
+
+/**
+ * Confirm deletion — call API and reload
+ */
+async function confirmDelete() {
+    if (pendingDeleteGameId === null) return;
+
+    const gameId = pendingDeleteGameId;
+    hideDeleteModal();
+
+    try {
+        const response = await fetch(`/api/games/${gameId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Delete failed');
+        await loadGames();
+    } catch (error) {
+        console.error('Failed to delete game:', error);
+    }
 }
 
 // Initialize on page load
