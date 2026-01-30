@@ -1328,6 +1328,7 @@ async function restoreOrStartGame() {
         if (state && !state.error && state.hand && state.hand.length > 0) {
             // Existing game found - restore it
             console.log('Restoring existing game session');
+            elements.settingsModal.classList.add('hidden');
             renderGameState(state);
             return;
         }

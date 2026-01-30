@@ -1,33 +1,80 @@
 """FastAPI web application for Gin Rummy."""
 
+import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from gin_rummy.web.game_session import GameSession
+from gin_rummy.web.session_store import SessionStore
 from gin_rummy.database import (
     get_game_hands, get_all_players, delete_player_stats,
     get_hand_turns, get_connection, cleanup_empty_games,
     get_ai_decisions_for_turn, db_list_to_cards, card_to_db_str,
-    delete_game,
+    delete_game, GameTracker,
 )
 from gin_rummy.models import analyze_hand
 
 
+# Session store and cookie config
+session_store = SessionStore()
+COOKIE_NAME = "gin_session_id"
+COOKIE_MAX_AGE = 4 * 60 * 60  # 4 hours
+
+
+def get_or_create_session(request: Request, response: Response) -> GameSession:
+    """Get existing session from cookie or create a new one."""
+    session_id = request.cookies.get(COOKIE_NAME)
+    if session_id:
+        session = session_store.get_session(session_id)
+        if session is not None:
+            # Refresh cookie expiry to match server-side touch
+            response.set_cookie(
+                key=COOKIE_NAME,
+                value=session_id,
+                max_age=COOKIE_MAX_AGE,
+                httponly=True,
+                samesite="lax",
+            )
+            return session
+
+    # Create new session
+    session_id, session = session_store.create_session()
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=session_id,
+        max_age=COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return session
+
+
+# Lifespan: periodic cleanup of expired sessions
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async def cleanup_loop():
+        while True:
+            await asyncio.sleep(10 * 60)  # every 10 minutes
+            session_store.cleanup_expired()
+
+    task = asyncio.create_task(cleanup_loop())
+    yield
+    task.cancel()
+
+
 # Create FastAPI app
-app = FastAPI(title="Gin Rummy")
+app = FastAPI(title="Gin Rummy", lifespan=lifespan)
 
 # Static files directory
 STATIC_DIR = Path(__file__).parent / "static"
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-# Single game session (for now, single player)
-session = GameSession()
 
 
 # Request models
@@ -58,52 +105,53 @@ async def index():
 
 
 @app.post("/api/game/new")
-async def new_game(request: NewGameRequest | None = None):
-    """Start a new game with optional settings.
-
-    Args:
-        request: Optional settings for player name, AI difficulty, game mode, and target score
-    """
-    if request:
+async def new_game(request: Request, response: Response, game_request: NewGameRequest | None = None):
+    """Start a new game with optional settings."""
+    session = get_or_create_session(request, response)
+    if game_request:
         return session.new_game(
-            player_name=request.player_name,
-            ai_difficulty=request.ai_difficulty,
-            game_mode=request.game_mode,
-            target_score=request.target_score,
-            oklahoma_gin=request.oklahoma_gin,
-            spade_doubling=request.spade_doubling,
-            match_mode=request.match_mode,
+            player_name=game_request.player_name,
+            ai_difficulty=game_request.ai_difficulty,
+            game_mode=game_request.game_mode,
+            target_score=game_request.target_score,
+            oklahoma_gin=game_request.oklahoma_gin,
+            spade_doubling=game_request.spade_doubling,
+            match_mode=game_request.match_mode,
         )
     return session.new_game()
 
 
 @app.get("/api/game/state")
-async def get_state():
+async def get_state(request: Request, response: Response):
     """Get current game state."""
+    session = get_or_create_session(request, response)
     return session.get_state()
 
 
 @app.post("/api/game/draw")
-async def draw(request: DrawRequest):
+async def draw(request: Request, response: Response, draw_request: DrawRequest):
     """Draw a card from deck or discard pile."""
-    result = session.draw(request.source)
+    session = get_or_create_session(request, response)
+    result = session.draw(draw_request.source)
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
     return result
 
 
 @app.post("/api/game/discard")
-async def discard(request: DiscardRequest):
+async def discard(request: Request, response: Response, discard_request: DiscardRequest):
     """Discard a card from hand, optionally knocking."""
-    result = session.discard(request.card, knock=request.knock)
+    session = get_or_create_session(request, response)
+    result = session.discard(discard_request.card, knock=discard_request.knock)
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
     return result
 
 
 @app.post("/api/game/knock")
-async def knock():
+async def knock(request: Request, response: Response):
     """Knock to end the round."""
+    session = get_or_create_session(request, response)
     result = session.knock()
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
@@ -111,8 +159,9 @@ async def knock():
 
 
 @app.post("/api/game/ai-turn")
-async def ai_turn():
+async def ai_turn(request: Request, response: Response):
     """Execute AI's turn."""
+    session = get_or_create_session(request, response)
     result = session.ai_turn()
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
@@ -120,8 +169,9 @@ async def ai_turn():
 
 
 @app.post("/api/game/new-round")
-async def new_round():
+async def new_round(request: Request, response: Response):
     """Start a new round."""
+    session = get_or_create_session(request, response)
     result = session.new_round()
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
@@ -131,7 +181,8 @@ async def new_round():
 @app.get("/api/stats/{player_name}")
 async def get_player_stats(player_name: str):
     """Get lifetime statistics for a player."""
-    stats = session.tracker.get_player_stats(player_name)
+    tracker = GameTracker()
+    stats = tracker.get_player_stats(player_name)
     if stats is None:
         return {
             'player_name': player_name,
@@ -158,8 +209,10 @@ async def delete_player_stats_endpoint(player_name: str):
 
 
 @app.get("/api/game/score-history")
-async def get_score_history():
+async def get_score_history(request: Request, response: Response):
     """Get round-by-round score history for current game."""
+    session = get_or_create_session(request, response)
+
     # Check if a game is in progress
     if not hasattr(session, 'tracker') or session.tracker.game_id is None:
         return {
