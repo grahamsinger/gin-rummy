@@ -33,6 +33,9 @@ Thumbs.db
 out.txt
 game_history.db
 
+# Node
+node_modules/
+
 # ML artifacts
 runs/
 models/*.pt

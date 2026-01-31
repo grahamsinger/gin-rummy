@@ -24,5 +24,15 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "F",     # Pyflakes (unused imports, unused variables, redefined-unused, etc.)
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+]
+
 [dependency-groups]
-dev = ["pytest>=8.0", "ty"]
+dev = ["pytest>=8.0", "ty", "ruff>=0.8"]

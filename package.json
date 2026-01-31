@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "eslint": "^9"
+  },
+  "scripts": {
+    "lint": "eslint gin_rummy/web/static/"
+  }
+}

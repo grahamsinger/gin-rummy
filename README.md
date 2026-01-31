@@ -194,6 +194,20 @@ Then open http://127.0.0.1:8000
 - **History Explorer**: Browse and filter all past games at `/history`
 - **Assist Mode**: Card tracker showing dead cards, opponent pickups, and helpful cards
 
+## Linting
+
+**Python** (ruff):
+
+```bash
+uv run ruff check .
+```
+
+**JavaScript** (eslint):
+
+```bash
+npm run lint
+```
+
 ## Type Checking
 
 ```bash

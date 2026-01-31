@@ -423,9 +423,6 @@ class Game:
             loser = knocker
         else:
             # Normal knock: knocker wins the difference
-            points = knocker_deadwood - defender_deadwood
-            # Wait, if knocker has less deadwood, difference is negative
-            # knocker wins if their deadwood is lower
             points = defender_deadwood - knocker_deadwood
             winner = knocker
             loser = defender
