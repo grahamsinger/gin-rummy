@@ -27,6 +27,7 @@ level = "WARNING"
 # Python logging format string for log messages.
 # %(name)s = logger name, %(levelname)s = level, %(message)s = the message
 # See: https://docs.python.org/3/library/logging.html#logrecord-attributes
+# format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 format = "%(name)s - %(levelname)s - %(message)s"
 
 # Logging level specifically for AI decision messages (when show_ai_thinking is false).
@@ -38,4 +39,4 @@ ai_level = "WARNING"
 # Optional file path for detailed logging.
 # When set, all logs (including DEBUG level AI decisions) are written to this file.
 # Useful for post-game analysis without spoiling gameplay.
-# log_file = "game.log"
+log_file = "game.log"

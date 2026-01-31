@@ -1212,7 +1212,7 @@ function init() {
     // Settings form submission
     elements.settingsForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        let playerName = elements.playerNameInput.value.trim() || generatePlayerName();
+        let playerName = elements.playerNameInput.value.trim() || savedSettings.playerName || generatePlayerName();
 
         // Prevent using "Computer" as player name
         if (playerName.toLowerCase() === 'computer') {

@@ -265,29 +265,42 @@ class Config:
 
     def setup_logging(self) -> None:
         """Configure logging based on settings."""
-        # Set up root logger
-        logging.basicConfig(
-            level=getattr(logging, self.logging.level.upper(), logging.INFO),
-            format=self.logging.format,
+        console_level = getattr(logging, self.logging.level.upper(), logging.INFO)
+        ai_console_level = (
+            logging.INFO
+            if self.display.show_ai_thinking
+            else getattr(logging, self.logging.ai_level.upper(), logging.WARNING)
         )
 
-        # Set AI logger level - use show_ai_thinking to override
-        ai_logger = logging.getLogger("gin_rummy.ai")
-        if self.display.show_ai_thinking:
-            ai_logger.setLevel(logging.INFO)
-        else:
-            ai_logger.setLevel(
-                getattr(logging, self.logging.ai_level.upper(), logging.WARNING)
-            )
-
-        # Optional file logging for detailed analysis
         if self.logging.log_file:
+            # When file logging is enabled, set logger levels to DEBUG so all
+            # messages flow through, and use handler levels to control output.
+            root_logger = logging.getLogger()
+            root_logger.setLevel(logging.DEBUG)
+
+            # Console handler at the configured level (keeps terminal clean)
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(console_level)
+            console_handler.setFormatter(logging.Formatter(self.logging.format))
+            root_logger.addHandler(console_handler)
+
+            # File handler at DEBUG level for full detail
             file_handler = logging.FileHandler(self.logging.log_file)
             file_handler.setLevel(logging.DEBUG)
             file_handler.setFormatter(logging.Formatter(self.logging.format))
-            logging.getLogger().addHandler(file_handler)
-            # AI logger always logs to file at DEBUG level
-            ai_logger.addHandler(file_handler)
+            root_logger.addHandler(file_handler)
+
+            # AI logger: allow DEBUG through to file, console at configured level
+            ai_logger = logging.getLogger("gin_rummy.ai")
+            ai_logger.setLevel(logging.DEBUG)
+        else:
+            # No file logging - simple setup with basicConfig
+            logging.basicConfig(
+                level=console_level,
+                format=self.logging.format,
+            )
+            ai_logger = logging.getLogger("gin_rummy.ai")
+            ai_logger.setLevel(ai_console_level)
 
     @classmethod
     def with_overrides(cls, override_path: Path | str) -> Self:

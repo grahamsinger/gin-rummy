@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from gin_rummy.config import get_config
 from gin_rummy.web.game_session import GameSession
 from gin_rummy.web.session_store import SessionStore
 from gin_rummy.database import (
@@ -19,6 +20,10 @@ from gin_rummy.database import (
 )
 from gin_rummy.models import analyze_hand
 
+
+# Initialize logging from config
+config = get_config()
+config.setup_logging()
 
 # Session store and cookie config
 session_store = SessionStore()
@@ -95,6 +100,33 @@ class DrawRequest(BaseModel):
 class DiscardRequest(BaseModel):
     card: str  # Card ID like "7H" or "10S"
     knock: bool | None = None  # None = check if can knock, True/False = execute
+
+
+import logging
+
+logger = logging.getLogger("gin_rummy.web")
+ai_logger = logging.getLogger("gin_rummy.ai")
+
+
+# Log test endpoints
+@app.get("/log/{level}")
+async def log_test(level: str):
+    """Emit a test log message at the given level. Useful for verifying logging config."""
+    level = level.upper()
+    log_func = getattr(logger, level.lower(), None)
+    ai_log_func = getattr(ai_logger, level.lower(), None)
+    if log_func is None:
+        return {"error": f"Unknown log level: {level}", "valid": "debug, info, warning, error, critical"}
+    msg = f"Test log message at {level} level"
+    log_func(msg)
+    ai_log_func(f"[AI] {msg}")
+    return {
+        "level": level,
+        "message": msg,
+        "root_logger_level": logging.getLevelName(logging.getLogger().level),
+        "ai_logger_level": logging.getLevelName(ai_logger.level),
+        "log_file": config.logging.log_file,
+    }
 
 
 # Routes
