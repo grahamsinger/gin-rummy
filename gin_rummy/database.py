@@ -78,7 +78,7 @@ def db_list_to_cards(card_strs: list[str]) -> list[Card]:
 
 
 # Schema version for migrations
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 -- Track schema version for future migrations
@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS games (
     target_score INTEGER,
     ai_difficulty TEXT,
     match_mode INTEGER DEFAULT 0,
+    match_id INTEGER,
     winner_name TEXT,
     final_score_p1 INTEGER,
     final_score_p2 INTEGER,
@@ -222,6 +223,14 @@ def init_db(db_path: Path | None = None) -> None:
                         conn.execute(col_sql)
                     except sqlite3.OperationalError:
                         pass  # Column already exists
+                conn.execute("UPDATE schema_info SET version = ?", (3,))
+                current_version = 3
+            if current_version < 4:
+                # Migration: add match_id column to games table
+                try:
+                    conn.execute("ALTER TABLE games ADD COLUMN match_id INTEGER")
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
                 conn.execute("UPDATE schema_info SET version = ?", (SCHEMA_VERSION,))
         conn.commit()
 
@@ -268,18 +277,19 @@ class GameTracker:
         target_score: int | None = None,
         ai_difficulty: str | None = None,
         match_mode: bool = False,
+        match_id: int | None = None,
     ) -> int:
         """Record start of a new game. Returns game_id."""
         with get_connection(self.db_path) as conn:
             cursor = conn.execute(
                 """INSERT INTO games (started_at, player1_name, player2_name,
                        oklahoma_gin, spade_doubling, game_mode,
-                       target_score, ai_difficulty, match_mode)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       target_score, ai_difficulty, match_mode, match_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     datetime.now().isoformat(), player1_name, player2_name,
                     int(oklahoma_gin), int(spade_doubling), game_mode,
-                    target_score, ai_difficulty, int(match_mode),
+                    target_score, ai_difficulty, int(match_mode), match_id,
                 )
             )
             conn.commit()

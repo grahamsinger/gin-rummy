@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, StatisticalAI, DrawChoice
-from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list
+from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list, get_connection
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.models import Card, Suit, Rank, analyze_hand
@@ -203,6 +203,7 @@ class GameSession:
         self.oklahoma_gin: bool = False
         self.spade_doubling: bool = True  # Default ON
         self.match_mode: bool = False
+        self.match_id: int | None = None
         self.games_won: dict[str, int] = {}
         self.match_winner: str | None = None
         self.game_over: bool = False
@@ -262,14 +263,18 @@ class GameSession:
             # Only reset match tracking when starting a NEW match
             # (not when continuing an existing match)
             if match_mode and not self.match_mode:
-                # Starting a new match
+                # Starting a new match - generate a new match_id
                 self.games_won = {self.player_name: 0, "Computer": 0}
                 self.match_winner = None
+                with get_connection() as conn:
+                    row = conn.execute("SELECT COALESCE(MAX(match_id), 0) + 1 FROM games").fetchone()
+                    self.match_id = row[0]
             elif not match_mode:
                 # Turning off match mode
                 self.games_won = {}
                 self.match_winner = None
-            # If match_mode=True and already in match mode, preserve games_won
+                self.match_id = None
+            # If match_mode=True and already in match mode, preserve games_won and match_id
             self.match_mode = match_mode
 
         # Reset game over state (but preserve match tracking)
@@ -338,6 +343,7 @@ class GameSession:
             target_score=self.target_score,
             ai_difficulty=self.ai_difficulty,
             match_mode=self.match_mode,
+            match_id=self.match_id,
         )
         self.tracker.start_hand(self.pending_dealer_name)
 
@@ -861,10 +867,11 @@ class GameSession:
                         if self.db_game_started:
                             self.tracker.end_game(game_winner, player_score, ai_score)
                     else:
-                        # Game over but match continues
+                        # Game over but match continues - still complete this game in DB
                         self.game_over = True
                         self.winner = game_winner
-                        # Don't call tracker.end_game yet - match not complete
+                        if self.db_game_started:
+                            self.tracker.end_game(game_winner, player_score, ai_score)
                 else:
                     # Standard mode - game over is final
                     self.game_over = True

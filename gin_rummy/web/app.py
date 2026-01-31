@@ -396,6 +396,7 @@ async def get_history(
                        g.final_score_p1, g.final_score_p2,
                        g.oklahoma_gin, g.spade_doubling, g.game_mode,
                        g.target_score, g.ai_difficulty, g.match_mode,
+                       g.match_id,
                        COUNT(h.id) as hand_count
                 FROM games g
                 LEFT JOIN hands h ON g.id = h.game_id
@@ -412,6 +413,7 @@ async def get_history(
                        g.final_score_p1, g.final_score_p2,
                        g.oklahoma_gin, g.spade_doubling, g.game_mode,
                        g.target_score, g.ai_difficulty, g.match_mode,
+                       g.match_id,
                        COUNT(h.id) as hand_count
                 FROM games g
                 LEFT JOIN hands h ON g.id = h.game_id
