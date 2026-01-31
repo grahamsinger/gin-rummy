@@ -1031,7 +1031,21 @@ function renderModalHand(container, handData, deadwoodAfterLayoff) {
 function showRoundResult(result) {
     if (!result) return;
 
-    elements.roundResultTitle.textContent = result.is_draw ? 'Round Draw' : 'Round Over';
+    // Detect game/match end scenarios
+    const isGameOver = gameState && gameState.game_over && gameState.game_winner;
+    const isMatchMode = gameState && gameState.match_mode;
+    const isMatchOver = isMatchMode && gameState.match_winner;
+
+    // Set modal title based on scenario
+    if (result.is_draw) {
+        elements.roundResultTitle.textContent = 'Round Draw';
+    } else if (isMatchOver) {
+        elements.roundResultTitle.textContent = 'Match Over - Round Results';
+    } else if (isGameOver) {
+        elements.roundResultTitle.textContent = 'Game Over - Round Results';
+    } else {
+        elements.roundResultTitle.textContent = 'Round Over';
+    }
 
     // Get player names from game state scores
     const playerNames = gameState && gameState.scores ? Object.keys(gameState.scores) : [];
@@ -1101,6 +1115,30 @@ function showRoundResult(result) {
         const opponentScore = gameState.scores[opponentName] || 0;
         const targetInfo = gameState.target_score ? ` / ${gameState.target_score}` : '';
         details += `\n\nScore: ${humanName} ${humanScore}${targetInfo} - ${opponentName} ${opponentScore}${targetInfo}`;
+    }
+
+    // Append game/match winner info
+    if (isMatchOver) {
+        const gamesWon = gameState.games_won || {};
+        const p1Games = gamesWon[humanName] || 0;
+        const p2Games = gamesWon[opponentName] || 0;
+        details += `\n\n🏆 ${gameState.match_winner} wins the match!\nFinal: ${humanName} ${p1Games} - ${p2Games} ${opponentName}`;
+    } else if (isGameOver && isMatchMode) {
+        const gamesWon = gameState.games_won || {};
+        const p1Games = gamesWon[humanName] || 0;
+        const p2Games = gamesWon[opponentName] || 0;
+        details += `\n\n🏆 ${gameState.game_winner} wins this game!\nMatch: ${humanName} ${p1Games} - ${p2Games} ${opponentName}\nFirst to 2 wins the match.`;
+    } else if (isGameOver) {
+        details += `\n\n🏆 ${gameState.game_winner} wins the game!`;
+    }
+
+    // Update button text based on scenario
+    if (isGameOver && isMatchMode && !isMatchOver) {
+        elements.nextRoundBtn.textContent = 'Next Game';
+    } else if (isGameOver || isMatchOver) {
+        elements.nextRoundBtn.textContent = 'See Results';
+    } else {
+        elements.nextRoundBtn.textContent = 'Next Round';
     }
 
     elements.roundResultDetails.textContent = details;
