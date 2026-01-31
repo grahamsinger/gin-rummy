@@ -32,6 +32,7 @@ Thumbs.db
 # Project specific
 out.txt
 game_history.db
+*.log
 
 # Node
 node_modules/
