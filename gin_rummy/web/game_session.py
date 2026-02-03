@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, StatisticalAI, DrawChoice
-from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list, get_connection
+from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list, get_connection, get_resumable_game
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.models import Card, Suit, Rank, analyze_hand
@@ -316,6 +316,107 @@ class GameSession:
 
         return self.get_state()
 
+    def resume_game(self, game_id: int) -> dict[str, Any]:
+        """Resume an incomplete game from the database.
+
+        Restores game settings and cumulative scores, deals a fresh hand.
+        The interrupted mid-hand state is abandoned.
+
+        Args:
+            game_id: The database game ID to resume.
+
+        Returns:
+            Game state dict, or error dict if game can't be resumed.
+        """
+        data = get_resumable_game(game_id)
+        if data is None:
+            return {'error': 'Game not found or already complete'}
+
+        # Restore session settings
+        self.player_name = data['player1_name']
+        self.ai_difficulty = data['ai_difficulty'] or 'medium'
+        self.game_mode = data['game_mode'] or 'practice'
+        self.target_score = data['target_score']
+        self.oklahoma_gin = data['oklahoma_gin']
+        self.spade_doubling = data['spade_doubling']
+        self.match_mode = data['match_mode']
+        self.match_id = data['match_id']
+        self.games_won = {}
+        if self.match_mode:
+            self.games_won = {
+                data['player1_name']: data['games_won'].get(data['player1_name'], 0),
+                data['player2_name']: data['games_won'].get(data['player2_name'], 0),
+            }
+        self.match_winner = None
+        self.game_over = False
+        self.winner = None
+
+        # Create AI
+        ai_map = {
+            "easy": BasicAI,
+            "medium": ContextAwareAI,
+            "hard": ContextAwareAI,
+        }
+        ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
+        self.ai = ai_class()
+
+        # Create Game object
+        self.game = Game(
+            data['player1_name'],
+            data['player2_name'],
+            is_oklahoma_gin=self.oklahoma_gin,
+            spade_doubling_enabled=self.spade_doubling,
+        )
+        self.human_idx = 0
+
+        # Restore cumulative scores
+        self.game.players[0].score = data['p1_score']
+        self.game.players[1].score = data['p2_score']
+
+        # Set dealer: alternate from last completed hand's dealer
+        last_dealer = data['last_dealer_name']
+        if last_dealer == data['player1_name']:
+            self.game.dealer_idx = 1  # Next dealer is player2
+        else:
+            self.game.dealer_idx = 0  # Next dealer is player1
+
+        # Deal fresh hand
+        self.game.deal()
+
+        # Clean up orphaned incomplete hands (no turns) for this game
+        with get_connection() as conn:
+            conn.execute(
+                """DELETE FROM hands
+                   WHERE game_id = ?
+                     AND NOT EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = hands.id)""",
+                (game_id,),
+            )
+            conn.commit()
+
+        # Wire up tracker to existing game
+        self.tracker = GameTracker()
+        self.tracker._game_id = game_id
+        self.tracker._hand_number = data['last_hand_number']
+        self.db_game_started = True
+        self.buffered_ai_turns = []
+
+        # Start new hand row in DB
+        self.tracker.start_hand(self.game.dealer.name)
+
+        # Reset UI state
+        self.last_round_result = None
+        self.last_ai_action = None
+        self.turn_cards_before = None
+        self.turn_deadwood_before = None
+        self.turn_drew_from = None
+        self.turn_card_drawn = None
+
+        # Handle first discard if AI goes first
+        if self.game.phase == GamePhase.FIRST_DISCARD and self.game.current_player_idx != self.human_idx:
+            self._ai_first_discard()
+
+        return self.get_state()
+
     def _ai_first_discard(self) -> None:
         """Handle AI's first discard."""
         if self.game is None or self.ai is None:
@@ -508,6 +609,7 @@ class GameSession:
             'games_won': self.games_won if self.match_mode else None,
             'match_winner': self.match_winner if self.match_mode else None,
             'player_name': self.player_name,
+            'game_id': self.tracker.game_id,
         }
 
         return state

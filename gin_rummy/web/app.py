@@ -16,7 +16,7 @@ from gin_rummy.database import (
     get_game_hands, get_all_players, delete_player_stats,
     get_hand_turns, get_connection, cleanup_empty_games,
     get_ai_decisions_for_turn, db_list_to_cards, card_to_db_str,
-    delete_game, GameTracker,
+    delete_game, GameTracker, get_incomplete_games,
 )
 from gin_rummy.models import analyze_hand
 
@@ -91,6 +91,10 @@ class NewGameRequest(BaseModel):
     oklahoma_gin: bool | None = None  # Whether to use Oklahoma Gin rules
     spade_doubling: bool | None = None  # Whether to double points when upcard is a spade
     match_mode: bool | None = None  # Whether to play best-of-3 match
+
+
+class ResumeGameRequest(BaseModel):
+    game_id: int
 
 
 class DrawRequest(BaseModel):
@@ -208,6 +212,23 @@ async def new_round(request: Request, response: Response):
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
     return result
+
+
+@app.post("/api/game/resume")
+async def resume_game(request: Request, response: Response, resume_request: ResumeGameRequest):
+    """Resume an incomplete game by ID."""
+    session = get_or_create_session(request, response)
+    result = session.resume_game(resume_request.game_id)
+    if 'error' in result:
+        raise HTTPException(status_code=400, detail=result['error'])
+    return result
+
+
+@app.get("/api/games/resumable")
+async def get_resumable_games(player_name: str | None = None):
+    """Get list of in-progress games that can be resumed."""
+    games = get_incomplete_games(player_name=player_name)
+    return {'games': games}
 
 
 @app.get("/api/stats/{player_name}")

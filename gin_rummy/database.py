@@ -764,6 +764,165 @@ def delete_game(game_id: int, db_path: Path | None = None) -> bool:
         return True
 
 
+def get_resumable_game(game_id: int, db_path: Path | None = None) -> dict | None:
+    """Fetch game settings and cumulative scores for an incomplete game.
+
+    Returns None if the game is complete, doesn't exist, or has no hands with turns.
+    """
+    with get_connection(db_path) as conn:
+        game = conn.execute(
+            "SELECT * FROM games WHERE id = ? AND is_complete = 0",
+            (game_id,),
+        ).fetchone()
+        if not game:
+            return None
+
+        # Check that game has at least one hand with turn data
+        has_turns = conn.execute(
+            """SELECT 1 FROM hands h
+               JOIN turns t ON t.hand_id = h.id
+               WHERE h.game_id = ?
+               LIMIT 1""",
+            (game_id,),
+        ).fetchone()
+        if not has_turns:
+            return None
+
+        # Compute cumulative scores from completed hands (those with turn data)
+        p1 = game['player1_name']
+        p2 = game['player2_name']
+        scores = conn.execute(
+            """SELECT
+                   COALESCE(SUM(CASE WHEN h.winner_name = ?
+                       THEN h.points_awarded ELSE 0 END), 0) AS p1_score,
+                   COALESCE(SUM(CASE WHEN h.winner_name = ?
+                       THEN h.points_awarded ELSE 0 END), 0) AS p2_score
+               FROM hands h
+               WHERE h.game_id = ?
+                 AND h.ended_at IS NOT NULL
+                 AND EXISTS (
+                     SELECT 1 FROM turns t WHERE t.hand_id = h.id
+                 )""",
+            (p1, p2, game_id),
+        ).fetchone()
+
+        # Get last completed hand info (for dealer rotation)
+        last_hand = conn.execute(
+            """SELECT hand_number, dealer_name FROM hands
+               WHERE game_id = ? AND ended_at IS NOT NULL
+                 AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = id)
+               ORDER BY hand_number DESC LIMIT 1""",
+            (game_id,),
+        ).fetchone()
+
+        # Match wins if applicable
+        games_won = {}
+        if game['match_mode'] and game['match_id']:
+            match_games = conn.execute(
+                """SELECT winner_name, COUNT(*) as wins
+                   FROM games
+                   WHERE match_id = ? AND is_complete = 1 AND winner_name IS NOT NULL
+                   GROUP BY winner_name""",
+                (game['match_id'],),
+            ).fetchall()
+            games_won = {row['winner_name']: row['wins'] for row in match_games}
+
+        return {
+            'game_id': game['id'],
+            'player1_name': game['player1_name'],
+            'player2_name': game['player2_name'],
+            'oklahoma_gin': bool(game['oklahoma_gin']),
+            'spade_doubling': bool(game['spade_doubling']),
+            'game_mode': game['game_mode'],
+            'target_score': game['target_score'],
+            'ai_difficulty': game['ai_difficulty'],
+            'match_mode': bool(game['match_mode']),
+            'match_id': game['match_id'],
+            'started_at': game['started_at'],
+            'p1_score': scores['p1_score'],
+            'p2_score': scores['p2_score'],
+            'last_hand_number': last_hand['hand_number'] if last_hand else 0,
+            'last_dealer_name': last_hand['dealer_name'] if last_hand else game['player1_name'],
+            'games_won': games_won,
+        }
+
+
+def get_incomplete_games(player_name: str | None = None, db_path: Path | None = None) -> list[dict]:
+    """Get incomplete games that have at least one hand with turn data.
+
+    Args:
+        player_name: Filter by player name (optional)
+
+    Returns:
+        List of game summaries with computed scores, most recent first.
+    """
+    with get_connection(db_path) as conn:
+        if player_name:
+            games = conn.execute(
+                """SELECT g.* FROM games g
+                   WHERE g.is_complete = 0
+                     AND (g.player1_name = ? OR g.player2_name = ?)
+                     AND EXISTS (
+                         SELECT 1 FROM hands h
+                         JOIN turns t ON t.hand_id = h.id
+                         WHERE h.game_id = g.id
+                     )
+                   ORDER BY g.started_at DESC""",
+                (player_name, player_name),
+            ).fetchall()
+        else:
+            games = conn.execute(
+                """SELECT g.* FROM games g
+                   WHERE g.is_complete = 0
+                     AND EXISTS (
+                         SELECT 1 FROM hands h
+                         JOIN turns t ON t.hand_id = h.id
+                         WHERE h.game_id = g.id
+                     )
+                   ORDER BY g.started_at DESC""",
+            ).fetchall()
+
+        results = []
+        for game in games:
+            # Compute cumulative scores
+            scores = conn.execute(
+                """SELECT
+                       COALESCE(SUM(CASE WHEN h.winner_name = ? THEN h.points_awarded ELSE 0 END), 0) AS p1_score,
+                       COALESCE(SUM(CASE WHEN h.winner_name = ? THEN h.points_awarded ELSE 0 END), 0) AS p2_score
+                   FROM hands h
+                   WHERE h.game_id = ?
+                     AND h.ended_at IS NOT NULL
+                     AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = h.id)""",
+                (game['player1_name'], game['player2_name'], game['id']),
+            ).fetchone()
+
+            # Count completed hands with turn data
+            hand_count = conn.execute(
+                """SELECT COUNT(*) as cnt FROM hands h
+                   WHERE h.game_id = ?
+                     AND h.ended_at IS NOT NULL
+                     AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = h.id)""",
+                (game['id'],),
+            ).fetchone()['cnt']
+
+            results.append({
+                'game_id': game['id'],
+                'player1_name': game['player1_name'],
+                'player2_name': game['player2_name'],
+                'started_at': game['started_at'],
+                'p1_score': scores['p1_score'],
+                'p2_score': scores['p2_score'],
+                'hand_count': hand_count,
+                'game_mode': game['game_mode'],
+                'target_score': game['target_score'],
+                'ai_difficulty': game['ai_difficulty'],
+                'oklahoma_gin': bool(game['oklahoma_gin']),
+                'match_mode': bool(game['match_mode']),
+            })
+
+        return results
+
+
 def cleanup_empty_games(db_path: Path | None = None) -> dict[str, int]:
     """Remove games and hands that have no turn data.
 

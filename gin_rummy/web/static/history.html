@@ -101,7 +101,7 @@
 
         .game-header {
             display: grid;
-            grid-template-columns: 1fr auto auto auto;
+            grid-template-columns: 1fr auto auto auto auto;
             align-items: center;
             gap: 1rem;
             padding: 1rem;
@@ -301,6 +301,23 @@
         .delete-game-btn:hover {
             color: #ef5350;
             background: rgba(239, 83, 80, 0.15);
+        }
+
+        .resume-game-btn {
+            background: none;
+            border: 1px solid rgba(76, 175, 80, 0.5);
+            color: #4caf50;
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            transition: color 0.2s, background 0.2s, border-color 0.2s;
+        }
+
+        .resume-game-btn:hover {
+            color: #fff;
+            background: rgba(76, 175, 80, 0.3);
+            border-color: #4caf50;
         }
 
         /* Delete confirmation modal */

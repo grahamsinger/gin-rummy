@@ -104,6 +104,10 @@ const elements = {
     matchProgress: document.getElementById('match-progress'),
     gamesWonDisplay: document.getElementById('games-won-display'),
     gameFormatDisplay: document.getElementById('game-format-display'),
+    resumeModal: document.getElementById('resume-modal'),
+    resumeGameDetails: document.getElementById('resume-game-details'),
+    resumeYesBtn: document.getElementById('resume-yes-btn'),
+    resumeNoBtn: document.getElementById('resume-no-btn'),
 };
 
 // Suit symbols
@@ -1190,6 +1194,39 @@ function init() {
         }
     });
 
+    // Resume modal buttons
+    elements.resumeYesBtn.addEventListener('click', async () => {
+        const gameId = parseInt(elements.resumeYesBtn.dataset.gameId, 10);
+        elements.resumeModal.classList.add('hidden');
+        try {
+            const response = await fetch('/api/game/resume', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ game_id: gameId }),
+            });
+            const state = await response.json();
+            if (state && !state.error) {
+                renderGameState(state);
+                if (!state.your_turn) {
+                    await doAiTurn();
+                }
+            }
+        } catch (e) {
+            console.error('Failed to resume game:', e);
+            startNewGameWithSavedSettings();
+        }
+    });
+    elements.resumeNoBtn.addEventListener('click', () => {
+        elements.resumeModal.classList.add('hidden');
+        showSettingsModal();
+    });
+    elements.resumeModal.addEventListener('click', (e) => {
+        if (e.target === elements.resumeModal) {
+            elements.resumeModal.classList.add('hidden');
+            showSettingsModal();
+        }
+    });
+
     // Settings modal cancel button and backdrop click
     elements.cancelSettingsBtn.addEventListener('click', () => {
         elements.settingsModal.classList.add('hidden');
@@ -1367,25 +1404,96 @@ function init() {
 
 // Try to restore an existing game session, or start a new game
 async function restoreOrStartGame() {
+    let sessionState = null;
+
     try {
-        // Check if there's an existing game in progress
+        // Check if there's an existing game in progress (session cookie)
         const response = await fetch(`${API_BASE}/state`);
         const state = await response.json();
 
-        // Check if we got a valid game state (not an error)
         if (state && !state.error && state.hand && state.hand.length > 0) {
-            // Existing game found - restore it
-            console.log('Restoring existing game session');
-            elements.settingsModal.classList.add('hidden');
-            renderGameState(state);
-            return;
+            sessionState = state;
         }
     } catch (e) {
-        // Error fetching state - start fresh
         console.log('Error checking for existing game:', e);
     }
 
-    // No existing game - start a new one with all saved settings
+    // Check for resumable games in the database
+    const playerName = savedSettings.playerName;
+    if (playerName) {
+        try {
+            const response = await fetch(`/api/games/resumable?player_name=${encodeURIComponent(playerName)}`);
+            const data = await response.json();
+            if (data.games && data.games.length > 0) {
+                const resumableGame = data.games[0]; // Most recent
+                const sessionGameId = sessionState ? sessionState.game_id : null;
+
+                // Show modal if the most recent resumable game differs from the session game
+                if (resumableGame.game_id !== sessionGameId) {
+                    elements.settingsModal.classList.add('hidden');
+                    showResumePrompt(data.games);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.log('Error checking for resumable games:', e);
+        }
+    }
+
+    // If session has a valid game, restore it
+    if (sessionState) {
+        console.log('Restoring existing game session');
+        elements.settingsModal.classList.add('hidden');
+        renderGameState(sessionState);
+        return;
+    }
+
+    // No existing or resumable game - start a new one
+    startNewGameWithSavedSettings();
+}
+
+// Show the resume prompt modal with the most recent resumable game
+function showResumePrompt(games) {
+    const game = games[0]; // Most recent
+
+    // Format relative time
+    let timeAgo = '';
+    try {
+        const date = new Date(game.started_at);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffHr = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffHr / 24);
+        if (diffHr < 1) timeAgo = 'just now';
+        else if (diffHr < 24) timeAgo = `${diffHr} hour${diffHr > 1 ? 's' : ''} ago`;
+        else timeAgo = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    } catch (e) { /* ignore */ }
+
+    const scoreInfo = game.target_score
+        ? `${game.p1_score} / ${game.target_score} - ${game.p2_score} / ${game.target_score}`
+        : `${game.p1_score} - ${game.p2_score}`;
+
+    const settings = [];
+    if (game.ai_difficulty) settings.push(game.ai_difficulty.charAt(0).toUpperCase() + game.ai_difficulty.slice(1) + ' AI');
+    if (game.oklahoma_gin) settings.push('Oklahoma Gin');
+    if (game.match_mode) settings.push('Match Play');
+
+    elements.resumeGameDetails.innerHTML = `
+        <div><span class="resume-detail-label">Players:</span> <span class="resume-detail-value">${game.player1_name} vs ${game.player2_name}</span></div>
+        <div><span class="resume-detail-label">Score:</span> <span class="resume-detail-value">${scoreInfo}</span></div>
+        <div><span class="resume-detail-label">Hands played:</span> <span class="resume-detail-value">${game.hand_count}</span></div>
+        ${timeAgo ? `<div><span class="resume-detail-label">Started:</span> <span class="resume-detail-value">${timeAgo}</span></div>` : ''}
+        ${settings.length > 0 ? `<div><span class="resume-detail-label">Settings:</span> <span class="resume-detail-value">${settings.join(', ')}</span></div>` : ''}
+    `;
+
+    // Store game ID for the resume button handler
+    elements.resumeYesBtn.dataset.gameId = game.game_id;
+
+    elements.resumeModal.classList.remove('hidden');
+}
+
+// Start a new game using saved localStorage settings
+function startNewGameWithSavedSettings() {
     console.log('Starting new game with saved settings');
 
     // Generate player name if none saved

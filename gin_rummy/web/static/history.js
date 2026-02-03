@@ -146,6 +146,15 @@ function renderGames(games) {
         });
     });
 
+    // Add event listeners for resume buttons
+    elements.gamesContainer.querySelectorAll('.resume-game-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const gameId = parseInt(btn.dataset.gameId, 10);
+            resumeGame(gameId);
+        });
+    });
+
     // Add event listeners for delete buttons
     elements.gamesContainer.querySelectorAll('.delete-game-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -259,6 +268,7 @@ function renderGameCard(game) {
                     <div class="game-winner">${winner}</div>
                     <div class="game-score">${scoreDisplay}</div>
                 </div>
+                ${!game.winner_name ? `<button class="resume-game-btn" data-game-id="${game.game_id}" title="Resume game">Resume</button>` : '<span></span>'}
                 <button class="delete-game-btn" data-game-id="${game.game_id}" data-players="${game.player1_name} vs ${game.player2_name}" title="Delete game">&#128465;</button>
                 <span class="game-expand-icon">▼</span>
             </div>
@@ -504,6 +514,23 @@ async function confirmDelete() {
         await loadGames();
     } catch (error) {
         console.error('Failed to delete game:', error);
+    }
+}
+
+/**
+ * Resume a game — POST to API and navigate to game page
+ */
+async function resumeGame(gameId) {
+    try {
+        const response = await fetch('/api/game/resume', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ game_id: gameId }),
+        });
+        if (!response.ok) throw new Error('Resume failed');
+        window.location.href = '/';
+    } catch (error) {
+        console.error('Failed to resume game:', error);
     }
 }
 

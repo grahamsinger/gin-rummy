@@ -1899,6 +1899,35 @@ body {
     font-style: italic;
 }
 
+/* Resume Modal */
+.resume-modal-content {
+    max-width: 450px;
+}
+
+.resume-game-details {
+    margin: 1rem 0 1.5rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    text-align: left;
+    line-height: 1.6;
+}
+
+.resume-game-details .resume-detail-label {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.85rem;
+}
+
+.resume-game-details .resume-detail-value {
+    font-weight: bold;
+    color: #fff;
+}
+
+.resume-buttons {
+    display: flex;
+    gap: 1rem;
+}
+
 /* History link button */
 .history-link-btn {
     background: #616161;
