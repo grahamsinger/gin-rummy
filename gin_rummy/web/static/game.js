@@ -1190,9 +1190,14 @@ function init() {
         }
     });
 
-    // Settings modal cancel button
+    // Settings modal cancel button and backdrop click
     elements.cancelSettingsBtn.addEventListener('click', () => {
         elements.settingsModal.classList.add('hidden');
+    });
+    elements.settingsModal.addEventListener('click', (e) => {
+        if (e.target === elements.settingsModal) {
+            elements.settingsModal.classList.add('hidden');
+        }
     });
 
     // Game mode change handler - show/hide target score
