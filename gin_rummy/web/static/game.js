@@ -1344,6 +1344,11 @@ function init() {
     elements.scoreHistoryCloseBtn.addEventListener('click', () => {
         elements.scoreHistoryModal.classList.add('hidden');
     });
+    elements.scoreHistoryModal.addEventListener('click', (e) => {
+        if (e.target === elements.scoreHistoryModal) {
+            elements.scoreHistoryModal.classList.add('hidden');
+        }
+    });
 
     // Initialize sort button active state
     updateSortButtonStates();
