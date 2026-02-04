@@ -182,6 +182,112 @@ body {
     opacity: 0;
 }
 
+/* AI Thinking Panel */
+.ai-thinking-panel {
+    margin-top: 0.5rem;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 6px;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 0.82rem;
+    overflow: hidden;
+}
+
+.ai-thinking-header {
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    color: #ffc107;
+    font-weight: 600;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.ai-thinking-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+#ai-thinking-arrow {
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+}
+
+#ai-thinking-arrow.expanded {
+    transform: rotate(180deg);
+}
+
+.ai-thinking-content {
+    display: none;
+    padding: 0.5rem 0.8rem 0.6rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+    line-height: 1.5;
+    color: #ccc;
+}
+
+.ai-thinking-content.expanded {
+    display: block;
+}
+
+.mc-section {
+    margin-bottom: 0.5rem;
+}
+
+.mc-section:last-child {
+    margin-bottom: 0;
+}
+
+.mc-label {
+    color: #90a4ae;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+
+.mc-result {
+    padding: 0.2rem 0;
+}
+
+.mc-chosen {
+    color: #81c784;
+    font-weight: 600;
+}
+
+.mc-option {
+    color: #b0bec5;
+}
+
+.mc-candidate-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.2rem;
+}
+
+.mc-candidate-table th {
+    text-align: left;
+    color: #78909c;
+    font-weight: 500;
+    padding: 0.15rem 0.4rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.78rem;
+}
+
+.mc-candidate-table td {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.82rem;
+}
+
+.mc-candidate-table tr.mc-row-chosen {
+    background: rgba(76, 175, 80, 0.15);
+}
+
+.mc-candidate-table tr.mc-row-chosen td {
+    color: #81c784;
+    font-weight: 600;
+}
+
 /* Player status message (below player's hand) */
 .player-status {
     margin-top: 0.5rem;

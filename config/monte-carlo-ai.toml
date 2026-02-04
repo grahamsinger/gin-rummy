@@ -1,0 +1,42 @@
+# MonteCarloAI Configuration
+#
+# Monte Carlo simulation-based AI that evaluates moves by running
+# many randomized game rollouts and picking the option with the
+# highest average score.
+#
+# No training required - simulations run on each decision.
+
+[monte_carlo_ai]
+# Number of simulations per option for draw decisions (deck vs discard).
+draw_simulations = 100
+
+# Number of simulations per candidate for discard decisions.
+discard_simulations = 100
+
+# Number of simulations per option for knock decisions (knock vs continue).
+knock_simulations = 100
+
+# Maximum discard candidates to evaluate (top N by immediate deadwood).
+# Higher = more thorough but slower.
+max_discard_candidates = 5
+
+# Maximum turns per rollout before using heuristic evaluation.
+# Shorter = faster but less accurate.
+max_rollout_turns = 4
+
+# Minimum unknown cards required to run simulations.
+# Below this threshold, falls back to ContextAwareAI decisions.
+min_unknown_for_simulation = 3
+
+# Rollout knock strategy: "conservative" prevents rollout AI from
+# knocking too eagerly, which distorts MC evaluations.
+rollout_knock_strategy = "conservative"
+
+# Deadwood threshold for conservative rollout knocking.
+rollout_conservative_threshold = 3
+
+# Confidence thresholds: when the MC advantage between options is below
+# these values, fall back to the heuristic (ContextAwareAI) decision.
+draw_min_advantage = 1.5
+discard_min_advantage = 1.0
+knock_min_advantage = 2.0

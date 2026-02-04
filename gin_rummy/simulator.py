@@ -3,9 +3,11 @@
 import argparse
 import logging
 import random
+import sys
+import time
 from dataclasses import dataclass, field
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, StatisticalAI
+from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, MonteCarloAI, StatisticalAI
 
 # Lazy import for LearningAI to avoid requiring torch
 _LearningAI = None
@@ -49,6 +51,28 @@ class SimulatorConfig:
     target_score: int = 100
     max_rounds_per_game: int = 50
     seed: int | None = None
+
+
+@dataclass
+class GameResult:
+    """Result of a single game for progress reporting."""
+
+    winner_idx: int | None = None
+    rounds: int = 0
+    score_p1: int = 0
+    score_p2: int = 0
+    ai1_turn_time: float = 0.0
+    ai1_turns: int = 0
+    ai2_turn_time: float = 0.0
+    ai2_turns: int = 0
+
+    @property
+    def ai1_avg_turn(self) -> float:
+        return self.ai1_turn_time / self.ai1_turns if self.ai1_turns > 0 else 0.0
+
+    @property
+    def ai2_avg_turn(self) -> float:
+        return self.ai2_turn_time / self.ai2_turns if self.ai2_turns > 0 else 0.0
 
 
 @dataclass
@@ -224,7 +248,7 @@ class Simulator:
         self.config = config or SimulatorConfig()
         self.metrics = SimulatorMetrics()
 
-    def run(self) -> SimulatorMetrics:
+    def run(self, show_progress: bool = False) -> SimulatorMetrics:
         """Run the simulation and return metrics."""
         if self.config.seed is not None:
             random.seed(self.config.seed)
@@ -236,23 +260,48 @@ class Simulator:
             player2_ai_class=type(self.ai2).__name__,
         )
 
+        start_time = time.time()
+
         for game_num in range(self.config.num_games):
             logger.info("=== Game %d ===", game_num + 1)
-            self._run_game()
+            game_result = self._run_game()
             self.metrics.games_played += 1
+
+            if show_progress:
+                elapsed = time.time() - start_time
+                p1_wins = self.metrics.player1.games_won
+                p2_wins = self.metrics.player2.games_won
+                game_time = game_result.ai1_turn_time + game_result.ai2_turn_time
+                sys.stderr.write(
+                    f"Game {game_num + 1}/{self.config.num_games} "
+                    f"| Wins: {p1_wins}-{p2_wins} "
+                    f"| Score: {game_result.score_p1}-{game_result.score_p2} "
+                    f"| {game_result.rounds} hands "
+                    f"| {game_time:.1f}s "
+                    f"(AI1 avg {game_result.ai1_avg_turn:.2f}s/turn, "
+                    f"AI2 avg {game_result.ai2_avg_turn:.2f}s/turn) "
+                    f"| Total: {elapsed:.0f}s\n"
+                )
+                sys.stderr.flush()
+
+        if show_progress:
+            total_time = time.time() - start_time
+            sys.stderr.write(f"Completed {self.config.num_games} games in {total_time:.1f}s\n")
+            sys.stderr.flush()
 
         return self.metrics
 
-    def _run_game(self) -> None:
+    def _run_game(self) -> GameResult:
         """Run a single game until someone reaches target score."""
         game = Game("AI 1", "AI 2")
         round_num = 0
+        game_result = GameResult()
 
         while round_num < self.config.max_rounds_per_game:
             round_num += 1
             logger.info("--- Round %d ---", round_num)
 
-            result = self._run_round(game)
+            result = self._run_round(game, game_result)
             self.metrics.rounds_played += 1
 
             if result.is_draw:
@@ -265,18 +314,26 @@ class Simulator:
                 for idx, player in enumerate(game.players):
                     if player.score >= self.config.target_score:
                         self.metrics.get_player_metrics(idx).games_won += 1
+                        game_result.winner_idx = idx
+                        game_result.rounds = round_num
+                        game_result.score_p1 = game.players[0].score
+                        game_result.score_p2 = game.players[1].score
                         logger.info(
                             "Game won by %s with score %d",
                             player.name,
                             player.score,
                         )
-                        return
+                        return game_result
 
             game.new_round()
 
         logger.warning("Game ended due to max rounds limit (%d)", round_num)
+        game_result.rounds = round_num
+        game_result.score_p1 = game.players[0].score
+        game_result.score_p2 = game.players[1].score
+        return game_result
 
-    def _run_round(self, game: Game) -> RoundResult:
+    def _run_round(self, game: Game, game_result: GameResult) -> RoundResult:
         """Run a single round and return the result."""
         game.deal()
 
@@ -298,13 +355,13 @@ class Simulator:
 
         # Main game loop
         while game.phase == GamePhase.DRAWING:
-            result = self._play_turn(game)
+            result = self._play_turn(game, game_result)
             if result is not None:
                 return result
 
         return game.get_draw_result()
 
-    def _play_turn(self, game: Game) -> RoundResult | None:
+    def _play_turn(self, game: Game, game_result: GameResult) -> RoundResult | None:
         """Play a single turn using shared game runner logic.
 
         Returns RoundResult if round ended, None if round continues.
@@ -317,8 +374,18 @@ class Simulator:
         # Create callbacks for metrics tracking
         callbacks = SimulatorTurnCallbacks(player_metrics)
 
-        # Execute the turn using shared game logic
+        # Execute the turn with timing
+        turn_start = time.time()
         turn_result, _, round_result = execute_ai_turn(game, ai, other_ai, callbacks)
+        turn_elapsed = time.time() - turn_start
+
+        # Track per-AI timing
+        if current_idx == 0:
+            game_result.ai1_turn_time += turn_elapsed
+            game_result.ai1_turns += 1
+        else:
+            game_result.ai2_turn_time += turn_elapsed
+            game_result.ai2_turns += 1
 
         # Map TurnResult to RoundResult | None
         if turn_result == TurnResult.KNOCKED:
@@ -418,6 +485,8 @@ def create_ai(
     if ai_type == "learning":
         LearningAI = _get_learning_ai()
         return LearningAI(model_path=model_path, config=config)
+    elif ai_type == "montecarlo":
+        return MonteCarloAI(config)
     elif ai_type == "context":
         return ContextAwareAI(config)
     elif ai_type == "statistical":
@@ -465,14 +534,14 @@ def main() -> None:
     parser.add_argument(
         "--ai1-type",
         type=str,
-        choices=["basic", "context", "learning", "statistical"],
+        choices=["basic", "context", "learning", "statistical", "montecarlo"],
         default="context",
         help="AI type for player 1",
     )
     parser.add_argument(
         "--ai2-type",
         type=str,
-        choices=["basic", "context", "learning", "statistical"],
+        choices=["basic", "context", "learning", "statistical", "montecarlo"],
         default="basic",
         help="AI type for player 2",
     )
@@ -540,7 +609,7 @@ def main() -> None:
         print()
 
     simulator = Simulator(ai1=ai1, ai2=ai2, config=config)
-    metrics = simulator.run()
+    metrics = simulator.run(show_progress=True)
 
     # Save StatisticalAI stats after simulation
     for ai in [ai1, ai2]:

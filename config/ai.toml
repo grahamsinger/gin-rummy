@@ -14,7 +14,7 @@ knock_strategy = "conservative"
 # When knock_strategy is "conservative", the AI will only knock if deadwood
 # is at or below this value. Ignored when knock_strategy is "always".
 # Lower values = AI waits for a better hand before knocking.
-conservative_knock_threshold = 5
+conservative_knock_threshold = 10
 
 # Minimum deadwood reduction required for AI to take a card from the discard pile.
 # If taking the discard would reduce deadwood by less than this amount, AI draws from deck.

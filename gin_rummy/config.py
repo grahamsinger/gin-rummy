@@ -156,6 +156,40 @@ class ContextAwareAIConfig:
 
 
 @dataclass
+class MonteCarloAIConfig:
+    """Configuration for MonteCarloAI simulation parameters."""
+
+    # Number of rollout simulations per option for draw decisions
+    draw_simulations: int = 100
+
+    # Number of rollout simulations per candidate for discard decisions
+    discard_simulations: int = 100
+
+    # Number of rollout simulations per option for knock decisions
+    knock_simulations: int = 100
+
+    # Maximum discard candidates to evaluate (top N by immediate deadwood)
+    max_discard_candidates: int = 5
+
+    # Maximum turns per rollout before using heuristic evaluation
+    max_rollout_turns: int = 4
+
+    # Minimum unknown cards required to run simulations (fallback to parent otherwise)
+    min_unknown_for_simulation: int = 3
+
+    # Rollout knock strategy: "conservative" makes rollout AI knock less aggressively
+    rollout_knock_strategy: str = "conservative"
+
+    # Deadwood threshold for conservative rollout knocking
+    rollout_conservative_threshold: int = 3
+
+    # Confidence thresholds: fall back to heuristic when MC signal is weak
+    draw_min_advantage: float = 1.5
+    discard_min_advantage: float = 1.0
+    knock_min_advantage: float = 2.0
+
+
+@dataclass
 class Config:
     """Main configuration container."""
 
@@ -166,6 +200,7 @@ class Config:
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     assist: AssistConfig = field(default_factory=AssistConfig)
     context_aware_ai: ContextAwareAIConfig = field(default_factory=ContextAwareAIConfig)
+    monte_carlo_ai: MonteCarloAIConfig = field(default_factory=MonteCarloAIConfig)
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> Self:
@@ -252,6 +287,7 @@ class Config:
         database_data = data.get("database", {})
         assist_data = data.get("assist", {})
         context_aware_ai_data = data.get("context_aware_ai", {})
+        monte_carlo_ai_data = data.get("monte_carlo_ai", {})
 
         return cls(
             logging=LoggingConfig(**logging_data),
@@ -261,6 +297,7 @@ class Config:
             database=DatabaseConfig(**database_data),
             assist=AssistConfig(**assist_data),
             context_aware_ai=ContextAwareAIConfig(**context_aware_ai_data),
+            monte_carlo_ai=MonteCarloAIConfig(**monte_carlo_ai_data),
         )
 
     def setup_logging(self) -> None:
@@ -349,6 +386,9 @@ class Config:
             assist=merge_dataclass(base.assist, overrides.get("assist", {})),
             context_aware_ai=merge_dataclass(
                 base.context_aware_ai, overrides.get("context_aware_ai", {})
+            ),
+            monte_carlo_ai=merge_dataclass(
+                base.monte_carlo_ai, overrides.get("monte_carlo_ai", {})
             ),
         )
 

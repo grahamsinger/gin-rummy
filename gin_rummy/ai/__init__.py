@@ -28,6 +28,7 @@ from gin_rummy.ai.types import (
 from gin_rummy.ai.basic import BasicAI
 from gin_rummy.ai.context_aware import ContextAwareAI
 from gin_rummy.ai.statistical import StatisticalAI
+from gin_rummy.ai.monte_carlo import MonteCarloAI
 
 __all__ = [
     # Types
@@ -41,4 +42,5 @@ __all__ = [
     "BasicAI",
     "ContextAwareAI",
     "StatisticalAI",
+    "MonteCarloAI",
 ]

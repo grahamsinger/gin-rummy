@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, StatisticalAI, DrawChoice
+from gin_rummy.ai import BasicAI, ContextAwareAI, MonteCarloAI, StatisticalAI, DrawChoice
 from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list, get_connection, get_resumable_game
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
@@ -285,7 +285,7 @@ class GameSession:
         ai_map = {
             "easy": BasicAI,
             "medium": ContextAwareAI,
-            "hard": ContextAwareAI,
+            "hard": MonteCarloAI,
         }
         ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
 
@@ -355,7 +355,7 @@ class GameSession:
         ai_map = {
             "easy": BasicAI,
             "medium": ContextAwareAI,
-            "hard": ContextAwareAI,
+            "hard": MonteCarloAI,
         }
         ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
         self.ai = ai_class()
@@ -839,6 +839,11 @@ class GameSession:
                 'discarded': card_to_id(actions.discarded_card),
             }
 
+            # Attach Monte Carlo thinking data if available
+            if isinstance(self.ai, MonteCarloAI) and self.ai.last_mc_thinking:
+                self.last_ai_action['mc_thinking'] = self.ai.last_mc_thinking
+                self.ai.last_mc_thinking = None  # Reset for next turn
+
             # Prepare turn data for recording
             drew_from = 'discard' if actions.draw_source == DrawChoice.DISCARD else 'deck'
             if actions.did_knock:
@@ -1019,7 +1024,7 @@ class GameSession:
         ai_map = {
             "easy": BasicAI,
             "medium": ContextAwareAI,
-            "hard": ContextAwareAI,
+            "hard": MonteCarloAI,
         }
         ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
         self.ai = ai_class()
