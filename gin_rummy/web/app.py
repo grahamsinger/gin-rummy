@@ -453,6 +453,7 @@ async def get_history(
                        COUNT(h.id) as hand_count
                 FROM games g
                 LEFT JOIN hands h ON g.id = h.game_id
+                    AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = h.id)
                 WHERE g.player1_name = ? OR g.player2_name = ?
                 GROUP BY g.id
                 ORDER BY g.started_at DESC
@@ -470,6 +471,7 @@ async def get_history(
                        COUNT(h.id) as hand_count
                 FROM games g
                 LEFT JOIN hands h ON g.id = h.game_id
+                    AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = h.id)
                 GROUP BY g.id
                 ORDER BY g.started_at DESC
                 LIMIT ? OFFSET ?
