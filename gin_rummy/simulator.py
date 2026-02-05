@@ -276,7 +276,7 @@ class Simulator:
                     f"Game {game_num + 1}/{self.config.num_games} "
                     f"| Wins: {p1_wins}-{p2_wins} "
                     f"| Score: {game_result.score_p1}-{game_result.score_p2} "
-                    f"| {game_result.rounds} hands "
+                    f"| {game_result.rounds} hands, {game_result.ai1_turns + game_result.ai2_turns} turns "
                     f"| {game_time:.1f}s "
                     f"(AI1 avg {game_result.ai1_avg_turn:.2f}s/turn, "
                     f"AI2 avg {game_result.ai2_avg_turn:.2f}s/turn) "

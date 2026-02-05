@@ -188,6 +188,13 @@ class MonteCarloAIConfig:
     discard_min_advantage: float = 1.0
     knock_min_advantage: float = 2.0
 
+    # Parallelization: 0 = auto (cpu_count - 1), 1 = sequential (no pool)
+    max_workers: int = 0
+
+    # Sample strategy: "paired" = shared samples across options (better variance),
+    # "independent" = separate random samples per option (current behavior)
+    sample_strategy: str = "paired"
+
 
 @dataclass
 class Config:

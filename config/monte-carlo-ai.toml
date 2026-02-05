@@ -8,13 +8,13 @@
 
 [monte_carlo_ai]
 # Number of simulations per option for draw decisions (deck vs discard).
-draw_simulations = 100
+draw_simulations = 200
 
 # Number of simulations per candidate for discard decisions.
-discard_simulations = 100
+discard_simulations = 200
 
 # Number of simulations per option for knock decisions (knock vs continue).
-knock_simulations = 100
+knock_simulations = 200
 
 # Maximum discard candidates to evaluate (top N by immediate deadwood).
 # Higher = more thorough but slower.
@@ -40,3 +40,14 @@ rollout_conservative_threshold = 3
 draw_min_advantage = 1.5
 discard_min_advantage = 1.0
 knock_min_advantage = 2.0
+
+# Parallelization: number of worker processes for simulations.
+# 0 = auto (CPU cores - 1, always leaving 1 core free)
+# 1 = sequential (no multiprocessing, useful for debugging)
+max_workers = 0
+
+# Sample strategy for comparing options.
+# "paired" = use the same random game states for all options being compared
+#            (reduces variance, better for close decisions)
+# "independent" = each option gets its own random samples (original behavior)
+sample_strategy = "paired"

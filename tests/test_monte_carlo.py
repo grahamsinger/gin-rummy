@@ -27,6 +27,8 @@ def make_test_config() -> Config:
         draw_min_advantage=1.5,
         discard_min_advantage=1.0,
         knock_min_advantage=2.0,
+        max_workers=1,  # Sequential for deterministic tests
+        sample_strategy="paired",
     )
     return config
 
@@ -589,3 +591,333 @@ class TestConfidenceThresholdFallback:
         ai = MonteCarloAI(config=make_test_config())
         assert ai._rollout_ai.knock_strategy == "conservative"
         assert ai._rollout_ai.conservative_knock_threshold == 3
+
+
+class TestParallelizationConfig:
+    """Tests for multiprocessing and sample strategy configuration."""
+
+    def test_max_workers_auto(self):
+        """max_workers=0 should auto-compute to cpu_count - 1."""
+        import os
+        config = Config()
+        config.monte_carlo_ai = MonteCarloAIConfig(max_workers=0)
+        ai = MonteCarloAI(config=config)
+        expected = max(1, (os.cpu_count() or 2) - 1)
+        assert ai._max_workers == expected
+
+    def test_max_workers_explicit(self):
+        """Explicit max_workers should be stored directly."""
+        config = Config()
+        config.monte_carlo_ai = MonteCarloAIConfig(max_workers=4)
+        ai = MonteCarloAI(config=config)
+        assert ai._max_workers == 4
+
+    def test_max_workers_minimum_one(self):
+        """max_workers should never go below 1."""
+        config = Config()
+        config.monte_carlo_ai = MonteCarloAIConfig(max_workers=-1)
+        ai = MonteCarloAI(config=config)
+        assert ai._max_workers == 1
+
+    def test_sample_strategy_paired(self):
+        """sample_strategy='paired' should be stored correctly."""
+        config = make_test_config()
+        ai = MonteCarloAI(config=config)
+        assert ai._sample_strategy == "paired"
+
+    def test_sample_strategy_independent(self):
+        """sample_strategy='independent' should be stored correctly."""
+        config = Config()
+        config.monte_carlo_ai = MonteCarloAIConfig(
+            sample_strategy="independent",
+            max_workers=1,
+        )
+        ai = MonteCarloAI(config=config)
+        assert ai._sample_strategy == "independent"
+
+    def test_sequential_no_pool(self):
+        """max_workers=1 should not create a process pool."""
+        config = make_test_config()
+        ai = MonteCarloAI(config=config)
+        assert ai._get_pool() is None
+
+
+class TestPairedSamples:
+    """Tests for paired sample mode producing valid results."""
+
+    def test_paired_draw_produces_result(self):
+        """MC draw should work in paired sample mode."""
+        random.seed(42)
+        config = make_test_config()
+        ai = MonteCarloAI(config=config)
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.QUEEN, Suit.HEARTS),
+            Card(Rank.JACK, Suit.SPADES),
+            Card(Rank.TEN, Suit.CLUBS),
+            Card(Rank.NINE, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.SPADES),
+        ])
+        discard_top = Card(Rank.TWO, Suit.DIAMONDS)
+        context = make_context(hand)
+        choice = ai.decide_draw(hand, discard_top, context)
+        assert choice in (DrawChoice.DECK, DrawChoice.DISCARD)
+
+    def test_paired_discard_produces_result(self):
+        """MC discard should work in paired sample mode."""
+        random.seed(42)
+        config = make_test_config()
+        ai = MonteCarloAI(config=config)
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.QUEEN, Suit.HEARTS),
+            Card(Rank.JACK, Suit.SPADES),
+            Card(Rank.TEN, Suit.CLUBS),
+            Card(Rank.NINE, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.SPADES),
+            Card(Rank.SIX, Suit.CLUBS),
+        ])
+        context = make_context(hand)
+        ai.update_context(context)
+        discard = ai.decide_discard(hand)
+        assert discard in list(hand)
+
+    def test_paired_knock_produces_result(self):
+        """MC knock should work in paired sample mode."""
+        random.seed(42)
+        config = make_test_config()
+        ai = MonteCarloAI(config=config)
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.FIVE, Suit.SPADES),
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+        context = make_context(hand)
+        result = ai.should_knock(hand, context)
+        assert isinstance(result, bool)
+
+
+class TestIndependentSamples:
+    """Tests for independent sample mode producing valid results."""
+
+    def _make_independent_config(self) -> Config:
+        config = Config()
+        config.monte_carlo_ai = MonteCarloAIConfig(
+            draw_simulations=10,
+            discard_simulations=10,
+            knock_simulations=10,
+            max_discard_candidates=3,
+            max_rollout_turns=4,
+            min_unknown_for_simulation=3,
+            rollout_knock_strategy="conservative",
+            rollout_conservative_threshold=3,
+            draw_min_advantage=1.5,
+            discard_min_advantage=1.0,
+            knock_min_advantage=2.0,
+            max_workers=1,
+            sample_strategy="independent",
+        )
+        return config
+
+    def test_independent_draw_produces_result(self):
+        """MC draw should work in independent sample mode."""
+        random.seed(42)
+        ai = MonteCarloAI(config=self._make_independent_config())
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.QUEEN, Suit.HEARTS),
+            Card(Rank.JACK, Suit.SPADES),
+            Card(Rank.TEN, Suit.CLUBS),
+            Card(Rank.NINE, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.SPADES),
+        ])
+        discard_top = Card(Rank.TWO, Suit.DIAMONDS)
+        context = make_context(hand)
+        choice = ai.decide_draw(hand, discard_top, context)
+        assert choice in (DrawChoice.DECK, DrawChoice.DISCARD)
+
+    def test_independent_discard_produces_result(self):
+        """MC discard should work in independent sample mode."""
+        random.seed(42)
+        ai = MonteCarloAI(config=self._make_independent_config())
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.QUEEN, Suit.HEARTS),
+            Card(Rank.JACK, Suit.SPADES),
+            Card(Rank.TEN, Suit.CLUBS),
+            Card(Rank.NINE, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.SPADES),
+            Card(Rank.SIX, Suit.CLUBS),
+        ])
+        context = make_context(hand)
+        ai.update_context(context)
+        discard = ai.decide_discard(hand)
+        assert discard in list(hand)
+
+    def test_independent_knock_produces_result(self):
+        """MC knock should work in independent sample mode."""
+        random.seed(42)
+        ai = MonteCarloAI(config=self._make_independent_config())
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.FIVE, Suit.SPADES),
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+        context = make_context(hand)
+        result = ai.should_knock(hand, context)
+        assert isinstance(result, bool)
+
+
+class TestParallelMode:
+    """Tests for multiprocessing mode."""
+
+    def test_parallel_mode_draw(self):
+        """MC draw should work with max_workers=2."""
+        import os
+        if (os.cpu_count() or 1) < 2:
+            pytest.skip("Need at least 2 CPUs for parallel test")
+
+        random.seed(42)
+        config = Config()
+        config.monte_carlo_ai = MonteCarloAIConfig(
+            draw_simulations=10,
+            discard_simulations=10,
+            knock_simulations=10,
+            max_rollout_turns=4,
+            min_unknown_for_simulation=3,
+            max_workers=2,
+            sample_strategy="paired",
+        )
+        ai = MonteCarloAI(config=config)
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.QUEEN, Suit.HEARTS),
+            Card(Rank.JACK, Suit.SPADES),
+            Card(Rank.TEN, Suit.CLUBS),
+            Card(Rank.NINE, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.SPADES),
+        ])
+        discard_top = Card(Rank.TWO, Suit.DIAMONDS)
+        context = make_context(hand)
+        try:
+            choice = ai.decide_draw(hand, discard_top, context)
+            assert choice in (DrawChoice.DECK, DrawChoice.DISCARD)
+        finally:
+            ai.shutdown()
+
+    def test_parallel_mode_discard(self):
+        """MC discard should work with max_workers=2."""
+        import os
+        if (os.cpu_count() or 1) < 2:
+            pytest.skip("Need at least 2 CPUs for parallel test")
+
+        random.seed(42)
+        config = Config()
+        config.monte_carlo_ai = MonteCarloAIConfig(
+            draw_simulations=10,
+            discard_simulations=10,
+            knock_simulations=10,
+            max_rollout_turns=4,
+            min_unknown_for_simulation=3,
+            max_workers=2,
+            sample_strategy="paired",
+        )
+        ai = MonteCarloAI(config=config)
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.QUEEN, Suit.HEARTS),
+            Card(Rank.JACK, Suit.SPADES),
+            Card(Rank.TEN, Suit.CLUBS),
+            Card(Rank.NINE, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.SPADES),
+            Card(Rank.SIX, Suit.CLUBS),
+        ])
+        context = make_context(hand)
+        ai.update_context(context)
+        try:
+            discard = ai.decide_discard(hand)
+            assert discard in list(hand)
+        finally:
+            ai.shutdown()
+
+    def test_parallel_mode_knock(self):
+        """MC knock should work with max_workers=2."""
+        import os
+        if (os.cpu_count() or 1) < 2:
+            pytest.skip("Need at least 2 CPUs for parallel test")
+
+        random.seed(42)
+        config = Config()
+        config.monte_carlo_ai = MonteCarloAIConfig(
+            draw_simulations=10,
+            discard_simulations=10,
+            knock_simulations=10,
+            max_rollout_turns=4,
+            min_unknown_for_simulation=3,
+            max_workers=2,
+            sample_strategy="paired",
+        )
+        ai = MonteCarloAI(config=config)
+        hand = Hand([
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.DIAMONDS),
+            Card(Rank.FOUR, Suit.DIAMONDS),
+            Card(Rank.FIVE, Suit.SPADES),
+            Card(Rank.FIVE, Suit.CLUBS),
+            Card(Rank.SIX, Suit.CLUBS),
+            Card(Rank.SEVEN, Suit.CLUBS),
+        ])
+        context = make_context(hand)
+        try:
+            result = ai.should_knock(hand, context)
+            assert isinstance(result, bool)
+        finally:
+            ai.shutdown()
+
+    def test_shutdown_cleans_pool(self):
+        """shutdown() should clean up the pool."""
+        config = make_test_config()
+        ai = MonteCarloAI(config=config)
+        ai.shutdown()
+        assert ai._pool is None

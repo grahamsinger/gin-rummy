@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import random
+import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
@@ -223,6 +226,164 @@ def rollout(
     )
 
 
+# ---------------------------------------------------------------------------
+# Module-level worker functions (required for pickling with ProcessPoolExecutor)
+# ---------------------------------------------------------------------------
+
+
+def _worker_init() -> None:
+    """Seed random uniquely per worker process."""
+    seed = os.getpid() * 31 + int(time.time() * 1000) % 1_000_000
+    random.seed(seed)
+
+
+def _sample_state(
+    unknown: list[Card],
+    opponent_known: list[Card],
+) -> tuple[list[Card], list[Card]]:
+    """Standalone sampling: shuffle unknown cards, partition into opp hand + deck.
+
+    Returns:
+        (opponent_hand, deck)
+    """
+    shuffled = list(unknown)
+    random.shuffle(shuffled)
+
+    opp_hand_size = 10
+    fill_needed = max(0, opp_hand_size - len(opponent_known))
+    fill_needed = min(fill_needed, len(shuffled))
+
+    opp_hand = list(opponent_known) + shuffled[:fill_needed]
+    deck = shuffled[fill_needed:]
+    return opp_hand, deck
+
+
+def _draw_sim_batch(
+    option: str,
+    my_hand: list[Card],
+    discard_top: Card,
+    sim_discard_base: list[Card],
+    rollout_ai: BasicAI,
+    max_turns: int,
+    knock_threshold: int,
+    gin_bonus: int,
+    undercut_bonus: int,
+    n_sims: int,
+    samples: list[tuple[list[Card], list[Card]]] | None,
+    unknown: list[Card] | None,
+    opponent_known: list[Card] | None,
+) -> int:
+    """Run N draw simulations for one option ("deck" or "discard").
+
+    Returns total points across all sims.
+    """
+    total = 0
+    for i in range(n_sims):
+        if samples is not None:
+            opp_hand, sim_deck = samples[i]
+        else:
+            opp_hand, sim_deck = _sample_state(unknown, opponent_known)
+
+        if option == "discard":
+            sim_hand = list(my_hand) + [discard_top]
+            discard_card = rollout_ai.decide_discard(Hand(sim_hand))
+            sim_hand_after = [c for c in sim_hand if c != discard_card]
+            sim_discard_after = [discard_card]
+        else:  # deck
+            deck_copy = list(sim_deck)
+            if not deck_copy:
+                continue
+            drawn_card = deck_copy.pop()
+            sim_hand = list(my_hand) + [drawn_card]
+            discard_card = rollout_ai.decide_discard(Hand(sim_hand))
+            sim_hand_after = [c for c in sim_hand if c != discard_card]
+            sim_discard_after = list(sim_discard_base) + [discard_card]
+            sim_deck = deck_copy  # use the deck with drawn card removed
+
+        result = rollout(
+            list(sim_hand_after), list(opp_hand), list(sim_deck),
+            list(sim_discard_after), False, rollout_ai,
+            max_turns, knock_threshold, gin_bonus, undercut_bonus,
+        )
+        total += result.my_points
+    return total
+
+
+def _discard_sim_batch(
+    cards: list[Card],
+    card_to_discard: Card,
+    rollout_ai: BasicAI,
+    max_turns: int,
+    knock_threshold: int,
+    gin_bonus: int,
+    undercut_bonus: int,
+    n_sims: int,
+    samples: list[tuple[list[Card], list[Card]]] | None,
+    unknown: list[Card] | None,
+    opponent_known: list[Card] | None,
+) -> int:
+    """Run N discard simulations for one candidate card.
+
+    Returns total points across all sims.
+    """
+    sim_hand = [c for c in cards if c != card_to_discard]
+    total = 0
+    for i in range(n_sims):
+        if samples is not None:
+            opp_hand, sim_deck = samples[i]
+        else:
+            opp_hand, sim_deck = _sample_state(unknown, opponent_known)
+
+        sim_discard = [card_to_discard]
+        result = rollout(
+            list(sim_hand), list(opp_hand), list(sim_deck),
+            list(sim_discard), False, rollout_ai,
+            max_turns, knock_threshold, gin_bonus, undercut_bonus,
+        )
+        total += result.my_points
+    return total
+
+
+def _knock_sim_batch(
+    option: str,
+    my_hand: list[Card],
+    rollout_ai: BasicAI,
+    max_turns: int,
+    knock_threshold: int,
+    gin_bonus: int,
+    undercut_bonus: int,
+    n_sims: int,
+    samples: list[tuple[list[Card], list[Card]]] | None,
+    unknown: list[Card] | None,
+    opponent_known: list[Card] | None,
+) -> int:
+    """Run N knock simulations for one option ("knock" or "continue").
+
+    Returns total points across all sims.
+    """
+    total = 0
+    for i in range(n_sims):
+        if samples is not None:
+            opp_hand, sim_deck = samples[i]
+        else:
+            opp_hand, sim_deck = _sample_state(unknown, opponent_known)
+
+        if option == "knock":
+            points, _, _ = score_knock(
+                my_hand, list(opp_hand),
+                gin_bonus, undercut_bonus, knock_threshold,
+            )
+            total += points
+        else:  # continue
+            result = rollout(
+                list(my_hand), list(opp_hand), list(sim_deck),
+                [], True, rollout_ai,
+                max_turns, knock_threshold, gin_bonus, undercut_bonus,
+            )
+            total += result.my_points
+    return total
+
+
 class MonteCarloAI(ContextAwareAI):
     """AI that uses Monte Carlo rollouts to evaluate decisions.
 
@@ -262,8 +423,70 @@ class MonteCarloAI(ContextAwareAI):
         self._undercut_bonus = cfg.game_rules.undercut_bonus
         self._knock_threshold = cfg.game_rules.knock_threshold
 
+        # Parallelization settings
+        if mc_cfg.max_workers == 0:
+            self._max_workers = max(1, (os.cpu_count() or 2) - 1)
+        else:
+            self._max_workers = max(1, mc_cfg.max_workers)
+        self._sample_strategy = mc_cfg.sample_strategy
+        self._pool: ProcessPoolExecutor | None = None
+
         # Last thinking data for UI display
         self.last_mc_thinking: dict[str, Any] | None = None
+
+    def _get_pool(self) -> ProcessPoolExecutor | None:
+        """Lazy-create a ProcessPoolExecutor, or return None if sequential."""
+        if self._max_workers <= 1:
+            return None
+        if self._pool is None:
+            self._pool = ProcessPoolExecutor(
+                max_workers=self._max_workers,
+                initializer=_worker_init,
+            )
+        return self._pool
+
+    def _generate_samples(
+        self,
+        n: int,
+        unknown: list[Card],
+        opponent_known: set[Card],
+    ) -> list[tuple[list[Card], list[Card]]]:
+        """Pre-generate N (opp_hand, deck) samples for paired mode."""
+        opp_known_list = list(opponent_known)
+        samples = []
+        for _ in range(n):
+            opp_hand, deck = _sample_state(unknown, opp_known_list)
+            samples.append((opp_hand, deck))
+        return samples
+
+    def _run_parallel(
+        self,
+        tasks: list[tuple[Any, ...]],
+    ) -> list[int]:
+        """Submit (fn, *args) tasks to the pool and collect results.
+
+        If no pool (sequential mode), calls functions directly.
+        """
+        pool = self._get_pool()
+        if pool is None:
+            results = []
+            for fn, *args in tasks:
+                results.append(fn(*args))
+            return results
+
+        futures = []
+        for fn, *args in tasks:
+            futures.append(pool.submit(fn, *args))
+        return [f.result() for f in futures]
+
+    def shutdown(self) -> None:
+        """Shut down the process pool if active."""
+        if self._pool is not None:
+            self._pool.shutdown(wait=False)
+            self._pool = None
+
+    def __del__(self) -> None:
+        self.shutdown()
 
     def _get_known_and_unknown(
         self, hand: Hand, context: GameContext | None = None
@@ -362,51 +585,38 @@ class MonteCarloAI(ContextAwareAI):
         # The full history is used for known/unknown tracking, not for the sim pile.
         sim_discard_base = [discard_top] if discard_top else []
 
-        # Simulate drawing from DISCARD
-        discard_total = 0
         my_hand_list = list(hand)
-        for _ in range(self.draw_simulations):
-            opp_hand, sim_deck, _ = self._sample_game_state(
-                my_hand_list, unknown, opponent_known, deck_remaining, []
-            )
-            # After drawing from discard, I have 11 cards (discard_top removed from pile)
-            sim_hand = my_hand_list + [discard_top]
-            # Discard optimally
-            discard_card = self._rollout_ai.decide_discard(Hand(sim_hand))
-            sim_hand_after = [c for c in sim_hand if c != discard_card]
-            # Discard pile now has just the discarded card (top was taken)
-            sim_discard_after = [discard_card]
+        opp_known_list = list(opponent_known)
 
-            result = rollout(
-                list(sim_hand_after), list(opp_hand), list(sim_deck),
-                list(sim_discard_after), False, self._rollout_ai,
-                self.max_rollout_turns, knock_threshold,
-                self._gin_bonus, self._undercut_bonus,
+        # Build samples and tasks
+        if self._sample_strategy == "paired":
+            samples = self._generate_samples(
+                self.draw_simulations, unknown, opponent_known,
             )
-            discard_total += result.my_points
+            ind_unknown = None
+            ind_opp_known = None
+        else:
+            samples = None
+            ind_unknown = unknown
+            ind_opp_known = opp_known_list
 
-        # Simulate drawing from DECK
-        deck_total = 0
-        for _ in range(self.draw_simulations):
-            opp_hand, sim_deck, _ = self._sample_game_state(
-                my_hand_list, unknown, opponent_known, deck_remaining, []
-            )
-            if not sim_deck:
-                continue
-            drawn_card = sim_deck.pop()
-            sim_hand = my_hand_list + [drawn_card]
-            discard_card = self._rollout_ai.decide_discard(Hand(sim_hand))
-            sim_hand_after = [c for c in sim_hand if c != discard_card]
-            # Discard pile keeps original top + our discard
-            sim_discard_after = list(sim_discard_base) + [discard_card]
+        tasks: list[tuple[Any, ...]] = [
+            (
+                _draw_sim_batch, "discard", my_hand_list, discard_top,
+                sim_discard_base, self._rollout_ai, self.max_rollout_turns,
+                knock_threshold, self._gin_bonus, self._undercut_bonus,
+                self.draw_simulations, samples, ind_unknown, ind_opp_known,
+            ),
+            (
+                _draw_sim_batch, "deck", my_hand_list, discard_top,
+                sim_discard_base, self._rollout_ai, self.max_rollout_turns,
+                knock_threshold, self._gin_bonus, self._undercut_bonus,
+                self.draw_simulations, samples, ind_unknown, ind_opp_known,
+            ),
+        ]
 
-            result = rollout(
-                list(sim_hand_after), list(opp_hand), list(sim_deck),
-                list(sim_discard_after), False, self._rollout_ai,
-                self.max_rollout_turns, knock_threshold,
-                self._gin_bonus, self._undercut_bonus,
-            )
-            deck_total += result.my_points
+        results = self._run_parallel(tasks)
+        discard_total, deck_total = results[0], results[1]
 
         deck_avg = deck_total / max(1, self.draw_simulations)
         discard_avg = discard_total / max(1, self.draw_simulations)
@@ -491,30 +701,38 @@ class MonteCarloAI(ContextAwareAI):
         if ctx and hasattr(ctx, 'knock_threshold'):
             knock_threshold = ctx.knock_threshold
 
-        # Simulate each candidate
+        opp_known_list = list(opponent_known)
+
+        # Build samples and tasks
+        if self._sample_strategy == "paired":
+            samples = self._generate_samples(
+                self.discard_simulations, unknown, opponent_known,
+            )
+            ind_unknown = None
+            ind_opp_known = None
+        else:
+            samples = None
+            ind_unknown = unknown
+            ind_opp_known = opp_known_list
+
+        tasks: list[tuple[Any, ...]] = []
+        for card, immediate_dw in top_candidates:
+            tasks.append((
+                _discard_sim_batch, cards, card, self._rollout_ai,
+                self.max_rollout_turns, knock_threshold,
+                self._gin_bonus, self._undercut_bonus,
+                self.discard_simulations, samples, ind_unknown, ind_opp_known,
+            ))
+
+        totals = self._run_parallel(tasks)
+
+        # Process results
         candidate_results: list[dict[str, Any]] = []
         best_card = top_candidates[0][0]
         best_avg = float('-inf')
 
-        for card, immediate_dw in top_candidates:
-            sim_hand = [c for c in cards if c != card]
-            total_points = 0
-
-            for _ in range(self.discard_simulations):
-                opp_hand, sim_deck, _ = self._sample_game_state(
-                    sim_hand, unknown, opponent_known, deck_remaining, []
-                )
-                sim_discard = [card]  # Only our discard is on the pile
-
-                result = rollout(
-                    list(sim_hand), list(opp_hand), list(sim_deck),
-                    list(sim_discard), False, self._rollout_ai,
-                    self.max_rollout_turns, knock_threshold,
-                    self._gin_bonus, self._undercut_bonus,
-                )
-                total_points += result.my_points
-
-            avg_points = total_points / max(1, self.discard_simulations)
+        for idx, (card, immediate_dw) in enumerate(top_candidates):
+            avg_points = totals[idx] / max(1, self.discard_simulations)
             candidate_results.append({
                 'card': str(card),
                 'avg_points': round(avg_points, 1),
@@ -631,35 +849,39 @@ class MonteCarloAI(ContextAwareAI):
             knock_threshold = ctx.knock_threshold
 
         my_hand_list = list(hand)
+        opp_known_list = list(opponent_known)
 
-        # Simulate "knock now"
-        knock_total = 0
-        for _ in range(self.knock_simulations):
-            opp_hand, _, _ = self._sample_game_state(
-                my_hand_list, unknown, opponent_known, deck_remaining, []
+        # Build samples and tasks
+        if self._sample_strategy == "paired":
+            samples = self._generate_samples(
+                self.knock_simulations, unknown, opponent_known,
             )
-            points, _, _ = score_knock(
-                my_hand_list, opp_hand,
-                self._gin_bonus, self._undercut_bonus, knock_threshold,
-            )
-            knock_total += points
+            ind_unknown = None
+            ind_opp_known = None
+        else:
+            samples = None
+            ind_unknown = unknown
+            ind_opp_known = opp_known_list
 
-        knock_avg = knock_total / max(1, self.knock_simulations)
-
-        # Simulate "continue playing"
-        continue_total = 0
-        for _ in range(self.knock_simulations):
-            opp_hand, sim_deck, _ = self._sample_game_state(
-                my_hand_list, unknown, opponent_known, deck_remaining, []
-            )
-            result = rollout(
-                list(my_hand_list), list(opp_hand), list(sim_deck),
-                [], True, self._rollout_ai,
+        tasks: list[tuple[Any, ...]] = [
+            (
+                _knock_sim_batch, "knock", my_hand_list, self._rollout_ai,
                 self.max_rollout_turns, knock_threshold,
                 self._gin_bonus, self._undercut_bonus,
-            )
-            continue_total += result.my_points
+                self.knock_simulations, samples, ind_unknown, ind_opp_known,
+            ),
+            (
+                _knock_sim_batch, "continue", my_hand_list, self._rollout_ai,
+                self.max_rollout_turns, knock_threshold,
+                self._gin_bonus, self._undercut_bonus,
+                self.knock_simulations, samples, ind_unknown, ind_opp_known,
+            ),
+        ]
 
+        results = self._run_parallel(tasks)
+        knock_total, continue_total = results[0], results[1]
+
+        knock_avg = knock_total / max(1, self.knock_simulations)
         continue_avg = continue_total / max(1, self.knock_simulations)
 
         advantage = abs(knock_avg - continue_avg)
