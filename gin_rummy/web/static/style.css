@@ -2050,3 +2050,60 @@ body {
 .history-link-btn:hover {
     background: #757575;
 }
+
+/* Mini Games Modal */
+.mini-games-modal-content {
+    max-width: 400px;
+}
+
+.mini-games-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+}
+
+.mini-game-option {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    text-decoration: none;
+    color: #fff;
+    transition: background 0.2s, transform 0.1s;
+    cursor: pointer;
+}
+
+.mini-game-option:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.02);
+}
+
+.mini-game-icon {
+    font-size: 2rem;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.mini-game-info {
+    text-align: left;
+}
+
+.mini-game-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+}
+
+.mini-game-desc {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+}

@@ -108,6 +108,9 @@ const elements = {
     resumeGameDetails: document.getElementById('resume-game-details'),
     resumeYesBtn: document.getElementById('resume-yes-btn'),
     resumeNoBtn: document.getElementById('resume-no-btn'),
+    miniGamesBtn: document.getElementById('mini-games-btn'),
+    miniGamesModal: document.getElementById('mini-games-modal'),
+    miniGamesCloseBtn: document.getElementById('mini-games-close-btn'),
 };
 
 // Suit symbols
@@ -1487,6 +1490,19 @@ function init() {
     elements.scoreHistoryModal.addEventListener('click', (e) => {
         if (e.target === elements.scoreHistoryModal) {
             elements.scoreHistoryModal.classList.add('hidden');
+        }
+    });
+
+    // Mini Games modal
+    elements.miniGamesBtn.addEventListener('click', () => {
+        elements.miniGamesModal.classList.remove('hidden');
+    });
+    elements.miniGamesCloseBtn.addEventListener('click', () => {
+        elements.miniGamesModal.classList.add('hidden');
+    });
+    elements.miniGamesModal.addEventListener('click', (e) => {
+        if (e.target === elements.miniGamesModal) {
+            elements.miniGamesModal.classList.add('hidden');
         }
     });
 

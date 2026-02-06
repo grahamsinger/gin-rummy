@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Memory - Gin Rummy</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .memory-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            min-height: 100vh;
+        }
+
+        .memory-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 1rem;
+        }
+
+        .memory-header h1 {
+            margin: 0;
+            color: #fff;
+        }
+
+        .back-to-game {
+            background: #424242;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .back-to-game:hover {
+            background: #555;
+        }
+
+        /* Status bar */
+        .memory-status {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            padding: 0.75rem 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            font-size: 1.1rem;
+        }
+
+        .memory-status .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-label {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .status-value {
+            font-weight: bold;
+            color: #fff;
+        }
+
+        #timer-display {
+            color: #ffc107;
+        }
+
+        /* Reveal area */
+        .reveal-area {
+            min-height: 120px;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .reveal-row-label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .reveal-cards {
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .reveal-area .card {
+            width: 70px;
+            height: 98px;
+            font-size: 1.3rem;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .reveal-area .card .rank {
+            font-size: 1.5rem;
+        }
+
+        .reveal-area .card .suit {
+            font-size: 1.8rem;
+        }
+
+        .reveal-area .card.guess-correct {
+            border: 2px solid #4caf50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+        }
+
+        .reveal-area .card.guess-wrong {
+            border: 2px solid #f44336;
+            box-shadow: 0 0 8px rgba(244, 67, 54, 0.4);
+        }
+
+        .reveal-message {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 1.1rem;
+            font-style: italic;
+        }
+
+        /* Selection grid */
+        .selection-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 1.5rem;
+        }
+
+        .grid-row {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .grid-row .suit-label {
+            width: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .grid-row .suit-label.red-label {
+            color: rgba(211, 47, 47, 0.7);
+        }
+
+        .grid-card {
+            width: 58px;
+            height: 42px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #000;
+            cursor: pointer;
+            transition: all 0.15s;
+            user-select: none;
+            border: 2px solid transparent;
+        }
+
+        .grid-card.red-card {
+            color: #d32f2f;
+        }
+
+        .grid-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .grid-card.selected {
+            border-color: #4fc3f7;
+            background: rgba(79, 195, 247, 0.3);
+            color: #fff;
+            box-shadow: 0 0 8px rgba(79, 195, 247, 0.4);
+        }
+
+        .grid-card.selected.red-card {
+            color: #ff8a80;
+        }
+
+        .grid-card.disabled {
+            cursor: default;
+            opacity: 0.6;
+        }
+
+        .grid-card.disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Result states */
+        .grid-card.correct {
+            border-color: #4caf50;
+            background: rgba(76, 175, 80, 0.4);
+            color: #fff;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+        }
+
+        .grid-card.correct.red-card {
+            color: #ff8a80;
+        }
+
+        .grid-card.missed {
+            border-color: #ffc107;
+            background: rgba(255, 193, 7, 0.3);
+            color: #fff;
+            box-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
+        }
+
+        .grid-card.missed.red-card {
+            color: #ff8a80;
+        }
+
+        .grid-card.wrong {
+            border-color: #f44336;
+            background: rgba(244, 67, 54, 0.3);
+            color: #fff;
+            box-shadow: 0 0 8px rgba(244, 67, 54, 0.4);
+        }
+
+        .grid-card.wrong.red-card {
+            color: #ff8a80;
+        }
+
+        /* Controls */
+        .memory-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .memory-btn {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .memory-btn:hover:not(:disabled) {
+            transform: scale(1.05);
+        }
+
+        .memory-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-start {
+            background: #4caf50;
+            color: #fff;
+        }
+
+        .btn-start:hover:not(:disabled) {
+            background: #43a047;
+        }
+
+        .btn-submit {
+            background: #4fc3f7;
+            color: #000;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            background: #29b6f6;
+        }
+
+        .btn-next {
+            background: #66bb6a;
+            color: #fff;
+        }
+
+        .btn-next:hover:not(:disabled) {
+            background: #4caf50;
+        }
+
+        .btn-restart {
+            background: #ff9800;
+            color: #000;
+        }
+
+        .btn-restart:hover:not(:disabled) {
+            background: #fb8c00;
+        }
+
+        /* Results summary */
+        .results-summary {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+        }
+
+        .results-summary.success {
+            border: 1px solid rgba(76, 175, 80, 0.5);
+        }
+
+        .results-summary.failure {
+            border: 1px solid rgba(244, 67, 54, 0.5);
+        }
+
+        .results-summary .result-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .results-summary.success .result-title {
+            color: #4caf50;
+        }
+
+        .results-summary.failure .result-title {
+            color: #f44336;
+        }
+
+        /* Legend */
+        .grid-legend {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .legend-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+
+        .legend-swatch.correct { background: rgba(76, 175, 80, 0.5); border: 1px solid #4caf50; }
+        .legend-swatch.missed { background: rgba(255, 193, 7, 0.4); border: 1px solid #ffc107; }
+        .legend-swatch.wrong { background: rgba(244, 67, 54, 0.4); border: 1px solid #f44336; }
+        .legend-swatch.selected-swatch { background: rgba(79, 195, 247, 0.4); border: 1px solid #4fc3f7; }
+
+        /* High score */
+        .high-score {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .high-score strong {
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="memory-container">
+        <header class="memory-header">
+            <h1>Card Memory</h1>
+            <a href="/" class="back-to-game">Back to Game</a>
+        </header>
+
+        <div class="memory-status">
+            <div class="status-item">
+                <span class="status-label">Round:</span>
+                <span class="status-value" id="round-display">1</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Cards:</span>
+                <span class="status-value" id="cards-display">3</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Time:</span>
+                <span class="status-value" id="timer-display">3.0s</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Selected:</span>
+                <span class="status-value" id="selected-count">0</span> / <span class="status-value" id="target-count">3</span>
+            </div>
+        </div>
+
+        <div class="reveal-area" id="reveal-area">
+            <span class="reveal-message">Press Start to begin</span>
+        </div>
+
+        <div id="results-area"></div>
+
+        <div class="memory-controls" id="controls">
+            <button class="memory-btn btn-start" id="start-btn">Start</button>
+            <button class="memory-btn btn-submit" id="submit-btn" style="display:none" disabled>Submit</button>
+            <button class="memory-btn btn-next" id="next-btn" style="display:none">Next Round</button>
+            <button class="memory-btn btn-restart" id="restart-btn" style="display:none">Restart</button>
+        </div>
+
+        <div id="grid-legend" class="grid-legend" style="display:none">
+            <div class="legend-item"><div class="legend-swatch selected-swatch"></div> Selected</div>
+        </div>
+
+        <div class="selection-grid" id="selection-grid"></div>
+
+        <div class="high-score" id="high-score"></div>
+    </div>
+
+    <script src="/static/memory.js"></script>
+</body>
+</html>

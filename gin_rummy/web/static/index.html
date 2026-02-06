@@ -92,6 +92,7 @@
                 <button id="view-stats-btn" class="view-stats-btn">View Stats</button>
                 <button id="score-history-btn" class="score-history-btn">Score History</button>
                 <a href="/history" class="history-link-btn">Archive</a>
+                <button id="mini-games-btn" class="history-link-btn">Games</button>
                 <button id="new-game-btn" class="new-game-btn">New Game</button>
             </div>
         </footer>
@@ -281,6 +282,23 @@
         <div id="replay-modal" class="modal hidden">
             <div class="modal-content replay-modal-content">
                 <div id="replay-container"></div>
+            </div>
+        </div>
+
+        <!-- Mini Games modal -->
+        <div id="mini-games-modal" class="modal hidden">
+            <div class="modal-content mini-games-modal-content">
+                <h2>Mini Games</h2>
+                <div class="mini-games-list">
+                    <a href="/memory" class="mini-game-option">
+                        <div class="mini-game-icon">&#x1F0CF;</div>
+                        <div class="mini-game-info">
+                            <div class="mini-game-name">Card Memory</div>
+                            <div class="mini-game-desc">Memorize cards and find them in the deck</div>
+                        </div>
+                    </a>
+                </div>
+                <button id="mini-games-close-btn" class="stats-close-btn">Close</button>
             </div>
         </div>
 

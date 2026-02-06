@@ -514,6 +514,12 @@ async def history_page():
     return FileResponse(STATIC_DIR / "history.html")
 
 
+@app.get("/memory")
+async def memory_page():
+    """Serve the card memory game page."""
+    return FileResponse(STATIC_DIR / "memory.html")
+
+
 @app.post("/api/admin/cleanup")
 async def run_cleanup():
     """Clean up games and hands with no turn data."""
