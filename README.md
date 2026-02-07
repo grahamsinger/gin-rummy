@@ -45,7 +45,7 @@ uv run gin-rummy
 ### Setup
 - Each player is dealt 10 cards
 - Non-dealer receives an 11th card and must discard one to start the discard pile
-- Non-dealer takes the first turn
+- Dealer then draws, and discards first
 
 ### Turn Structure
 1. **Draw**: Take one card from either:
