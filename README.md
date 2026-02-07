@@ -9,7 +9,32 @@ cd gin
 uv sync
 ```
 
-## How to Play
+## Web UI
+
+Play in your browser with a visual interface:
+
+```bash
+uv sync --extra web
+uv run uvicorn gin_rummy.web.app:app --reload
+```
+
+Then open http://127.0.0.1:8000
+
+### Features
+
+- **AI Difficulty**: Easy, Medium, or Hard opponents
+- **Game Modes**:
+  - Practice (endless hands)
+  - Target Score (100/150/200/250 points)
+- **Oklahoma Gin**: Upcard determines knock threshold, spade doubling optional
+- **Match Play**: Best of 3 games
+- **Statistics**: Lifetime stats tracking (wins, gins, undercuts, etc.)
+- **Score History**: View round-by-round results, click any round to replay
+- **Hand Replay**: Step through any completed hand turn-by-turn
+- **History Explorer**: Browse and filter all past games at `/history`
+- **Assist Mode**: Card tracker showing dead cards, opponent pickups, and helpful cards
+
+## Terminal UI
 
 ```bash
 uv run gin-rummy
@@ -168,31 +193,6 @@ uv run gin-simulate --ai1-type learning --ai1-model models/my_model.pt
 ```
 
 See [docs/learning-ai.md](docs/learning-ai.md) for architecture details and training tips.
-
-## Web UI
-
-Play in your browser with a visual interface:
-
-```bash
-uv sync --extra web
-uv run uvicorn gin_rummy.web.app:app --reload
-```
-
-Then open http://127.0.0.1:8000
-
-### Features
-
-- **AI Difficulty**: Easy, Medium, or Hard opponents
-- **Game Modes**:
-  - Practice (endless hands)
-  - Target Score (100/150/200/250 points)
-- **Oklahoma Gin**: Upcard determines knock threshold, spade doubling optional
-- **Match Play**: Best of 3 games
-- **Statistics**: Lifetime stats tracking (wins, gins, undercuts, etc.)
-- **Score History**: View round-by-round results, click any round to replay
-- **Hand Replay**: Step through any completed hand turn-by-turn
-- **History Explorer**: Browse and filter all past games at `/history`
-- **Assist Mode**: Card tracker showing dead cards, opponent pickups, and helpful cards
 
 ## Linting
 
