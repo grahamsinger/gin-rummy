@@ -36,6 +36,8 @@ const elements = {
     playerNameDisplay: document.getElementById('player-name-display'),
     playerScore: document.getElementById('player-score'),
     opponentScore: document.getElementById('opponent-score'),
+    aiDifficultyDisplay: document.getElementById('ai-difficulty-display'),
+    aiDifficultyLabel: document.getElementById('ai-difficulty-label'),
     knockCheckbox: document.getElementById('knock-checkbox'),
     newGameBtn: document.getElementById('new-game-btn'),
     assistMode: document.getElementById('assist-mode'),
@@ -403,8 +405,9 @@ function renderGameState(state) {
                 // Re-capture the element reference after innerHTML update
                 elements.playerScore = document.getElementById('player-score');
             }
+            const diffLabel = state.ai_difficulty ? ` (${state.ai_difficulty.charAt(0).toUpperCase() + state.ai_difficulty.slice(1)})` : '';
             if (opponentLabel && !opponentLabel.textContent.startsWith(opponentName)) {
-                opponentLabel.innerHTML = `${opponentName}: <span id="opponent-score">${formatScore(opponentScore)}</span>`;
+                opponentLabel.innerHTML = `${opponentName}${diffLabel}: <span id="opponent-score">${formatScore(opponentScore)}</span>`;
                 // Re-capture the element reference after innerHTML update
                 elements.opponentScore = document.getElementById('opponent-score');
             }
@@ -413,6 +416,13 @@ function renderGameState(state) {
             elements.playerScore.textContent = formatScore(humanScore);
             elements.opponentScore.textContent = formatScore(opponentScore);
         }
+    }
+
+    // AI difficulty labels
+    if (state.ai_difficulty) {
+        const label = state.ai_difficulty.charAt(0).toUpperCase() + state.ai_difficulty.slice(1);
+        if (elements.aiDifficultyDisplay) elements.aiDifficultyDisplay.textContent = label;
+        if (elements.aiDifficultyLabel) elements.aiDifficultyLabel.textContent = `[${label}] `;
     }
 
     // Note: Don't check for game over here - let round result modal show first
@@ -1792,7 +1802,7 @@ async function loadStatsForPlayer(playerName) {
                     <span class="stat-value">${(stats.undercut_rate * 100).toFixed(1)}%</span>
                 </div>
                 <div class="stat-row">
-                    <span class="stat-label">Knock Aggression</span>
+                    <span class="stat-label" title="Percentage of hands where you knocked (knocks / total hands)">Knock Aggression</span>
                     <span class="stat-value">${(stats.knock_aggression * 100).toFixed(1)}%</span>
                 </div>
                 <div class="stat-row">

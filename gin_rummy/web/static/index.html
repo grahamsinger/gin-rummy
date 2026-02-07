@@ -14,7 +14,7 @@
             <div class="scores">
                 <span class="score"><span id="player-name-display">Player</span>: <span id="player-score">0</span></span>
                 <span class="score-divider">|</span>
-                <span class="score">Computer: <span id="opponent-score">0</span></span>
+                <span class="score">Computer (<span id="ai-difficulty-display">Medium</span>): <span id="opponent-score">0</span></span>
             </div>
         </header>
 
@@ -32,7 +32,7 @@
         <main class="game-board">
             <!-- Opponent's hand (face down) -->
             <div class="opponent-area">
-                <div class="label">Computer (<span id="opponent-card-count">10</span> cards)</div>
+                <div class="label">Computer <span id="ai-difficulty-label"></span>(<span id="opponent-card-count">10</span> cards)</div>
                 <div id="opponent-hand" class="card-row opponent-hand">
                     <!-- Filled by JS -->
                 </div>

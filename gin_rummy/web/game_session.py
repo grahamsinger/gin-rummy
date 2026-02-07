@@ -609,6 +609,7 @@ class GameSession:
             'games_won': self.games_won if self.match_mode else None,
             'match_winner': self.match_winner if self.match_mode else None,
             'player_name': self.player_name,
+            'ai_difficulty': self.ai_difficulty,
             'game_id': self.tracker.game_id,
         }
 
