@@ -36,6 +36,15 @@ from gin_rummy.game_runner import (
 logger = logging.getLogger(__name__)
 
 
+def _format_time(seconds: float) -> str:
+    """Format seconds as Xm Ys."""
+    mins = int(seconds) // 60
+    secs = seconds - mins * 60
+    if mins > 0:
+        return f"{mins}m {secs:.1f}s"
+    return f"{secs:.1f}s"
+
+
 @dataclass
 class SimulatorConfig:
     """Configuration for the simulator.
@@ -59,6 +68,8 @@ class GameResult:
 
     winner_idx: int | None = None
     rounds: int = 0
+    hands_won_p1: int = 0
+    hands_won_p2: int = 0
     score_p1: int = 0
     score_p2: int = 0
     ai1_turn_time: float = 0.0
@@ -276,17 +287,17 @@ class Simulator:
                     f"Game {game_num + 1}/{self.config.num_games} "
                     f"| Wins: {p1_wins}-{p2_wins} "
                     f"| Score: {game_result.score_p1}-{game_result.score_p2} "
-                    f"| {game_result.rounds} hands, {game_result.ai1_turns + game_result.ai2_turns} turns "
-                    f"| {game_time:.1f}s "
-                    f"(AI1 avg {game_result.ai1_avg_turn:.2f}s/turn, "
-                    f"AI2 avg {game_result.ai2_avg_turn:.2f}s/turn) "
-                    f"| Total: {elapsed:.0f}s\n"
+                    f"| {game_result.rounds} hands ({game_result.hands_won_p1}-{game_result.hands_won_p2}), {game_result.ai1_turns + game_result.ai2_turns} turns "
+                    f"| {_format_time(game_time)} "
+                    f"({game_result.ai1_avg_turn:.2f}s, "
+                    f"{game_result.ai2_avg_turn:.2f}s/turn) "
+                    f"| Total: {_format_time(elapsed)}\n"
                 )
                 sys.stderr.flush()
 
         if show_progress:
             total_time = time.time() - start_time
-            sys.stderr.write(f"Completed {self.config.num_games} games in {total_time:.1f}s\n")
+            sys.stderr.write(f"Completed {self.config.num_games} games in {_format_time(total_time)}\n")
             sys.stderr.flush()
 
         return self.metrics
@@ -308,6 +319,12 @@ class Simulator:
                 self.metrics.draws += 1
             else:
                 self._record_round_result(game, result)
+                if result.winner is not None:
+                    winner_idx = 0 if result.winner == game.players[0] else 1
+                    if winner_idx == 0:
+                        game_result.hands_won_p1 += 1
+                    else:
+                        game_result.hands_won_p2 += 1
 
             # Check for game winner
             if self.config.target_score > 0:
