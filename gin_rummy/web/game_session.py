@@ -839,9 +839,11 @@ class GameSession:
                 'discarded': card_to_id(actions.discarded_card),
             }
 
-            # Attach Monte Carlo thinking data if available
+            # Attach Monte Carlo thinking data if available and enabled
             if isinstance(self.ai, MonteCarloAI) and self.ai.last_mc_thinking:
-                self.last_ai_action['mc_thinking'] = self.ai.last_mc_thinking
+                from gin_rummy.config import get_config
+                if get_config().monte_carlo_ai.show_web_thinking:
+                    self.last_ai_action['mc_thinking'] = self.ai.last_mc_thinking
                 self.ai.last_mc_thinking = None  # Reset for next turn
 
             # Prepare turn data for recording

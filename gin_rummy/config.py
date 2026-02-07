@@ -195,6 +195,9 @@ class MonteCarloAIConfig:
     # "independent" = separate random samples per option (current behavior)
     sample_strategy: str = "paired"
 
+    # Whether to show the AI Thinking panel in the web UI
+    show_web_thinking: bool = True
+
 
 @dataclass
 class Config:

@@ -51,3 +51,7 @@ max_workers = 0
 #            (reduces variance, better for close decisions)
 # "independent" = each option gets its own random samples (original behavior)
 sample_strategy = "paired"
+
+# Whether to show the AI Thinking dropdown panel in the web UI.
+# Set to false to hide Monte Carlo decision details from the player.
+show_web_thinking = false
