@@ -230,7 +230,7 @@ class TestContextAwareAIKnock:
     def test_deck_urgency_increases_knock_score(self):
         """Late game should increase knock score via urgency modifier."""
         ai = ContextAwareAI()
-        # Hand with marginal deadwood (6)
+        # Hand with marginal deadwood (8) - above expanded gin pursuit threshold
         hand = Hand([
             Card(Rank.ACE, Suit.SPADES),
             Card(Rank.ACE, Suit.HEARTS),
@@ -238,22 +238,22 @@ class TestContextAwareAIKnock:
             Card(Rank.TWO, Suit.DIAMONDS),
             Card(Rank.THREE, Suit.DIAMONDS),
             Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.SIX, Suit.SPADES),  # 6 deadwood
+            Card(Rank.EIGHT, Suit.SPADES),  # 8 deadwood
             Card(Rank.FIVE, Suit.CLUBS),
             Card(Rank.SIX, Suit.CLUBS),
             Card(Rank.SEVEN, Suit.CLUBS),
         ])
 
-        # Early game context (lots of deck remaining)
-        early_context = self._make_context(deck_remaining=25)
-        early_score = ai._calculate_knock_score(hand, early_context)
+        # Mid game context (past early knock phase)
+        mid_context = self._make_context(deck_remaining=18)
+        mid_score = ai._calculate_knock_score(hand, mid_context)
 
         # Late game context (deck running low)
         late_context = self._make_context(deck_remaining=8)
         late_score = ai._calculate_knock_score(hand, late_context)
 
         # Late game should have higher knock score due to urgency
-        assert late_score > early_score
+        assert late_score > mid_score
 
     def test_trailing_score_increases_aggressiveness(self):
         """When trailing significantly, should knock more aggressively."""

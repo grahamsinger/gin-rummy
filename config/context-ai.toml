@@ -136,6 +136,29 @@ knock_trailing_threshold = 30
 # Points ahead to become selective with knocking.
 knock_leading_threshold = 30
 
+# --- Phased Knock Strategy ---
+# Enable phased knock behavior (false = existing flat scoring).
+use_phased_knock = true
+
+# Deck position % below which we are in "early game" (0.25 ≈ first 4 turns each).
+knock_phase_early_threshold = 0.25
+
+# Bonus added to knock score during early game. With threshold 0.4, a bonus of
+# 0.5 means we knock with any knockable hand (base_score 0.0 + 0.5 = 0.5 >= 0.4).
+early_knock_bonus = 0.5
+
+# --- Expanded Gin Pursuit ---
+# Maximum deadwood to consider gin pursuit (expands from base gin_pursuit_threshold
+# when conditions are favorable). Only triggers if live outs actually exist.
+expanded_gin_pursuit_threshold = 6
+
+# Number of opponent discard pickups that increases knock pressure.
+# Each pickup above this count reduces expanded threshold by opponent_pickup_pressure_weight.
+opponent_pickup_pressure_count = 3
+
+# How much each excess opponent pickup reduces the expanded gin pursuit threshold.
+opponent_pickup_pressure_weight = 1.0
+
 # --- Opponent Strength Estimation ---
 # Thresholds for estimating opponent's hand strength.
 

@@ -315,6 +315,26 @@ class ContextAwareAI(BasicAI):
 
         return should_knock
 
+    def _get_effective_gin_pursuit_threshold(self, context: GameContext) -> int:
+        """Get the dynamic gin pursuit threshold based on opponent pressure.
+
+        Starts at expanded_gin_pursuit_threshold and reduces by
+        opponent_pickup_pressure_weight for each opponent pickup above
+        opponent_pickup_pressure_count. Floors at base gin_pursuit_threshold.
+
+        Args:
+            context: Game context.
+
+        Returns:
+            Effective gin pursuit deadwood threshold.
+        """
+        cfg = self.context_config
+        threshold = cfg.expanded_gin_pursuit_threshold
+        excess_pickups = self.opponent_model.total_pickups - cfg.opponent_pickup_pressure_count
+        if excess_pickups > 0:
+            threshold -= int(excess_pickups * cfg.opponent_pickup_pressure_weight)
+        return max(threshold, cfg.gin_pursuit_threshold)
+
     def _calculate_knock_score(self, hand: Hand, context: GameContext) -> float:
         """Calculate knock score from multiple factors.
 
@@ -333,14 +353,30 @@ class ContextAwareAI(BasicAI):
         factors.append(f"base={base_score:.2f}")
 
         score = base_score
+        cfg = self.context_config
 
-        # Gin pursuit modifier: wait for gin when close?
-        if deadwood <= self.context_config.gin_pursuit_threshold:
-            pursue_gin, gin_prob = self._should_pursue_gin(hand, context)
-            if pursue_gin:
-                gin_modifier = -self.context_config.gin_pursuit_weight
-                score += gin_modifier
-                factors.append(f"gin_pursuit={gin_modifier:.2f}(prob={gin_prob:.2f})")
+        if cfg.use_phased_knock:
+            # Early game bonus: knock fast to take easy points
+            if context.deck_position_pct < cfg.knock_phase_early_threshold:
+                score += cfg.early_knock_bonus
+                factors.append(f"early_knock=+{cfg.early_knock_bonus:.2f}")
+
+            # Expanded gin pursuit: use dynamic threshold based on opponent pressure
+            effective_threshold = self._get_effective_gin_pursuit_threshold(context)
+            if deadwood <= effective_threshold and deadwood > 0:
+                pursue_gin, gin_prob = self._should_pursue_gin(hand, context)
+                if pursue_gin:
+                    gin_modifier = -cfg.gin_pursuit_weight
+                    score += gin_modifier
+                    factors.append(f"gin_pursuit={gin_modifier:.2f}(prob={gin_prob:.2f},thresh={effective_threshold})")
+        else:
+            # Original flat gin pursuit
+            if deadwood <= cfg.gin_pursuit_threshold:
+                pursue_gin, gin_prob = self._should_pursue_gin(hand, context)
+                if pursue_gin:
+                    gin_modifier = -cfg.gin_pursuit_weight
+                    score += gin_modifier
+                    factors.append(f"gin_pursuit={gin_modifier:.2f}(prob={gin_prob:.2f})")
 
         # Undercut risk modifier: opponent looks strong?
         threat_level = self.opponent_model.estimate_threat_level(context)
@@ -418,10 +454,6 @@ class ContextAwareAI(BasicAI):
         if deadwood == 0:
             # Already gin!
             return False, 1.0
-
-        if deadwood > self.context_config.gin_pursuit_threshold:
-            # Too far from gin
-            return False, 0.0
 
         # Calculate outs for gin
         if context.my_outs is None:
@@ -758,14 +790,30 @@ class ContextAwareAI(BasicAI):
         base_score = (10 - deadwood) / 10.0
         factors.append(f"Base score: {base_score:.2f}")
         score = base_score
+        cfg = self.context_config
 
-        # Gin pursuit modifier
-        if deadwood <= self.context_config.gin_pursuit_threshold:
-            pursue_gin, gin_prob = self._should_pursue_gin(hand, context)
-            if pursue_gin:
-                gin_modifier = -self.context_config.gin_pursuit_weight
-                score += gin_modifier
-                factors.append(f"Gin pursuit: {gin_modifier:+.2f} (prob={gin_prob:.2f})")
+        if cfg.use_phased_knock:
+            # Early game bonus: knock fast to take easy points
+            if context.deck_position_pct < cfg.knock_phase_early_threshold:
+                score += cfg.early_knock_bonus
+                factors.append(f"Early knock bonus: +{cfg.early_knock_bonus:.2f}")
+
+            # Expanded gin pursuit: use dynamic threshold based on opponent pressure
+            effective_threshold = self._get_effective_gin_pursuit_threshold(context)
+            if deadwood <= effective_threshold and deadwood > 0:
+                pursue_gin, gin_prob = self._should_pursue_gin(hand, context)
+                if pursue_gin:
+                    gin_modifier = -cfg.gin_pursuit_weight
+                    score += gin_modifier
+                    factors.append(f"Gin pursuit: {gin_modifier:+.2f} (prob={gin_prob:.2f}, thresh={effective_threshold})")
+        else:
+            # Original flat gin pursuit
+            if deadwood <= cfg.gin_pursuit_threshold:
+                pursue_gin, gin_prob = self._should_pursue_gin(hand, context)
+                if pursue_gin:
+                    gin_modifier = -cfg.gin_pursuit_weight
+                    score += gin_modifier
+                    factors.append(f"Gin pursuit: {gin_modifier:+.2f} (prob={gin_prob:.2f})")
 
         # Undercut risk modifier
         threat_level = self.opponent_model.estimate_threat_level(context)

@@ -147,6 +147,26 @@ class ContextAwareAIConfig:
     # Points ahead to be selective with knocking
     knock_leading_threshold: int = 30
 
+    # --- Phased Knock Strategy ---
+    # Enable phased knock behavior (false = existing flat scoring).
+    use_phased_knock: bool = True
+
+    # Deck position % below which we are in "early game" (0.25 ≈ first 4 turns each).
+    knock_phase_early_threshold: float = 0.25
+
+    # Bonus added to knock score during early game.
+    early_knock_bonus: float = 0.5
+
+    # --- Expanded Gin Pursuit ---
+    # Maximum deadwood to consider gin pursuit when conditions are favorable.
+    expanded_gin_pursuit_threshold: int = 6
+
+    # Number of opponent discard pickups that increases knock pressure.
+    opponent_pickup_pressure_count: int = 3
+
+    # How much each excess opponent pickup reduces the expanded gin pursuit threshold.
+    opponent_pickup_pressure_weight: float = 1.0
+
     # --- Opponent Strength Estimation ---
     # Opponent estimated deadwood above which they are "weak"
     opponent_high_deadwood_threshold: int = 15
