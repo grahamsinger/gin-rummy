@@ -8,8 +8,8 @@
 (none currently)
 
 ## AI Tuning
-- [ ] Tune ContextAwareAI parameters (currently ~55% win rate vs BasicAI)
-  - Best config so far: threshold=3, key_out=2, denial=0
+- [ ] Tune ContextAwareAI parameters (currently ~52% game win rate, ~46% hand win rate vs BasicAI)
+  - Wins fewer hands but wins bigger (more gins, more undercuts, higher pts/knock)
   - See SIMULATION_HISTORY.md for detailed results
 - [ ] Investigate ContextAwareAI knock timing behavior
   - AI appears to knock almost immediately when deadwood drops below threshold (10 points)
@@ -168,9 +168,9 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - No laying off allowed on gin (knocker deadwood = 0)
 
 ## UI Improvements
-- [ ] **Standardize Button Sizes**
-  - Footer control buttons have inconsistent sizes (View Stats, Score History, Explore History, New Game)
-  - Should all use the same padding/min-width for visual consistency
+- [x] **Standardize Button Sizes** (COMPLETED)
+  - Footer control buttons standardized (padding, font-size, border-radius)
+  - "Explore History" renamed to "Archive"
 - [ ] **Show Dealer Indicator**
   - Display who is the dealer for the current hand
   - Useful for verifying game logic (dealer alternates each round)

@@ -1,99 +1,156 @@
 # Simulation History
 
-Historical results from ContextAwareAI vs BasicAI simulations, tracking the impact of configuration changes.
+Tracking ContextAwareAI vs BasicAI performance across simulation runs.
 
-## Current Best Configuration
+---
 
-```toml
-[context_aware_ai]
-base_draw_threshold = 3
-key_out_bonus = 2
-denial_bonus = 0
-```
+## Phased Knock Strategy Results (2026-02-11)
 
-**Win Rate: 53.3%** (533/1000 games across 5 seeds)
+### Phased Knock vs Flat Knock (Context vs Context A/B test)
 
-## Results Log
+| Run | Seed | Games | AI 1 | AI 2 | Wins (AI1-AI2) | Win Rate AI1 |
+|-----|------|-------|------|------|----------------|--------------|
+| 6   | 42   | 1000  | Phased Knock | Flat Knock | 529-471 | **52.9%** |
 
-### 2025-12-26: Parameter Tuning Session
+| Metric | Phased Knock | Flat Knock |
+|--------|-------------|------------|
+| Games won | 529 (52.9%) | 471 (47.1%) |
+| Rounds won | 4760 | 4662 |
+| Total points | 85,390 | 80,025 |
+| Gins | 257 | 212 |
+| Knocks | 4,629 | 4,793 |
+| Avg knock deadwood | 6.3 | 5.9 |
+| Pts per knock win | 16.7 | 16.2 |
+| Undercuts made | 551 | 420 |
+| Pts per undercut | 27.5 | 27.3 |
 
-**Goal:** Improve ContextAwareAI win rate from ~40% baseline
+### Phased Knock Context vs BasicAI
 
-#### Baseline (original settings)
-- `base_draw_threshold = 1`
-- `key_out_bonus = 3`
-- `denial_bonus = 2`
-- Games: 200 (seed=42)
-- **Result: 41.5% win rate** (83-117)
-- Discard draw rate: 51.8%
-- Notes: AI was too aggressive picking from discard pile
+| Run | Seed | Games | AI 1 | AI 2 | Wins (AI1-AI2) | Win Rate AI1 |
+|-----|------|-------|------|------|----------------|--------------|
+| 7   | 42   | 1000  | Context (Phased) | Basic | 541-459 | **54.1%** |
 
-#### Tweak 1: Increase base_draw_threshold to 2
-- `base_draw_threshold = 2`
-- Games: 200 (seed=42)
-- **Result: 46.5% win rate** (93-107)
-- Discard draw rate: 32.8%
-- Notes: +5% improvement, more selective about pickups
+| Metric | ContextAwareAI (Phased) | BasicAI |
+|--------|------------------------|---------|
+| Games won | 541 (54.1%) | 459 (45.9%) |
+| Rounds won | 4514 | 5076 |
+| Total points | 85,666 | 79,002 |
+| Gins | 155 | 111 |
+| Knocks | 3,978 | 5,612 |
+| Avg knock deadwood | 6.6 | 6.8 |
+| Pts per knock win | 17.5 | 15.3 |
+| Undercuts made | 659 | 123 |
+| Pts per undercut | 27.5 | 26.5 |
 
-#### Tweak 2: Reduce key_out_bonus to 2
-- `base_draw_threshold = 2`, `key_out_bonus = 2`
-- Games: 200 (seed=42)
-- **Result: 50.0% win rate** (100-100)
-- Notes: Additional +3.5% improvement
+**Key takeaways (t=100):**
+- Phased knock beats flat knock head-to-head: 52.9% win rate
+- Phased knock produces 21% more gins (257 vs 212) and 31% more undercuts (551 vs 420)
+- vs BasicAI, phased knock improved from ~52% to **54.1%** — a 2 percentage point gain
+- Slightly higher avg knock deadwood (6.3 vs 5.9) is expected from early-game aggressive knocking
+- The strategy amplifies ContextAwareAI's existing strengths: more gins, more undercuts, higher-value wins
 
-#### Tweak 3: Increase base_draw_threshold to 3
-- `base_draw_threshold = 3`, `key_out_bonus = 2`
-- Games: 1000 (5 seeds)
-- **Result: 50.0% win rate** (500-500)
-- Notes: More consistent results (46.5%-53.5% range vs 38.5%-52% before)
+### Higher Target Score Results (target score = 250)
 
-#### Tweak 4: Disable denial_bonus
-- `base_draw_threshold = 3`, `key_out_bonus = 2`, `denial_bonus = 0`
-- Games: 1000 (5 seeds)
-- **Result: 53.3% win rate** (533-467)
-- Notes: Opponent model predictions may be inaccurate, causing bad denial pickups
+| Run | Seed | Games | Target | AI 1 | AI 2 | Wins (AI1-AI2) | Win Rate AI1 |
+|-----|------|-------|--------|------|------|----------------|--------------|
+| 8   | 42   | 1000  | 250    | Phased Knock | Flat Knock | 514-486 | **51.4%** |
+| 9   | 42   | 1000  | 250    | Context (Phased) | Basic | 545-455 | **54.5%** |
+| 10  | random | 1000 | 250   | Phased Knock | Flat Knock | 503-497 | **50.3%** |
+| 11  | random | 1000 | 250   | Context (Phased) | Basic | 554-446 | **55.4%** |
 
-#### Tweak 5: Reduce key_out_bonus to 1
-- `base_draw_threshold = 3`, `key_out_bonus = 1`, `denial_bonus = 0`
-- Games: 1000 (5 seeds)
-- **Result: 52.0% win rate** (520-480)
-- Notes: Slightly worse, reverted to key_out_bonus = 2
+### Cross-Target Comparison
 
-#### Tweak 6: Conservative knock strategy
-- Changed `[ai] knock_strategy = "conservative"` (threshold 5)
-- Games: 1000 (5 seeds)
-- **Result: 50.7% win rate** (507-493)
-- Notes: Hurt performance. Both AIs share [ai] config, so no advantage gained.
+| Matchup | t=100 | t=250 (seeded) | t=250 (random) |
+|---------|-------|----------------|----------------|
+| Phased vs Flat | 52.9% | 51.4% | 50.3% |
+| Context vs Basic | 54.1% | 54.5% | 55.4% |
 
-#### Final Multi-seed Validation (Best Config)
-| Seed | Games | ContextAwareAI | BasicAI | Win Rate |
-|------|-------|----------------|---------|----------|
-| 42 | 200 | 108 | 92 | 54.0% |
-| 123 | 200 | 111 | 89 | 55.5% |
-| 456 | 200 | 105 | 95 | 52.5% |
-| 789 | 200 | 97 | 103 | 48.5% |
-| 1000 | 200 | 112 | 88 | 56.0% |
-| **Total** | **1000** | **533** | **467** | **53.3%** |
+**Key takeaways (t=250):**
+- Context vs Basic advantage **increases** with longer games: 54.1% → 54.5-55.4%
+- Longer games give ContextAwareAI more opportunities to exploit its quality-over-quantity strategy
+- Phased vs Flat edge narrows at t=250 (51.4%/50.3% vs 52.9%), suggesting the early knock bonus matters more in shorter games
+- Results are consistent across seeded and random runs, confirming the advantage is not seed-dependent
 
-## Key Insights
+---
 
-1. **Original AI was too aggressive** - 51.8% discard pickup rate was revealing info and taking suboptimal cards
-2. **Higher threshold helps** - Forcing more selective pickups improved win rate
-3. **Denial bonus hurts** - OpponentModel predictions aren't accurate enough; taking cards just to deny opponent backfired
-4. **Knock strategy is shared** - Both AIs use same [ai] config, so changing knock behavior affects both equally
+## Baseline Results (2026-02-11)
 
-## Next Steps to Improve Further
+### Full Games (target score = 100)
 
-1. **Add context-aware knock logic to ContextAwareAI**
-   - Override `should_knock()` to consider game context
-   - Go for gin when ahead, knock early when behind
-   - Consider opponent's likely hand strength
+| Run | Seed | Games | AI 1 | AI 2 | Wins (AI1-AI2) | Win Rate AI1 |
+|-----|------|-------|------|------|----------------|--------------|
+| 1   | 42   | 500   | Context | Basic | 260-240 | 52.0% |
+| 2   | 123  | 500   | Basic | Context | 260-240 | 48.0% (Context) |
+| 3   | 777  | 1000  | Context | Basic | 520-480 | 52.0% |
 
-2. **Improve opponent modeling**
-   - Track which melds opponent might be building
-   - Better prediction of what cards help opponent
-   - Re-enable denial bonus once predictions are accurate
+**Combined full-game results:** ContextAwareAI wins 1020/2000 games = **51.0%**
 
-3. **Dynamic threshold based on hand quality**
-   - Lower threshold when hand is already strong
-   - Higher threshold when hand needs significant improvement
+### Single-Hand Games (target score = 1)
+
+| Run | Seed | Hands | AI 1 | AI 2 | Wins (AI1-AI2) | Win Rate AI1 |
+|-----|------|-------|------|------|----------------|--------------|
+| 4   | 999  | 2000  | Context | Basic | 916-1084 | 45.8% |
+| 5   | 888  | 2000  | Basic | Context | 1076-924 | 46.2% (Context) |
+
+**Combined single-hand results:** ContextAwareAI wins 1840/4000 hands = **46.0%**
+
+### Key Observations
+
+**ContextAwareAI wins fewer individual hands but wins more full games.** This is the defining characteristic:
+
+1. **Hand win rate:** ~46% (Context loses more individual hands than Basic)
+2. **Game win rate:** ~51-52% (Context wins slightly more full games)
+3. **How?** ContextAwareAI wins *bigger* when it wins:
+   - Avg points per knock win: **17.0-17.8** (Context) vs **15.0-15.2** (Basic)
+   - More gins: Context gets ~60% more gins than Basic
+   - Massively more undercuts: Context undercuts ~5x more often than Basic
+   - Avg points per undercut: **~27** (Context) vs **~26** (Basic)
+
+### Detailed Metrics (from Run 3: 1000 full games, seed 777)
+
+| Metric | ContextAwareAI | BasicAI |
+|--------|---------------|---------|
+| Games won | 520 (52.0%) | 480 (48.0%) |
+| Rounds won | 4601 (46.8%) | 5222 (53.1%) |
+| Total points | 85,212 | 80,868 |
+| Gins | 184 | 129 |
+| Knocks | 4,109 | 5,714 |
+| Avg knock deadwood | 6.0 | 6.8 |
+| Pts per knock win | 17.2 | 15.2 |
+| Undercuts made | 615 | 123 |
+| Undercuts received | 123 | 615 |
+| Pts per undercut | 27.3 | 26.4 |
+| Discard draw rate | 23.6% | 25.6% |
+
+### Analysis
+
+**ContextAwareAI's edge comes from quality over quantity:**
+- Knocks less often but with lower deadwood (6.0 vs 6.8)
+- Earns more points per knock win (+2 pts avg)
+- Gets significantly more gins (+43%)
+- Undercuts opponents ~5x more frequently (615 vs 123 in 1000 games)
+- The undercut asymmetry is the biggest factor — Context is much better at detecting when opponent is likely to knock and keeping low deadwood defensively
+
+**ContextAwareAI's weakness:**
+- Wins fewer individual hands (~46%) — being more selective about knocking means BasicAI knocks first more often
+- The hand-level disadvantage is overcome by winning bigger when it does win
+
+**Position effect:**
+- Player 1 (non-dealer, goes first) has a consistent ~52% win rate regardless of AI type
+- This is a first-mover advantage inherent to gin rummy, not an AI difference
+- When controlling for position, Context vs Basic difference is marginal at the game level
+
+### Current ContextAwareAI Config
+
+Key parameters (from `config/context-ai.toml`):
+- `knock_decision_threshold = 0.4`
+- `gin_pursuit_threshold = 3` (base, wait for gin when deadwood ≤ 3)
+- `use_phased_knock = true` (three-phase knock strategy)
+- `knock_phase_early_threshold = 0.25` (early game = first ~25% of deck dealt)
+- `early_knock_bonus = 0.5` (knock aggressively early)
+- `expanded_gin_pursuit_threshold = 6` (pursue gin with up to 6 deadwood if outs exist)
+- `opponent_pickup_pressure_count = 3` (reduce gin pursuit threshold after 3+ opponent pickups)
+- `denial_bonus = 0` (disabled)
+- `safe_rank_discard_bonus = 0` (disabled)
+- `dangerous_rank_penalty = 0` (disabled)
+- All dynamic threshold modifiers disabled (`max_deck_modifier = 0`, `max_outs_modifier = 0`)
