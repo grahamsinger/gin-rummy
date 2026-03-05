@@ -400,7 +400,7 @@ class MonteCarloAI(ContextAwareAI):
         self.draw_simulations = mc_cfg.draw_simulations
         self.discard_simulations = mc_cfg.discard_simulations
         self.knock_simulations = mc_cfg.knock_simulations
-        self.max_discard_candidates = mc_cfg.max_discard_candidates
+
         self.max_rollout_turns = mc_cfg.max_rollout_turns
         self.min_unknown_for_simulation = mc_cfg.min_unknown_for_simulation
 
@@ -765,6 +765,7 @@ class MonteCarloAI(ContextAwareAI):
             'hand_size': len(cards),
             'deadwood_count': len(deadwood_cards),
             'fallback': fallback,
+            'min_advantage': self.discard_min_advantage,
         }
 
         if self.last_mc_thinking is None:

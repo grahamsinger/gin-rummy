@@ -188,9 +188,6 @@ class MonteCarloAIConfig:
     # Number of rollout simulations per option for knock decisions
     knock_simulations: int = 100
 
-    # Maximum discard candidates to evaluate (top N by immediate deadwood)
-    max_discard_candidates: int = 5
-
     # Maximum turns per rollout before using heuristic evaluation
     max_rollout_turns: int = 4
 

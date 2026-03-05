@@ -8,17 +8,13 @@
 
 [monte_carlo_ai]
 # Number of simulations per option for draw decisions (deck vs discard).
-draw_simulations = 300
+draw_simulations = 500
 
 # Number of simulations per candidate for discard decisions.
-discard_simulations = 300
+discard_simulations = 500
 
 # Number of simulations per option for knock decisions (knock vs continue).
-knock_simulations = 300
-
-# Maximum discard candidates to evaluate (top N by immediate deadwood).
-# Higher = more thorough but slower.
-max_discard_candidates = 5
+knock_simulations = 500
 
 # Maximum turns per rollout before using heuristic evaluation.
 # Shorter = faster but less accurate.
@@ -54,4 +50,4 @@ sample_strategy = "paired"
 
 # Whether to show the AI Thinking dropdown panel in the web UI.
 # Set to false to hide Monte Carlo decision details from the player.
-show_web_thinking = false
+show_web_thinking = true

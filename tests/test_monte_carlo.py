@@ -19,7 +19,6 @@ def make_test_config() -> Config:
         draw_simulations=10,  # Fewer sims for fast tests
         discard_simulations=10,
         knock_simulations=10,
-        max_discard_candidates=3,
         max_rollout_turns=4,
         min_unknown_for_simulation=3,
         rollout_knock_strategy="conservative",
@@ -721,7 +720,6 @@ class TestIndependentSamples:
             draw_simulations=10,
             discard_simulations=10,
             knock_simulations=10,
-            max_discard_candidates=3,
             max_rollout_turns=4,
             min_unknown_for_simulation=3,
             rollout_knock_strategy="conservative",

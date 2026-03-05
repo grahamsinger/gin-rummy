@@ -741,9 +741,6 @@ async function doAiTurn() {
     elements.lastAiMove.textContent = "Computer is thinking...";
     elements.lastAiMove.classList.add('thinking');
 
-    // Small delay to show AI is "thinking"
-    await new Promise(resolve => setTimeout(resolve, 600));
-
     // Get updated state (AI turn is executed server-side)
     const state = await apiCall('/ai-turn', 'POST');
     if (state) {
@@ -777,27 +774,21 @@ async function displayAiAction(action, state) {
         }
 
         // Wait to show the draw action
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 400));
 
         // Remove highlight
         elements.discardPile.classList.remove('highlight-pickup');
 
-        // Show thinking for discard decision
-        elements.lastAiMove.textContent = "Computer is thinking...";
-        elements.lastAiMove.classList.remove('ai-pickup', 'ai-draw');
-        elements.lastAiMove.classList.add('thinking');
-        await new Promise(resolve => setTimeout(resolve, 600));
-
         // Show the discard action
         elements.lastAiMove.textContent = `Computer discarded ${formatCardId(action.discarded)}`;
-        elements.lastAiMove.classList.remove('thinking');
+        elements.lastAiMove.classList.remove('thinking', 'ai-pickup', 'ai-draw');
         elements.lastAiMove.classList.add('ai-discard');
 
         // Update the UI with the new state
         renderGameState(state);
 
         // Wait to show the discard action
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         // Clear status classes, then show persistent summary
         elements.lastAiMove.classList.remove('ai-discard');
@@ -806,7 +797,7 @@ async function displayAiAction(action, state) {
         elements.lastAiMove.textContent = `Computer discarded ${formatCardId(action.discarded)}`;
         elements.lastAiMove.classList.remove('thinking');
         renderGameState(state);
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         updateLastAiMove(action);
     }
@@ -914,6 +905,9 @@ function renderMcThinking(mcThinking) {
             html += `</tr>`;
         }
         html += `</table>`;
+        if (disc.fallback) {
+            html += `<div style="color:#ffb74d; margin-top:4px; font-size:0.9em">⚠ MC gap &lt; ${disc.min_advantage} threshold — fell back to heuristic</div>`;
+        }
         html += `</div>`;
     }
 
