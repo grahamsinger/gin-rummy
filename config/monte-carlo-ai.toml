@@ -8,13 +8,13 @@
 
 [monte_carlo_ai]
 # Number of simulations per option for draw decisions (deck vs discard).
-draw_simulations = 500
+draw_simulations = 2000
 
 # Number of simulations per candidate for discard decisions.
-discard_simulations = 500
+discard_simulations = 2000
 
 # Number of simulations per option for knock decisions (knock vs continue).
-knock_simulations = 500
+knock_simulations = 2000
 
 # Maximum turns per rollout before using heuristic evaluation.
 # Shorter = faster but less accurate.

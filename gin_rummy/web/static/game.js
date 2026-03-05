@@ -741,8 +741,11 @@ async function doAiTurn() {
     elements.lastAiMove.textContent = "Computer is thinking...";
     elements.lastAiMove.classList.add('thinking');
 
-    // Get updated state (AI turn is executed server-side)
-    const state = await apiCall('/ai-turn', 'POST');
+    // Run API call with a minimum visible delay so the thinking state is apparent
+    const [state] = await Promise.all([
+        apiCall('/ai-turn', 'POST'),
+        new Promise(resolve => setTimeout(resolve, 600)),
+    ]);
     if (state) {
         // Display AI actions sequentially if available
         if (state.ai_action) {

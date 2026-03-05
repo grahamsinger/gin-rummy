@@ -307,13 +307,6 @@ class GameSession:
         self.game.deal()
         self.pending_dealer_name = self.game.dealer.name
 
-        # Handle first discard phase (only in standard mode)
-        # Non-dealer (human if dealer_idx=1, AI if dealer_idx=0) must discard first
-        # In Oklahoma mode, phase is DRAWING so this is skipped
-        if self.game.phase == GamePhase.FIRST_DISCARD and self.game.current_player_idx != self.human_idx:
-            # AI does first discard
-            self._ai_first_discard()
-
         return self.get_state()
 
     def resume_game(self, game_id: int) -> dict[str, Any]:
@@ -410,10 +403,6 @@ class GameSession:
         self.turn_deadwood_before = None
         self.turn_drew_from = None
         self.turn_card_drawn = None
-
-        # Handle first discard if AI goes first
-        if self.game.phase == GamePhase.FIRST_DISCARD and self.game.current_player_idx != self.human_idx:
-            self._ai_first_discard()
 
         return self.get_state()
 
@@ -1040,10 +1029,5 @@ class GameSession:
         self.turn_deadwood_before = None
         self.turn_drew_from = None
         self.turn_card_drawn = None
-
-        # Handle first discard (only in standard mode)
-        # In Oklahoma mode, phase is DRAWING so this is skipped
-        if self.game.phase == GamePhase.FIRST_DISCARD and self.game.current_player_idx != self.human_idx:
-            self._ai_first_discard()
 
         return self.get_state()
