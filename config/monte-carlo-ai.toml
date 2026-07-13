@@ -51,3 +51,18 @@ sample_strategy = "paired"
 # Whether to show the AI Thinking dropdown panel in the web UI.
 # Set to false to hide Monte Carlo decision details from the player.
 show_web_thinking = true
+
+# Weight opponent-hand sampling by observed behavior: cards related to the
+# opponent's discards are sampled into their hand less often, cards related
+# to their pickups / inferred melds more often. false = uniform sampling.
+weighted_sampling = true
+
+# In rollouts both hands are visible (determinized), so the rollout policy
+# can avoid discards that immediately improve the other side's hand.
+# false = pure deadwood-minimizing discards (original behavior).
+defensive_rollout = true
+
+# Evaluate each candidate discard against both "knock now" and "continue"
+# with shared samples, choosing the (discard, knock) pair jointly instead
+# of picking a discard first and deciding the knock afterwards.
+joint_turn_evaluation = true

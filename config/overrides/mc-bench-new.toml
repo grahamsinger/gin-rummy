@@ -1,0 +1,10 @@
+# Benchmark config: MC upgrades ON, reduced sims for faster A/B runs.
+# Pair with mc-bench-legacy.toml (identical sims, upgrades off).
+[monte_carlo_ai]
+draw_simulations = 150
+discard_simulations = 150
+knock_simulations = 150
+max_workers = 1
+weighted_sampling = true
+defensive_rollout = true
+joint_turn_evaluation = true

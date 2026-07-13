@@ -1,0 +1,10 @@
+# Benchmark config: MC upgrades OFF (pre-2026-07-12 behavior), reduced sims.
+# Pair with mc-bench-new.toml (identical sims, upgrades on).
+[monte_carlo_ai]
+draw_simulations = 150
+discard_simulations = 150
+knock_simulations = 150
+max_workers = 1
+weighted_sampling = false
+defensive_rollout = false
+joint_turn_evaluation = false

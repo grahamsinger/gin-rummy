@@ -215,6 +215,18 @@ class MonteCarloAIConfig:
     # Whether to show the AI Thinking panel in the web UI
     show_web_thinking: bool = True
 
+    # Weight opponent-hand sampling by observed behavior (discards make
+    # related cards less likely; pickups/inferred melds more likely)
+    weighted_sampling: bool = True
+
+    # In rollouts, avoid discards that immediately improve the (visible)
+    # sampled opponent hand
+    defensive_rollout: bool = True
+
+    # Evaluate each candidate discard against both "knock now" and
+    # "continue" and plan the (discard, knock) pair jointly
+    joint_turn_evaluation: bool = True
+
 
 @dataclass
 class Config:
