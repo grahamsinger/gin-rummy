@@ -36,6 +36,12 @@ class BasicAI:
         self.knock_strategy = cfg.ai.knock_strategy
         self.conservative_knock_threshold = cfg.ai.conservative_knock_threshold
         self.min_deadwood_improvement = cfg.ai.min_deadwood_improvement
+        self.knock_threshold = cfg.game_rules.knock_threshold
+
+        # True while decide_discard is being called on a hypothetical hand
+        # (from _card_helps_hand); lets subclasses skip side effects like
+        # recording statistics for discards that never happen
+        self._in_hypothetical = False
 
     def decide_draw(self, hand: Hand, discard_top: Card | None) -> DrawChoice:
         """Decide whether to draw from deck or discard pile.
@@ -96,7 +102,11 @@ class BasicAI:
 
         # Use decide_discard to see what we would ACTUALLY discard
         # This ensures coordination between draw and discard decisions
-        would_discard = self.decide_discard(test_hand)
+        self._in_hypothetical = True
+        try:
+            would_discard = self.decide_discard(test_hand)
+        finally:
+            self._in_hypothetical = False
 
         # CRITICAL CHECK: Never pick up a card if we'd immediately discard it!
         if would_discard == card:
@@ -179,7 +189,7 @@ class BasicAI:
             True if AI should knock.
         """
         deadwood = hand.deadwood_total
-        can_knock = deadwood <= 10
+        can_knock = deadwood <= self.knock_threshold
         is_gin = deadwood == 0
 
         if is_gin:
@@ -187,8 +197,9 @@ class BasicAI:
             return True
         elif not can_knock:
             logger.debug(
-                "Knock decision: NO (deadwood=%d > 10, cannot knock)",
+                "Knock decision: NO (deadwood=%d > %d, cannot knock)",
                 deadwood,
+                self.knock_threshold,
             )
             return False
         elif self.knock_strategy == "always":
@@ -323,7 +334,7 @@ class BasicAI:
             KnockReasoning with decision, reasoning string, and factors.
         """
         deadwood = hand.deadwood_total
-        can_knock = deadwood <= 10
+        can_knock = deadwood <= self.knock_threshold
         is_gin = deadwood == 0
 
         factors: list[str] = [f"Deadwood: {deadwood}"]
@@ -339,10 +350,10 @@ class BasicAI:
             )
 
         if not can_knock:
-            factors.append("Cannot knock: deadwood > 10")
+            factors.append(f"Cannot knock: deadwood > {self.knock_threshold}")
             return KnockReasoning(
                 should_knock=False,
-                reasoning=f"No knock: deadwood={deadwood} > 10",
+                reasoning=f"No knock: deadwood={deadwood} > {self.knock_threshold}",
                 score=None,
                 factors=factors,
             )
@@ -407,7 +418,7 @@ class BasicAI:
         # Check if we can knock after discarding
         test_cards = [c for c in hand if c != discard]
         test_analysis = analyze_hand(test_cards)
-        can_knock = test_analysis.deadwood_value <= 10
+        can_knock = test_analysis.deadwood_value <= self.knock_threshold
 
         should_knock = can_knock and self.should_knock(Hand(test_cards))
 

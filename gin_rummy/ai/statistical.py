@@ -221,8 +221,11 @@ class StatisticalAI(BasicAI):
             [(str(c), f"dw={dw},wr={wr:.2f}") for c, _, dw, wr in options[:3]],
         )
 
-        # Record for later update
-        self._round_discards.append(_card_to_index(best_discard))
+        # Record for later update - but only for real discards, not
+        # hypothetical evaluations from _card_helps_hand (those would
+        # poison the learned win-rate statistics with phantom samples)
+        if not self._in_hypothetical:
+            self._round_discards.append(_card_to_index(best_discard))
 
         return best_discard
 
@@ -242,8 +245,8 @@ class StatisticalAI(BasicAI):
             self._round_knocks.append((0, True))
             return True
 
-        # Can't knock if deadwood > 10
-        if deadwood > 10:
+        # Can't knock if deadwood over threshold
+        if deadwood > self.knock_threshold:
             return False
 
         stats = self.knock_stats.get(deadwood)

@@ -466,6 +466,14 @@ def play_human_turn(
             if 1 <= idx <= len(display_cards):
                 discard_card = display_cards[idx - 1]
 
+                # Rule: cannot discard the card just taken from the discard pile
+                if discard_card == game.discard_blocked_card:
+                    print(
+                        f"\n❌ Cannot discard {discard_card} - you just took it "
+                        f"from the discard pile. Choose a different card."
+                    )
+                    continue
+
                 # Check if discarding from a meld (potential mistake)
                 current_analysis = current.hand.analyze()
                 is_in_meld = any(discard_card in meld.cards for meld in current_analysis.melds)
@@ -489,12 +497,10 @@ def play_human_turn(
                     knock_choice = input("Knock? (y/n): ").strip().lower()
 
                     if knock_choice == "y":
-                        # Discard the card first, then knock
-                        current.hand.remove(discard_card)
-                        game.discard_pile.append(discard_card)
-                        game._discard_history.append(discard_card)
+                        # Discard and knock (handles pile/history bookkeeping)
+                        result = game.knock_with_discard(discard_card)
 
-                        # Record turn before knock
+                        # Record turn
                         if tracker and card:
                             cards_after = cards_to_db_list(list(current.hand))
                             tracker.record_turn(
@@ -509,7 +515,6 @@ def play_human_turn(
                                 deadwood_after=post_discard_deadwood
                             )
 
-                        result = game.knock()
                         display_round_result(game, result)
                         return TurnResult.KNOCKED
 

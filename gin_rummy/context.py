@@ -119,6 +119,14 @@ class KnownCards:
         """
         return self.discard_buried
 
+    @property
+    def unavailable_cards(self) -> frozenset[Card]:
+        """Cards that can never be drawn: buried discards plus cards known
+        to be in the opponent's hand. Use this for outs calculations -
+        an out sitting in the opponent's hand is not live.
+        """
+        return self.discard_buried | self.opponent_hand_known
+
 
 @dataclass
 class GameContext:
@@ -142,6 +150,9 @@ class GameContext:
 
     target_score: int = 100
 
+    # Knock threshold in effect (dynamic under Oklahoma Gin rules)
+    knock_threshold: int = 10
+
     # Current hand analysis (set by AI after construction)
     my_outs: OutsAnalysis | None = None
 
@@ -151,6 +162,15 @@ class GameContext:
         if self.known_cards:
             return set(self.known_cards.dead_cards)
         # Fallback for backwards compatibility
+        return set(self.discard_history)
+
+    @property
+    def unavailable_cards(self) -> set[Card]:
+        """Cards that cannot be drawn: buried discards plus cards known to
+        be in the opponent's hand. Prefer this over dead_cards for outs.
+        """
+        if self.known_cards:
+            return set(self.known_cards.unavailable_cards)
         return set(self.discard_history)
 
     @property
@@ -415,6 +435,9 @@ class OpponentModel:
     # Specific cards picked up (for meld inference)
     picked_up_cards: list[Card] = field(default_factory=list)
 
+    # Specific cards discarded (for hand-sampling inference)
+    discarded_cards: list[Card] = field(default_factory=list)
+
     # Inferred melds opponent is building
     inferred_melds: list[InferredMeld] = field(default_factory=list)
 
@@ -423,6 +446,17 @@ class OpponentModel:
         self.discarded_ranks[card.rank] += 1
         self.discarded_suits[card.suit] += 1
         self.total_discards += 1
+        self.discarded_cards.append(card)
+
+        # If they throw back a card they previously picked up, they are no
+        # longer holding it - un-track it so inferred melds/danger cards
+        # don't stay poisoned for the rest of the hand
+        if card in self.picked_up_cards:
+            self.picked_up_cards.remove(card)
+            self.picked_up_ranks[card.rank] -= 1
+            self.picked_up_suits[card.suit] -= 1
+            self.total_pickups -= 1
+            self._update_inferred_melds()
 
     def record_pickup(self, card: Card) -> None:
         """Record that opponent picked up a card from discard."""
@@ -642,6 +676,7 @@ class OpponentModel:
         self.total_discards = 0
         self.total_pickups = 0
         self.picked_up_cards.clear()
+        self.discarded_cards.clear()
         self.inferred_melds.clear()
 
     def estimate_deadwood(self, context: GameContext) -> int:

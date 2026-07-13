@@ -139,9 +139,10 @@ class ContextAwareAI(BasicAI):
         best_score = float('inf')  # Lower is better
         discard_options: list[tuple[Card, float, int, str]] = []
 
-        # Get context for dead cards calculation
+        # Get context for unavailable cards calculation (buried discards
+        # plus cards known to be in opponent's hand - neither can be drawn)
         ctx = self._current_context
-        dead_cards = ctx.dead_cards if ctx else set()
+        dead_cards = ctx.unavailable_cards if ctx else set()
         deck_position = ctx.deck_position_pct if ctx else 0.0
 
         # Find cards in melds - only penalize if discarding would break a 3-card meld
@@ -246,7 +247,10 @@ class ContextAwareAI(BasicAI):
         return best_discard
 
     def should_knock(
-        self, hand: Hand, context: GameContext | None = None
+        self,
+        hand: Hand,
+        context: GameContext | None = None,
+        pending_discard: Card | None = None,
     ) -> bool:
         """Context-aware knock decision.
 
@@ -261,6 +265,8 @@ class ContextAwareAI(BasicAI):
         Args:
             hand: Current hand (should have 10 cards).
             context: Optional game context. If None, falls back to BasicAI.
+            pending_discard: The card that will be discarded if we don't
+                knock (used by simulation-based subclasses; unused here).
 
         Returns:
             True if AI should knock.
@@ -273,13 +279,14 @@ class ContextAwareAI(BasicAI):
             logger.info("Knock decision: YES - GIN!")
             return True
 
-        # Can't knock if deadwood > 10
-        if deadwood > 10:
-            logger.debug("Knock decision: NO (deadwood=%d > 10)", deadwood)
-            return False
-
         # Use stored context if not provided
         ctx = context or self._current_context
+
+        # Can't knock if deadwood over threshold (dynamic under Oklahoma)
+        threshold = ctx.knock_threshold if ctx else self.knock_threshold
+        if deadwood > threshold:
+            logger.debug("Knock decision: NO (deadwood=%d > %d)", deadwood, threshold)
+            return False
 
         # Fall back to BasicAI if no context or context-knock disabled
         if ctx is None or not self.context_config.use_context_knock:
@@ -294,10 +301,11 @@ class ContextAwareAI(BasicAI):
             )
             return True
 
-        # Edge case 3: Always knock if it would win the game
-        if ctx.my_score + (25 if deadwood == 0 else 10 - deadwood) >= ctx.target_score:
-            logger.info("Knock decision: YES (game-winning knock)")
-            return True
+        # Note: no unconditional "game-winning knock" shortcut here. Knock
+        # points depend on the defender's post-layoff deadwood and can even
+        # be negative on an undercut, so a naive (threshold - deadwood)
+        # estimate cannot guarantee a win. The game-winning situation is
+        # instead a strong bonus inside _calculate_knock_score.
 
         # Calculate knock score
         knock_score = self._calculate_knock_score(hand, ctx)
@@ -459,7 +467,7 @@ class ContextAwareAI(BasicAI):
         if context.my_outs is None:
             outs_analysis = self.outs_calculator.calculate_outs(
                 hand,
-                dead_cards=context.dead_cards,
+                dead_cards=context.unavailable_cards,
                 deck_position_pct=context.deck_position_pct,
             )
         else:
@@ -526,10 +534,13 @@ class ContextAwareAI(BasicAI):
         test_cards = [c for c in hand if c != discard]
         test_hand = Hand(test_cards)
         test_analysis = test_hand.analyze()
-        can_knock = test_analysis.deadwood_value <= 10
+        threshold = ctx.knock_threshold if ctx else self.knock_threshold
+        can_knock = test_analysis.deadwood_value <= threshold
 
         # Use context-aware knock decision
-        should_knock = can_knock and self.should_knock(test_hand, ctx)
+        should_knock = can_knock and self.should_knock(
+            test_hand, ctx, pending_discard=discard
+        )
 
         logger.debug(
             "--- ContextAwareAI Turn End --- (discard=%s, knock=%s)",
@@ -576,9 +587,10 @@ class ContextAwareAI(BasicAI):
         best_score = float('inf')  # Lower is better
         discard_options: list[tuple[Card, float, int, str]] = []
 
-        # Get context for dead cards calculation
+        # Get context for unavailable cards calculation (buried discards
+        # plus cards known to be in opponent's hand - neither can be drawn)
         ctx = self._current_context
-        dead_cards = ctx.dead_cards if ctx else set()
+        dead_cards = ctx.unavailable_cards if ctx else set()
         deck_position = ctx.deck_position_pct if ctx else 0.0
 
         # Find cards in melds
@@ -682,13 +694,18 @@ class ContextAwareAI(BasicAI):
         )
 
     def should_knock_with_reasoning(
-        self, hand: Hand, context: GameContext | None = None
+        self,
+        hand: Hand,
+        context: GameContext | None = None,
+        pending_discard: Card | None = None,
     ) -> KnockReasoning:
         """Context-aware knock decision with detailed reasoning.
 
         Args:
             hand: Current hand (should have 10 cards).
             context: Optional game context. If None, falls back to BasicAI.
+            pending_discard: The card that will be discarded if we don't
+                knock (used by simulation-based subclasses; unused here).
 
         Returns:
             KnockReasoning with decision, reasoning string, score, and factors.
@@ -708,18 +725,19 @@ class ContextAwareAI(BasicAI):
                 factors=factors,
             )
 
-        # Can't knock if deadwood > 10
-        if deadwood > 10:
-            factors.append("Cannot knock: deadwood > 10")
+        # Use stored context if not provided
+        ctx = context or self._current_context
+
+        # Can't knock if deadwood over threshold (dynamic under Oklahoma)
+        threshold = ctx.knock_threshold if ctx else self.knock_threshold
+        if deadwood > threshold:
+            factors.append(f"Cannot knock: deadwood > {threshold}")
             return KnockReasoning(
                 should_knock=False,
-                reasoning=f"No knock: deadwood={deadwood} > 10",
+                reasoning=f"No knock: deadwood={deadwood} > {threshold}",
                 score=None,
                 factors=factors,
             )
-
-        # Use stored context if not provided
-        ctx = context or self._current_context
 
         # Fall back to BasicAI if no context or context-knock disabled
         if ctx is None or not self.context_config.use_context_knock:
@@ -736,16 +754,8 @@ class ContextAwareAI(BasicAI):
                 factors=factors,
             )
 
-        # Edge case 3: Always knock if it would win the game
-        potential_points = 25 if deadwood == 0 else 10 - deadwood
-        if ctx.my_score + potential_points >= ctx.target_score:
-            factors.append("Game-winning knock!")
-            return KnockReasoning(
-                should_knock=True,
-                reasoning="Knocked: game-winning!",
-                score=1.0,
-                factors=factors,
-            )
+        # Note: no unconditional "game-winning knock" shortcut (knock points
+        # can be negative on an undercut); handled as a score bonus instead.
 
         # Calculate knock score with detailed factor tracking
         knock_score, score_factors = self._calculate_knock_score_with_factors(hand, ctx)

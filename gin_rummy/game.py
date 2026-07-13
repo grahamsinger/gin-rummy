@@ -90,6 +90,7 @@ class Game:
         # Randomize starting dealer to eliminate positional advantage
         self.dealer_idx = random.randint(0, 1)
         self._card_drawn_this_turn: Card | None = None
+        self._drawn_from_discard: bool = False
 
         # Assist mode tracking
         self._discard_pickups: dict[str, list[Card]] = {
@@ -183,10 +184,11 @@ class Game:
         opponent_hand_known = opponent_pickups - opponent_rediscards
 
         # Discard pile: top card is available, rest are buried
-        # Exclude cards opponent picked up (they're in opponent's hand, not buried)
+        # Exclude cards either player picked up from the pile - those are in
+        # a hand now, not buried
         discard_top = self.discard_pile[-1] if self.discard_pile else None
         discard_buried_candidates = frozenset(self._discard_history[:-1]) if len(self._discard_history) > 1 else frozenset()
-        discard_buried = discard_buried_candidates - opponent_hand_known
+        discard_buried = discard_buried_candidates - opponent_hand_known - frozenset(player.hand)
 
         known_cards = KnownCards(
             my_hand=frozenset(player.hand),
@@ -205,6 +207,7 @@ class Game:
             opponent_pickups=self._discard_pickups.get(opponent.name, []).copy(),
             my_pickups=self._discard_pickups.get(player.name, []).copy(),
             target_score=target_score,
+            knock_threshold=self.knock_threshold,
         )
 
     @property
@@ -304,6 +307,7 @@ class Game:
         card = self.deck.draw()
         self.current_player.hand.add(card)
         self._card_drawn_this_turn = card
+        self._drawn_from_discard = False
         self.phase = GamePhase.DISCARDING
         return card
 
@@ -325,9 +329,17 @@ class Game:
         card = self.discard_pile.pop()
         self.current_player.hand.add(card)
         self._card_drawn_this_turn = card
+        self._drawn_from_discard = True
         self._discard_pickups[self.current_player.name].append(card)
         self.phase = GamePhase.DISCARDING
         return card
+
+    @property
+    def discard_blocked_card(self) -> Card | None:
+        """Card that may not be discarded this turn (just taken from the discard pile)."""
+        if self._drawn_from_discard:
+            return self._card_drawn_this_turn
+        return None
 
     def discard(self, card: Card) -> None:
         """Current player discards a card and ends their turn.
@@ -346,10 +358,10 @@ class Game:
             raise InvalidActionError(f"{card} is not in your hand")
 
         # Cannot discard the same card just picked up from discard pile
-        if card == self._card_drawn_this_turn and len(self.discard_pile) > 0:
-            # Only enforce if we drew from discard (discard pile would have been smaller)
-            # Actually, we need to track WHERE we drew from
-            pass  # For now, allow it - tracking draw source adds complexity
+        if card == self.discard_blocked_card:
+            raise InvalidActionError(
+                f"Cannot discard {card} - it was just taken from the discard pile"
+            )
 
         # Track if this card was previously picked up (now being re-discarded)
         player_name = self.current_player.name
@@ -360,25 +372,73 @@ class Game:
         self.discard_pile.append(card)
         self._discard_history.append(card)
         self._card_drawn_this_turn = None
+        self._drawn_from_discard = False
 
         # Switch to opponent's turn
         self.current_player_idx = 1 - self.current_player_idx
         self.phase = GamePhase.DRAWING
 
-    def knock(self) -> RoundResult:
-        """Current player knocks to end the round.
+    def knock_with_discard(self, card: Card) -> RoundResult:
+        """Current player discards a card and knocks in one action.
+
+        This is the canonical way to knock: the player discards down to
+        10 cards and then knocks. Handles the discard bookkeeping
+        (pile, history, blocked-card rule) that `knock()` alone does not.
+
+        Args:
+            card: Card to discard before knocking.
 
         Returns:
             RoundResult with winner, points, and flags.
 
         Raises:
-            InvalidActionError: If not in DISCARDING phase or deadwood > 10.
+            InvalidActionError: If not in DISCARDING phase, card not in hand,
+                                card was just taken from the discard pile,
+                                or deadwood after discard exceeds threshold.
+        """
+        if self.phase != GamePhase.DISCARDING:
+            raise InvalidActionError("Can only knock in DISCARDING phase")
+
+        if card not in self.current_player.hand:
+            raise InvalidActionError(f"{card} is not in your hand")
+
+        if card == self.discard_blocked_card:
+            raise InvalidActionError(
+                f"Cannot discard {card} - it was just taken from the discard pile"
+            )
+
+        self.current_player.hand.remove(card)
+        self.discard_pile.append(card)
+        self._discard_history.append(card)
+        self._card_drawn_this_turn = None
+        self._drawn_from_discard = False
+
+        return self.knock()
+
+    def knock(self) -> RoundResult:
+        """Current player knocks to end the round.
+
+        The knocker must already be down to 10 cards (i.e. have discarded);
+        prefer `knock_with_discard()` which handles the discard too.
+
+        Returns:
+            RoundResult with winner, points, and flags.
+
+        Raises:
+            InvalidActionError: If not in DISCARDING phase, hand is not
+                                10 cards, or deadwood > threshold.
         """
         if self.phase != GamePhase.DISCARDING:
             raise InvalidActionError("Can only knock in DISCARDING phase")
 
         knocker = self.current_player
         defender = self.opponent
+
+        if len(knocker.hand) > 10:
+            raise InvalidActionError(
+                f"Must discard down to 10 cards before knocking "
+                f"(have {len(knocker.hand)})"
+            )
 
         if knocker.hand.deadwood_total > self.knock_threshold:
             raise InvalidActionError(
@@ -435,6 +495,13 @@ class Game:
         winner.score += points
         self.phase = GamePhase.ROUND_OVER
 
+        # Report the deadwood values actually used for scoring
+        # (defender's is post-layoff, not raw hand deadwood)
+        deadwood_by_player = {
+            knocker: knocker_deadwood,
+            defender: defender_deadwood,
+        }
+
         return RoundResult(
             winner=winner,
             loser=loser,
@@ -443,8 +510,8 @@ class Game:
             is_undercut=is_undercut,
             is_draw=False,
             knocker=knocker,
-            winner_deadwood=winner.hand.deadwood_total,
-            loser_deadwood=loser.hand.deadwood_total,
+            winner_deadwood=deadwood_by_player[winner],
+            loser_deadwood=deadwood_by_player[loser],
             layoff_cards=layoff_cards,
             defender_deadwood_before_layoff=defender_deadwood_before_layoff,
         )

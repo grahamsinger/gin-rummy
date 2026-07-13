@@ -264,9 +264,11 @@ class LearningAI(BasicAI):
         """
         deadwood = hand.deadwood_total
 
-        # Can't knock if deadwood > 10
-        if deadwood > 10:
-            logger.debug("Knock decision: NO (deadwood=%d > 10)", deadwood)
+        # Can't knock if deadwood over threshold
+        if deadwood > self.knock_threshold:
+            logger.debug(
+                "Knock decision: NO (deadwood=%d > %d)", deadwood, self.knock_threshold
+            )
             return False
 
         # Always knock on gin
@@ -333,7 +335,7 @@ class LearningAI(BasicAI):
 
         test_cards = [c for c in hand if c != discard]
         test_analysis = analyze_hand(test_cards)
-        can_knock = test_analysis.deadwood_value <= 10
+        can_knock = test_analysis.deadwood_value <= self.knock_threshold
 
         # Get knock decision
         should_knock = can_knock and self.should_knock(HandClass(test_cards))

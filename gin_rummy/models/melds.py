@@ -283,31 +283,53 @@ def find_layoff_cards(
     if not knocker_melds or not defender_cards:
         return []
 
-    # We need to handle chain layoffs, so we iterate until no more cards can be laid off
-    layoff_cards: list[Card] = []
-    remaining_cards = list(defender_cards)
+    # A card may fit more than one meld (e.g. a 5 that extends both a run
+    # and a set), and the wrong placement can block a chain layoff. Search
+    # all placements to maximize the total deadwood value laid off.
+    best_layoff: list[Card] = []
+    best_value = -1
+    seen: set[tuple[frozenset[Card], tuple[tuple[Card, ...], ...]]] = set()
 
-    # Create mutable copies of melds that we can extend
-    # Store as lists of cards so we can extend them
-    extended_melds: list[tuple[MeldType, list[Card]]] = [
-        (meld.meld_type, list(meld.cards)) for meld in knocker_melds
-    ]
+    def search(
+        remaining: list[Card],
+        melds: list[tuple[MeldType, tuple[Card, ...]]],
+        laid_off: list[Card],
+        value: int,
+    ) -> None:
+        nonlocal best_layoff, best_value
 
-    changed = True
-    while changed:
-        changed = False
-        for card in remaining_cards[:]:  # Copy to allow modification during iteration
-            for meld_type, meld_cards in extended_melds:
-                temp_meld = Meld(tuple(meld_cards), meld_type)
-                if can_lay_off_on_meld(card, temp_meld):
-                    layoff_cards.append(card)
-                    remaining_cards.remove(card)
-                    # Extend the meld for chain layoffs
-                    meld_cards.append(card)
-                    changed = True
-                    break
+        if value > best_value:
+            best_value = value
+            best_layoff = list(laid_off)
 
-    return layoff_cards
+        state = (
+            frozenset(remaining),
+            tuple(sorted(cards for _, cards in melds)),
+        )
+        if state in seen:
+            return
+        seen.add(state)
+
+        for card in remaining:
+            for i, (meld_type, meld_cards) in enumerate(melds):
+                if can_lay_off_on_meld(card, Meld(meld_cards, meld_type)):
+                    new_melds = list(melds)
+                    new_melds[i] = (meld_type, meld_cards + (card,))
+                    search(
+                        [c for c in remaining if c != card],
+                        new_melds,
+                        laid_off + [card],
+                        value + card.deadwood_value,
+                    )
+
+    search(
+        list(defender_cards),
+        [(meld.meld_type, tuple(meld.cards)) for meld in knocker_melds],
+        [],
+        0,
+    )
+
+    return best_layoff
 
 
 @dataclass

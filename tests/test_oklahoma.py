@@ -116,68 +116,91 @@ class TestKnockThreshold:
 class TestSpadeDoubling:
     """Test spade doubling functionality."""
 
-    def test_spade_doubling_enabled(self):
-        """Points doubled when upcard is spade and doubling enabled."""
-        game = Game("Alice", "Bob", is_oklahoma_gin=True, spade_doubling_enabled=True)
-        game.deal()
+    @staticmethod
+    def _setup_gin_scenario(game: Game) -> tuple:
+        """Deal and force a deterministic gin scenario.
 
-        # Force upcard to be a spade
-        game.upcard = Card(Rank.FIVE, Suit.SPADES)
+        Alice: gin (three melds + a run of four, 0 deadwood).
+        Bob: three runs (J-Q-K hearts, 2-3-4 clubs, 5-6-7 hearts) + 10 club
+        = exactly 10 deadwood, nothing layoffable relevant (gin = no layoff).
 
-        # Set up a simple gin scenario
+        Expected base points: gin_bonus (25) + 10 = 35.
+        """
+        from gin_rummy.models import Hand
+
         alice = game.players[0]
         bob = game.players[1]
 
-        # Give Alice a gin hand (all melds)
-        from gin_rummy.models import Hand
-        alice.hand = Hand()
-        alice.hand.add(Card(Rank.ACE, Suit.HEARTS))
-        alice.hand.add(Card(Rank.ACE, Suit.DIAMONDS))
-        alice.hand.add(Card(Rank.ACE, Suit.CLUBS))
-        alice.hand.add(Card(Rank.TWO, Suit.HEARTS))
-        alice.hand.add(Card(Rank.THREE, Suit.HEARTS))
-        alice.hand.add(Card(Rank.FOUR, Suit.HEARTS))
-        alice.hand.add(Card(Rank.SIX, Suit.DIAMONDS))
-        alice.hand.add(Card(Rank.SEVEN, Suit.DIAMONDS))
-        alice.hand.add(Card(Rank.EIGHT, Suit.DIAMONDS))
-        alice.hand.add(Card(Rank.NINE, Suit.DIAMONDS))
+        alice.hand = Hand([
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.DIAMONDS),
+            Card(Rank.ACE, Suit.CLUBS),
+            Card(Rank.TWO, Suit.HEARTS),
+            Card(Rank.THREE, Suit.HEARTS),
+            Card(Rank.FOUR, Suit.HEARTS),
+            Card(Rank.SIX, Suit.DIAMONDS),
+            Card(Rank.SEVEN, Suit.DIAMONDS),
+            Card(Rank.EIGHT, Suit.DIAMONDS),
+            Card(Rank.NINE, Suit.DIAMONDS),
+        ])
+        bob.hand = Hand([
+            Card(Rank.KING, Suit.HEARTS),
+            Card(Rank.QUEEN, Suit.HEARTS),
+            Card(Rank.JACK, Suit.HEARTS),
+            Card(Rank.TWO, Suit.CLUBS),
+            Card(Rank.THREE, Suit.CLUBS),
+            Card(Rank.FOUR, Suit.CLUBS),
+            Card(Rank.FIVE, Suit.HEARTS),
+            Card(Rank.SIX, Suit.HEARTS),
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.TEN, Suit.CLUBS),
+        ])
 
-        # Give Bob some deadwood
-        bob.hand = Hand()
-        bob.hand.add(Card(Rank.KING, Suit.HEARTS))
-        bob.hand.add(Card(Rank.QUEEN, Suit.HEARTS))
-        bob.hand.add(Card(Rank.JACK, Suit.HEARTS))  # 30 deadwood total
-        bob.hand.add(Card(Rank.TWO, Suit.CLUBS))
-        bob.hand.add(Card(Rank.THREE, Suit.CLUBS))
-        bob.hand.add(Card(Rank.FOUR, Suit.CLUBS))
-        bob.hand.add(Card(Rank.FIVE, Suit.HEARTS))
-        bob.hand.add(Card(Rank.SIX, Suit.HEARTS))
-        bob.hand.add(Card(Rank.SEVEN, Suit.HEARTS))
-        bob.hand.add(Card(Rank.TEN, Suit.CLUBS))
-
-        # Alice goes to discarding phase
         game.current_player_idx = 0
         game.phase = GamePhase.DISCARDING
+        return alice, bob
 
-        initial_score = alice.score
+    # Base points for the scenario: gin_bonus (25) + Bob's deadwood (10)
+    EXPECTED_BASE_POINTS = 35
+
+    def test_spade_doubling_enabled(self):
+        """Points exactly doubled when upcard is spade and doubling enabled."""
+        game = Game("Alice", "Bob", is_oklahoma_gin=True, spade_doubling_enabled=True)
+        game.deal()
+        game.upcard = Card(Rank.FIVE, Suit.SPADES)
+        alice, bob = self._setup_gin_scenario(game)
+
         result = game.knock()
 
-        # Gin bonus (25) + Bob's deadwood (~40) = ~65, doubled = ~130
-        # The exact calculation depends on Bob's actual deadwood
-        assert alice.score > initial_score
-        # We can't check exact doubling without knowing config values,
-        # but we can verify spade doubling logic is applied
+        assert result.is_gin
+        assert result.points == 2 * self.EXPECTED_BASE_POINTS
+        assert alice.score == 2 * self.EXPECTED_BASE_POINTS
 
     def test_no_spade_doubling_when_disabled(self):
-        """Points not doubled when spade doubling disabled."""
+        """Points not doubled when spade doubling disabled, even on a spade."""
         game = Game("Alice", "Bob", is_oklahoma_gin=True, spade_doubling_enabled=False)
-        assert game.spade_doubling_enabled is False
+        game.deal()
+        game.upcard = Card(Rank.FIVE, Suit.SPADES)
+        alice, bob = self._setup_gin_scenario(game)
+
+        result = game.knock()
+
+        assert result.is_gin
+        assert result.points == self.EXPECTED_BASE_POINTS
+        assert alice.score == self.EXPECTED_BASE_POINTS
 
     def test_no_spade_doubling_non_spade_upcard(self):
         """Points not doubled when upcard is not a spade."""
         game = Game("Alice", "Bob", is_oklahoma_gin=True, spade_doubling_enabled=True)
+        game.deal()
         game.upcard = Card(Rank.FIVE, Suit.HEARTS)
-        # Normal scoring should apply (tested elsewhere)
+        alice, bob = self._setup_gin_scenario(game)
+
+        result = game.knock()
+
+        assert result.is_gin
+        assert result.points == self.EXPECTED_BASE_POINTS
+        assert alice.score == self.EXPECTED_BASE_POINTS
 
 
 class TestStandardModeUnchanged:

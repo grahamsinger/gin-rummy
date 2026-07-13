@@ -1,16 +1,15 @@
-#!/usr/bin/env python3
-"""Test that AI doesn't discard from middle of 4-card run."""
+"""Test that AI doesn't discard from the middle of a 4-card run."""
 
 from gin_rummy.models import Card, Hand, Rank, Suit
 from gin_rummy.ai import ContextAwareAI
 
 
 def test_4card_run():
-    """Test with a 4-card run and deadwood."""
-    print("Test: 4-card run discard behavior")
-    print("="*60)
+    """AI must not break a 4-card run from the middle.
 
-    # Hand: [7♠ 8♠ 9♠ 10♠] + K♣ K♦ (deadwood)
+    Hand: [7♠ 8♠ 9♠ 10♠] run + K♣ K♦ deadwood.
+    Discarding 8♠ or 9♠ would shatter the run; the correct discard is a king.
+    """
     cards = [
         Card(Rank.SEVEN, Suit.SPADES),
         Card(Rank.EIGHT, Suit.SPADES),
@@ -19,87 +18,57 @@ def test_4card_run():
         Card(Rank.KING, Suit.CLUBS),
         Card(Rank.KING, Suit.DIAMONDS),
     ]
-
     hand = Hand(cards)
-    analysis = hand.analyze()
-
-    print(f"Hand: [7♠ 8♠ 9♠ 10♠] + K♣ K♦")
-    print(f"Melds: {[[str(c) for c in m.cards] for m in analysis.melds]}")
-    print(f"Deadwood: {[str(c) for c in analysis.deadwood_cards]}")
-    print()
 
     ai = ContextAwareAI()
     discard = ai.decide_discard(hand)
 
-    print(f"AI Discarded: {discard}")
+    # The bug this test guards against: discarding from the middle of the run
+    assert discard not in (
+        Card(Rank.EIGHT, Suit.SPADES),
+        Card(Rank.NINE, Suit.SPADES),
+    ), f"AI discarded {discard} from the middle of a 4-card run"
 
-    # Check what we discarded
-    if discard in [Card(Rank.EIGHT, Suit.SPADES), Card(Rank.NINE, Suit.SPADES)]:
-        print("❌ BUG: Discarded from MIDDLE of 4-card run (would break it)!")
-        return False
-    elif discard in [Card(Rank.SEVEN, Suit.SPADES), Card(Rank.TEN, Suit.SPADES)]:
-        print("⚠️  Discarded from END of 4-card run (leaves valid 3-card run)")
-        # Verify the remaining hand still has a valid run
-        remaining = [c for c in cards if c != discard]
-        remaining_analysis = Hand(remaining).analyze()
-        if len(remaining_analysis.melds) > 0:
-            print(f"   Remaining melds: {[[str(c) for c in m.cards] for m in remaining_analysis.melds]}")
-            print("✅ GOOD: Remaining hand has valid meld")
-            return True
-        else:
-            print("❌ BUG: No melds in remaining hand!")
-            return False
-    else:
-        print(f"✅ GOOD: Discarded deadwood ({discard})")
-        return True
+    # The remaining hand must still contain a meld
+    remaining = [c for c in cards if c != discard]
+    remaining_analysis = Hand(remaining).analyze()
+    assert len(remaining_analysis.melds) > 0, (
+        f"discarding {discard} left no melds in hand"
+    )
+
+    # Optimal play: discard a king (deadwood 10 -> 10 vs breaking run -> 20+)
+    assert discard.rank == Rank.KING, (
+        f"expected a king discard (pure deadwood), got {discard}"
+    )
 
 
-def test_4card_run_middle_only():
-    """Test where ONLY option is to discard from middle (worst case)."""
-    print("\nTest: 4-card run where middle cards have lower value")
-    print("="*60)
+def test_run_with_low_deadwood():
+    """AI must not break a run even when the deadwood cards are low-value.
 
-    # Hand: [J♠ Q♠ K♠ A♠] + 2♣ (low deadwood)
-    # Aces are value 1, so discarding from run might seem attractive
+    Hand: [J♠ Q♠ K♠] run + A♠ + 2♣ deadwood (Ace is low, so A♠ does not
+    extend the J-Q-K run). The low deadwood values must not tempt the AI
+    into breaking the run.
+    """
     cards = [
         Card(Rank.JACK, Suit.SPADES),
         Card(Rank.QUEEN, Suit.SPADES),
         Card(Rank.KING, Suit.SPADES),
-        Card(Rank.ACE, Suit.SPADES),  # Ace high in this run
+        Card(Rank.ACE, Suit.SPADES),
         Card(Rank.TWO, Suit.CLUBS),
     ]
-
     hand = Hand(cards)
-    analysis = hand.analyze()
-
-    print(f"Hand: [J♠ Q♠ K♠ A♠] + 2♣")
-    print(f"Melds: {[[str(c) for c in m.cards] for m in analysis.melds]}")
-    print(f"Deadwood: {[str(c) for c in analysis.deadwood_cards]}")
-    print()
 
     ai = ContextAwareAI()
     discard = ai.decide_discard(hand)
 
-    print(f"AI Discarded: {discard}")
+    # Discard must come from the deadwood, not the run
+    assert discard in (
+        Card(Rank.ACE, Suit.SPADES),
+        Card(Rank.TWO, Suit.CLUBS),
+    ), f"AI discarded {discard} from the J-Q-K run instead of deadwood"
 
-    # Check if it broke the run
     remaining = [c for c in cards if c != discard]
     remaining_analysis = Hand(remaining).analyze()
-
-    if len(remaining_analysis.melds) == 0:
-        print(f"❌ BUG: Broke the run! No melds remaining.")
-        return False
-    else:
-        print(f"✅ GOOD: Remaining melds: {[[str(c) for c in m.cards] for m in remaining_analysis.melds]}")
-        return True
-
-
-if __name__ == "__main__":
-    result1 = test_4card_run()
-    result2 = test_4card_run_middle_only()
-
-    print("\n" + "="*60)
-    if result1 and result2:
-        print("✅ ALL TESTS PASSED")
-    else:
-        print("❌ SOME TESTS FAILED")
+    assert len(remaining_analysis.melds) > 0, (
+        f"discarding {discard} broke the run"
+    )

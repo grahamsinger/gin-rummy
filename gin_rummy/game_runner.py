@@ -244,6 +244,29 @@ def execute_ai_turn(
     else:
         discard = ai.decide_discard(current.hand)
 
+    # Rule: cannot discard the card just taken from the discard pile.
+    # If the AI chose it anyway, substitute the best legal alternative.
+    blocked = game.discard_blocked_card
+    if discard == blocked:
+        alternatives = [c for c in current.hand if c != blocked]
+        discard = min(
+            alternatives,
+            key=lambda c: (
+                calculate_post_discard_deadwood(current.hand, c),
+                -c.deadwood_value,
+            ),
+        )
+        if capture_reasoning and discard_reasoning is not None:
+            discard_reasoning = DiscardReasoning(
+                card=discard,
+                reasoning=(
+                    f"Fallback: {blocked} was just drawn from the discard pile "
+                    f"and cannot be re-discarded; chose {discard} instead"
+                ),
+                factors=[f"Original choice {blocked} is illegal to discard"],
+                options_considered=discard_reasoning.options_considered,
+            )
+
     # Calculate post-discard deadwood for actions record
     deadwood_after = calculate_post_discard_deadwood(current.hand, discard)
 
@@ -258,13 +281,17 @@ def execute_ai_turn(
 
         if capture_reasoning:
             if isinstance(ai, ContextAwareAI) and context is not None:
-                knock_reasoning = ai.should_knock_with_reasoning(test_hand, context)
+                knock_reasoning = ai.should_knock_with_reasoning(
+                    test_hand, context, pending_discard=discard
+                )
             else:
                 knock_reasoning = ai.should_knock_with_reasoning(test_hand)
             should_knock = knock_reasoning.should_knock
         else:
             if isinstance(ai, ContextAwareAI):
-                should_knock = ai.should_knock(test_hand, context)
+                should_knock = ai.should_knock(
+                    test_hand, context, pending_discard=discard
+                )
             else:
                 should_knock = ai.should_knock(test_hand)
     else:
@@ -288,12 +315,8 @@ def execute_ai_turn(
         )
 
     if should_knock and can_knock_after_discard:
-        # First discard the card (game.knock expects 10-card hand)
-        current.hand.remove(discard)
-        game.discard_pile.append(discard)
-
-        # Execute knock and capture result
-        round_result = game.knock()
+        # Discard and knock (handles pile/history bookkeeping and validation)
+        round_result = game.knock_with_discard(discard)
 
         # Callback: knock (called after knock so round result is available)
         callbacks.on_knock(current, discard, deadwood_after, round_result)
