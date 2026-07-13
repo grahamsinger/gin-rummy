@@ -6,32 +6,15 @@
 
 // Wrap in IIFE to avoid polluting global namespace (game.js also defines SUIT_SYMBOLS)
 (function() {
-    // Card rendering utilities (scoped to this IIFE)
-    const REPLAY_SUIT_SYMBOLS = {
-        'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣'
-    };
-
-    const REPLAY_SUIT_COLORS = {
-        'S': 'black', 'H': 'red', 'D': 'red', 'C': 'black'
-    };
-
-    /**
-     * Format a card ID (e.g., "7H") into display format with suit symbol
-     */
-    function formatCard(cardId) {
-        if (!cardId) return '';
-        const suit = cardId.slice(-1);
-        const rank = cardId.slice(0, -1);
-        return `${rank}${REPLAY_SUIT_SYMBOLS[suit] || suit}`;
-    }
+    // Card rendering utilities - shared definitions from card-utils.js
+    const formatCard = window.CardUtils.formatCardId;
 
     /**
      * Get the color class for a card based on its suit
      */
     function getCardColorClass(cardId) {
         if (!cardId) return '';
-        const suit = cardId.slice(-1);
-        return REPLAY_SUIT_COLORS[suit] === 'red' ? 'red-card' : 'black-card';
+        return window.CardUtils.isRedId(cardId) ? 'red-card' : 'black-card';
     }
 
     /**

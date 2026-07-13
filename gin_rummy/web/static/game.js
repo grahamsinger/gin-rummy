@@ -115,13 +115,8 @@ const elements = {
     miniGamesCloseBtn: document.getElementById('mini-games-close-btn'),
 };
 
-// Suit symbols
-const SUIT_SYMBOLS = {
-    spades: '♠',
-    hearts: '♥',
-    diamonds: '♦',
-    clubs: '♣',
-};
+// Suit symbols - shared definitions from card-utils.js
+const SUIT_SYMBOLS = window.CardUtils.SUIT_SYMBOLS_BY_NAME;
 
 // Suit order for sorting
 const SUIT_ORDER = {

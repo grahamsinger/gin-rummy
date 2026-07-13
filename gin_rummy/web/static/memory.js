@@ -2,7 +2,7 @@
 
 const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'];
 const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-const SUIT_SYMBOLS = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
+const SUIT_SYMBOLS = window.CardUtils.SUIT_SYMBOLS_BY_NAME;  // shared from card-utils.js
 
 // Progression table
 const ROUNDS = [
