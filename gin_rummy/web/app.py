@@ -520,6 +520,82 @@ async def memory_page():
     return FileResponse(STATIC_DIR / "memory.html")
 
 
+# ---------------------------------------------------------------------------
+# Scenario quiz
+# ---------------------------------------------------------------------------
+
+class NewScenarioRequest(BaseModel):
+    seed: int | None = None
+
+
+class ScenarioDrawRequest(BaseModel):
+    source: str  # "deck" or "discard"
+
+
+class ScenarioDiscardRequest(BaseModel):
+    card: str  # Card ID like "7H"
+
+
+class ScenarioKnockRequest(BaseModel):
+    knock: bool
+
+
+def _get_scenario_session(request: Request, response: Response):
+    from gin_rummy.web.scenario_session import ScenarioSession
+
+    session = get_or_create_session(request, response)
+    if session.scenario_session is None:
+        session.scenario_session = ScenarioSession()
+    return session.scenario_session
+
+
+def _scenario_result(result: dict) -> dict:
+    if 'error' in result:
+        raise HTTPException(status_code=400, detail=result['error'])
+    return result
+
+
+@app.get("/scenario")
+async def scenario_page():
+    """Serve the scenario quiz page."""
+    return FileResponse(STATIC_DIR / "scenario.html")
+
+
+@app.post("/api/scenario/new")
+async def scenario_new(req: NewScenarioRequest, request: Request, response: Response):
+    """Generate a fresh scenario position."""
+    scenario = _get_scenario_session(request, response)
+    return _scenario_result(scenario.new_scenario(seed=req.seed))
+
+
+@app.get("/api/scenario/state")
+async def scenario_state(request: Request, response: Response):
+    """Current scenario state (for page reloads)."""
+    scenario = _get_scenario_session(request, response)
+    return scenario.get_state()
+
+
+@app.post("/api/scenario/draw")
+async def scenario_draw(req: ScenarioDrawRequest, request: Request, response: Response):
+    """Answer the draw decision; returns the panel reveal and drawn card."""
+    scenario = _get_scenario_session(request, response)
+    return _scenario_result(scenario.answer_draw(req.source))
+
+
+@app.post("/api/scenario/discard")
+async def scenario_discard(req: ScenarioDiscardRequest, request: Request, response: Response):
+    """Answer the discard decision; returns the panel reveal."""
+    scenario = _get_scenario_session(request, response)
+    return _scenario_result(scenario.answer_discard(req.card))
+
+
+@app.post("/api/scenario/knock")
+async def scenario_knock(req: ScenarioKnockRequest, request: Request, response: Response):
+    """Answer the knock decision; returns the panel reveal."""
+    scenario = _get_scenario_session(request, response)
+    return _scenario_result(scenario.answer_knock(req.knock))
+
+
 @app.post("/api/admin/cleanup")
 async def run_cleanup():
     """Clean up games and hands with no turn data."""

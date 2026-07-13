@@ -16,6 +16,7 @@ gin-server = "gin_rummy.network.server:main"
 gin-client = "gin_rummy.network.client:main"
 gin-train = "gin_rummy.learning.trainer:main"
 gin-experiment = "gin_rummy.learning.experiment:main"
+gin-scenario = "gin_rummy.scenario_quiz:main"
 
 [build-system]
 requires = ["hatchling"]
