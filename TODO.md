@@ -5,9 +5,53 @@
 ---
 
 ## Bugs
-(none currently)
+(from full code review 2026-07-12; IDs referenced in commits/tests — regression tests in `tests/test_review_fixes.py`)
+
+### Still open
+- [ ] **A10 (Low): `_should_pursue_gin` EV comparison is vacuous** — `context_aware.py`: `p*25 + (1-p)*ev_knock > ev_knock` holds for any p>0, so only the probability gate matters; gin value should be `25 + opponent_deadwood` and the probability denominator should account for opponent-held unknowns and remaining turns. (Tuning-adjacent; see AI Tuning section.)
+- [ ] **T3: `tests/test_learning.py` silently skips** without torch (`--extra learning`), so the learning suite is permanently green-but-unrun in default env. Run it in CI via `uv sync --extra learning`.
+- [ ] **T4: Zero coverage on product surfaces** — web/ (0%), network/ (0%), cli.py (0%), simulator/game_runner (0%), statistical.py (14%); overall 29%. Highest-value additions: FastAPI TestClient flow tests, `network/protocol.py` round-trip tests. (Engine draw-game/knock-rejection tests added 2026-07-12.)
+- [ ] **Perf (Low): MC draw fallback runs a full nested MC discard evaluation** — `monte_carlo.py` `_card_helps_hand` path invokes MonteCarloAI's own `decide_discard` on the hypothetical 11-card hand, doubling per-turn compute when the fallback triggers.
+- [ ] **(Low) Defender meld arrangement vs layoff** — `calculate_layoff` fixes the defender's own melds to the minimal-deadwood arrangement first; a different equal-deadwood arrangement could occasionally enable a bigger layoff. Cards laid off within a fixed arrangement are now optimal (E2), but arrangement choice itself isn't layoff-aware.
+
+### Fixed 2026-07-12
+- [x] **E1 (High): "Cannot discard the card just drawn from the discard pile" rule unenforced** — was a stubbed `pass` in `game.py`. Now: `Game` tracks draw source, `discard()` raises, `discard_blocked_card` property exposed; enforced in web session (both discard and knock paths), CLI re-prompts, and `game_runner` substitutes the best legal alternative if an AI picks the blocked card.
+- [x] **E2 (High): Defender layoff was greedy and order-dependent** — `find_layoff_cards()` placed each card on the first meld it fit, blocking chain layoffs (verified 4-point overcount). Now searches all placements to maximize laid-off deadwood value.
+- [x] **E3 (Medium): `RoundResult.winner_deadwood`/`loser_deadwood` ignored layoffs** — now report the values actually used for scoring (defender post-layoff).
+- [x] **E4 (Medium): `Game.knock()` accepted an 11-card knock** — now rejects hands over 10 cards (closes the `/api/game/knock` hole).
+- [x] **E5 (Low): Knock paths bypassed `game.discard()` bookkeeping** — added `Game.knock_with_discard(card)`; game_runner, CLI, and web session all use it (discard pile + history + blocked-card rule handled centrally).
+- [x] **W1 (High): Human-triggered stock exhaustion soft-locked the round** — `game_session.draw()` now converts a deck draw at ≤ min_deck_cards into a proper draw result (`_end_round_as_draw`, shared with the AI path) with DB `end_hand` recorded.
+- [x] **W2 (High): Match state carried into the next match** — a finished match (match_winner set) now resets `games_won`/`match_winner`/`match_id` on "Play Again"; player rename mid-match re-keys the tally instead of KeyError.
+- [x] **W3 (Medium): `/api/game/new-round` worked mid-round** — now requires `phase == ROUND_OVER`.
+- [x] **W4 (Medium): Page refresh during Computer's turn soft-locked the UI** — session-restore path now kicks `doAiTurn()` when it's not the player's turn.
+- [x] **W5 (Low): Client hardcoded knock threshold 10; server silently downgraded invalid knocks** — client uses `state.knock_threshold`; server returns an explicit error for an illegal knock request instead of quietly discarding.
+- [x] **W6 (Low): Server error messages never reached the user** — client now reads FastAPI's `detail` field (falls back to `error`).
+- [x] **W7 (Low): `CardNotInHandError` escaped as HTTP 500** — added to the session's except clause; knock path also goes through `knock_with_discard` which validates first.
+- [x] **A1 (High): MC "continue" knock rollout gave a phantom extra turn with an empty discard pile** — continue-rollouts now start with the opponent to move and the pending discard on the pile.
+- [x] **A2 (High): StatisticalAI recorded phantom discards from hypothetical evaluations** — `_card_helps_hand` marks hypothetical calls (`_in_hypothetical`); StatisticalAI only records real discards.
+- [x] **A3 (High): Pending knock-discard leaked into MC unknown pool** — `should_knock(..., pending_discard=)` plumbed through game_runner; the card is excluded from sampling.
+- [x] **A4 (Medium): Opponent-held cards counted as live outs** — added `KnownCards.unavailable_cards` (buried + opponent-held); ContextAwareAI outs calculations use it (UI "dead cards" display semantics unchanged).
+- [x] **A5 (Medium): "Game-winning knock" shortcut ignored layoffs/undercuts** — removed the unconditional shortcut in ContextAwareAI and MonteCarloAI (game-winning situation remains a strong knock-score bonus; MC sims price undercuts correctly).
+- [x] **A6 (Medium): MC rollout deck-exhaustion diverged from engine** — rollout now only ends in a draw on a deck-draw attempt at ≤ min_deck_cards (config value plumbed through).
+- [x] **A7 (Low): Knock eligibility hardcoded 10** — BasicAI uses configured `game_rules.knock_threshold`; `GameContext` now carries the live (Oklahoma-dynamic) threshold and ContextAware/MC use it.
+- [x] **A8 (Low): OpponentModel never forgot re-discarded pickups** — `record_discard` now un-tracks a thrown-back pickup and recomputes inferred melds.
+- [x] **A9 (Low): MC discard tie-break was dead code** — now tie-breaks equal averages toward lower resulting deadwood.
+- [x] **T1: `tests/test_4card_run.py` never asserted** — rewritten with real assertions (also fixed its wrong premise: Ace is low, so J-Q-K-A is not a 4-card run).
+- [x] **T2: Oklahoma spade doubling was unverified** — deterministic gin scenario asserts exact 2× points on spade upcard, 1× on non-spade or doubling-disabled.
+- [x] **E6: Buried discards included the player's own pickups** — `get_game_context()` subtracted opponent pickups from `discard_buried` but not the player's own, so a card you took from the pile stayed listed as "dead" in assist data (CLI + web). Found via the scenario quiz; fixed and regression-tested.
+
+### Rule gaps (variants — decide if in scope)
+- [ ] **Big gin not implemented** — an 11-card all-melded hand cannot be declared; player must discard (and standard big-gin bonus doesn't exist in config).
+- [ ] **First-upcard take-or-pass not implemented** — standard gin offers the upcard to non-dealer then dealer before stock draws begin; this codebase uses the documented 11th-card variant instead (README) and Oklahoma mode deals an upcard but skips the take-or-pass phase.
 
 ## AI Tuning
+- [x] **MonteCarloAI upgrades (2026-07-12)** — three improvements, each behind a config flag in `config/monte-carlo-ai.toml` (tests in `tests/test_mc_upgrades.py`):
+  - `weighted_sampling`: opponent-hand sampling weighted by observed behavior (discards make related cards less likely, pickups/inferred melds more likely) instead of uniform
+  - `defensive_rollout`: rollout discards avoid cards that immediately meld into the (determinized) opposing hand, within 2 deadwood of the greedy choice
+  - `joint_turn_evaluation`: each candidate discard is scored against both "knock now" and "continue" with shared samples; the (discard, knock) pair is planned jointly and `should_knock` consumes the plan
+  - A/B benchmark configs: `config/overrides/mc-bench-new.toml` vs `mc-bench-legacy.toml` (identical sims, flags on/off)
+  - [x] Benchmark results recorded in SIMULATION_HISTORY.md (2026-07-12 section): upgrades beat legacy 12-8 head-to-head; full-strength MC edges ContextAwareAI 9-6; latency grid in experiments/mc_timing.py
+  - [ ] MC latency optimizations for web play: sub-batch splitting (draw caps at 2 parallel tasks), top-5 discard candidate cap, adaptive early stopping; consider a 500-sim "web hard" profile (~4.4s/turn vs ~19s at 2000)
 - [ ] Tune ContextAwareAI parameters (currently ~52% game win rate, ~46% hand win rate vs BasicAI)
   - Wins fewer hands but wins bigger (more gins, more undercuts, higher pts/knock)
   - See SIMULATION_HISTORY.md for detailed results
@@ -258,6 +302,9 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
   - Settings modal with checkboxes for Oklahoma Gin, Spade Doubling, and Match Play
   - UI displays knock threshold and spade doubling indicator when applicable
   - Match progress tracking shows games won (e.g., "You 1 - 0 Computer")
+- [x] **Scenario quiz (`gin-scenario` + web `/scenario` page)** — random mid-game positions (generated by freezing real AI-vs-AI hands, so discard history and opponent tracking are genuine); you play draw/discard/knock, then each AI reveals its choice with reasoning and MC EVs; agreement scoreboard per session. CLI: `uv run gin-scenario [--count N] [--seed S]`. Web: `/scenario` page (endpoints in app.py, `ScenarioSession` in web/scenario_session.py, tests in tests/test_scenario_session.py); page restores in-progress scenario on reload.
+  - [ ] Possible follow-up: "grade my games" mode replaying recorded human turns from the DB through the AI panel
+- [x] **Shared card display constants (`card-utils.js`)** — suit symbols/colors were defined independently in game.js, replay.js, memory.js, and scenario.js; now a single `window.CardUtils` module loaded by all four pages.
 - [ ] Tournament mode with multiple rounds/scoring
 - [ ] Undo last move (within same turn)
 

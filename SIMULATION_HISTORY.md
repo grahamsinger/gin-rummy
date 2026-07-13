@@ -154,3 +154,63 @@ Key parameters (from `config/context-ai.toml`):
 - `safe_rank_discard_bonus = 0` (disabled)
 - `dangerous_rank_penalty = 0` (disabled)
 - All dynamic threshold modifiers disabled (`max_deck_modifier = 0`, `max_outs_modifier = 0`)
+
+---
+
+## 2026-07-12: MonteCarloAI Upgrades — Benchmarks & Timing
+
+Context: same-day code review fixed three MC simulation-fidelity bugs
+(phantom extra turn in continue-rollouts, pending discard leaking into the
+sampling pool, rollout deck-exhaustion divergence), then added three
+upgrades behind config flags: `weighted_sampling`, `defensive_rollout`,
+`joint_turn_evaluation` (see TODO.md AI Tuning and tests/test_mc_upgrades.py).
+
+### Head-to-head: upgraded MC vs legacy MC
+20 games, seed 101, target 50, both at 150 sims / 1 worker
+(`config/overrides/mc-bench-new.toml` vs `mc-bench-legacy.toml`):
+
+- Games: **12–8 upgraded** | Rounds: 53–36 (60%) | Points: 874–746 (+17%)
+- Upgraded version knocks far more often (53 vs 36) at slightly higher
+  deadwood — joint knock evaluation pricing knocks correctly instead of
+  under-knocking. Rounds edge ≈ 1.8 SD above coin-flip (p ≈ 0.07):
+  suggestive, consistent across all three metrics, not yet conclusive.
+
+### Common-opponent control: each variant vs ContextAwareAI
+20 games each, same seed 202, 150 sims: both variants lost 7–13.
+No regression from the upgrades at low budget; low-budget MC clearly
+loses to ContextAwareAI.
+
+### Full-strength MC (2000 sims, parallel) vs ContextAwareAI
+15 games, seed 303, target 50 — first ever recorded measurement:
+
+- Games: **9–6 MC** | Rounds: 40–48 Context | Points: 612–640 Context
+- MC wins fewer rounds but bigger ones (15.0 pts/knock win vs 12.8, only
+  gins of the match). Near-parity overall; n=15 is not conclusive.
+- Verdict: MC strength scales strongly with sim budget. At 150 sims it
+  loses ~35% of games to Context; at 2000 sims it edges ahead.
+
+### Decision latency grid (experiments/mc_timing.py)
+16-core machine (12 performance), median of 3 reps, fixed mid-game hands.
+"turn" = draw + discard + knock worst case:
+
+| sims | workers | draw | discard | knock | turn |
+|-----:|--------:|-----:|--------:|------:|-----:|
+| 100  | 1       | 1.8s | 1.0s    | 0.1s  | 3.0s |
+| 100  | 8       | 0.5s | 0.2s    | 0.1s  | 0.9s |
+| 500  | 1       | 9.3s | 5.1s    | 0.7s  | 15.1s |
+| 500  | 8       | 2.7s | 1.1s    | 0.7s  | 4.4s |
+| 1000 | 8       | 5.4s | 2.3s    | 1.3s  | 9.1s |
+| 2000 | 8       | 11.4s| 5.0s    | 2.6s  | 19.0s |
+| 2000 | auto(15)| 11.3s| 5.0s    | 2.6s  | 18.9s |
+
+Findings:
+- Latency is linear in sims. Speedup saturates at ~8 workers because
+  parallelism is capped by task count (2 draw batches, ~6 discard
+  candidates) — auto(15) buys nothing over 8. `max_workers = 8` is the
+  efficient setting on this machine.
+- Web "hard" at 2000 sims costs ~10s per typical turn (observed in-game).
+  500 sims / 8 workers ≈ 4.4s worst case is a reasonable interactive
+  operating point pending a strength-vs-budget curve.
+- Future speedups (not yet implemented): split each option's sims into
+  per-worker sub-batches so draw scales past its 2-task cap; cap discard
+  candidates at top ~5; adaptive early stopping on clear leads.
