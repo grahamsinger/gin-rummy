@@ -447,7 +447,9 @@ function renderGameState(state) {
     elements.knockCheckbox.disabled = !(state.your_turn && state.phase === 'discarding');
 
     // Auto-uncheck if deadwood is too high to knock
-    if (state.deadwood > 10) {
+    // (threshold is dynamic in Oklahoma Gin, not always 10)
+    const knockThreshold = state.knock_threshold ?? 10;
+    if (state.deadwood > knockThreshold) {
         elements.knockCheckbox.checked = false;
     }
 
@@ -550,7 +552,8 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 
     if (!response.ok) {
         console.error('API error:', data);
-        elements.playerStatus.textContent = data.error || 'An error occurred';
+        // FastAPI puts error messages in 'detail'; session errors use 'error'
+        elements.playerStatus.textContent = data.detail || data.error || 'An error occurred';
         return null;
     }
 
@@ -1566,6 +1569,12 @@ async function restoreOrStartGame() {
         console.log('Restoring existing game session');
         elements.settingsModal.classList.add('hidden');
         renderGameState(sessionState);
+
+        // If it's the computer's turn (e.g. page refreshed mid-AI-turn),
+        // kick the AI - nothing else will, and the game would hang
+        if (!sessionState.your_turn && !sessionState.round_over) {
+            await doAiTurn();
+        }
         return;
     }
 

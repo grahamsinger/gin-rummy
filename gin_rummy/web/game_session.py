@@ -11,6 +11,7 @@ from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list, ge
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.models import Card, Suit, Rank, analyze_hand
+from gin_rummy.models.hand import CardNotInHandError
 
 
 # Map for converting card IDs to Card objects
@@ -221,6 +222,9 @@ class GameSession:
         self.buffered_ai_turns: list[dict] = []
         self.pending_dealer_name: str = ""
 
+        # Scenario quiz state (created lazily by the /api/scenario endpoints)
+        self.scenario_session = None
+
     def new_game(
         self,
         player_name: str | None = None,
@@ -261,14 +265,21 @@ class GameSession:
             self.spade_doubling = spade_doubling
         if match_mode is not None:
             # Only reset match tracking when starting a NEW match
-            # (not when continuing an existing match)
-            if match_mode and not self.match_mode:
+            # (not when continuing an existing match). A finished match
+            # (match_winner set) also starts fresh - otherwise "Play Again"
+            # carries the old tally and the new match ends after one game.
+            if match_mode and (not self.match_mode or self.match_winner is not None):
                 # Starting a new match - generate a new match_id
                 self.games_won = {self.player_name: 0, "Computer": 0}
                 self.match_winner = None
                 with get_connection() as conn:
                     row = conn.execute("SELECT COALESCE(MAX(match_id), 0) + 1 FROM games").fetchone()
                     self.match_id = row[0]
+            elif match_mode and self.player_name not in self.games_won:
+                # Player renamed mid-match - re-key their tally
+                old_names = [n for n in self.games_won if n != "Computer"]
+                old_wins = self.games_won.pop(old_names[0], 0) if old_names else 0
+                self.games_won[self.player_name] = old_wins
             elif not match_mode:
                 # Turning off match mode
                 self.games_won = {}
@@ -643,6 +654,12 @@ class GameSession:
         try:
             human = self.game.players[self.human_idx]
 
+            # Stock exhausted: a deck draw at the minimum ends the round in a draw
+            # (mirrors the AI-turn handling; previously this soft-locked the round)
+            if source != 'discard' and len(self.game.deck) <= self.game.min_deck_cards:
+                self._end_round_as_draw()
+                return self.get_state()
+
             # Save turn state BEFORE drawing
             self.turn_cards_before = cards_to_db_list(list(human.hand))
             analysis_before = human.hand.analyze()
@@ -664,6 +681,32 @@ class GameSession:
 
         except InvalidActionError as e:
             return {'error': str(e)}
+
+    def _end_round_as_draw(self) -> None:
+        """End the current round as a draw (stock exhausted)."""
+        if self.game is None:
+            return
+
+        self.last_round_result = RoundResultData(
+            winner=None,
+            points=0,
+            is_gin=False,
+            is_undercut=False,
+            is_draw=True,
+            player_hand=self._build_hand_result(self.human_idx),
+            opponent_hand=self._build_hand_result(1 - self.human_idx),
+        )
+        self.game.phase = GamePhase.ROUND_OVER
+        if self.db_game_started:
+            self.tracker.end_hand(
+                winner_name=None,
+                loser_name=None,
+                points=0,
+                is_draw=True,
+                knocker_name=None,
+                winner_deadwood=0,
+                loser_deadwood=0
+            )
 
     def discard(self, card_id: str, knock: bool | None = None) -> dict[str, Any]:
         """Discard a card, optionally knocking.
@@ -695,6 +738,13 @@ class GameSession:
             if self.game.phase != GamePhase.DISCARDING:
                 return {'error': f"Cannot discard in {self.game.phase.name} phase"}
 
+            # Rule: cannot discard the card just taken from the discard pile
+            if card == self.game.discard_blocked_card:
+                return {
+                    'error': f"Cannot discard {card} - it was just taken "
+                             f"from the discard pile"
+                }
+
             # Calculate post-discard deadwood
             remaining_cards = [c for c in human.hand if c != card]
             from gin_rummy.models import analyze_hand
@@ -714,21 +764,26 @@ class GameSession:
                 state['discard_card'] = card_id
                 return state
 
-            if knock and can_knock_after:
-                # Discard the card manually, then knock
-                human.hand.remove(card)
-                self.game.discard_pile.append(card)
-                self.game._discard_history.append(card)
+            # An explicit knock request that isn't legal must fail loudly,
+            # not silently downgrade to a plain discard
+            if knock and not can_knock_after:
+                return {
+                    'error': f"Cannot knock: {post_discard_deadwood} deadwood "
+                             f"exceeds threshold of {self.game.knock_threshold}"
+                }
 
+            if knock and can_knock_after:
                 # Ensure DB started before recording turn
                 self._ensure_db_started()
+
+                result = self.game.knock_with_discard(card)
 
                 # Record turn with knock
                 if (self.turn_cards_before is not None and
                     self.turn_deadwood_before is not None and
                     self.turn_drew_from and
                     self.turn_card_drawn):
-                    cards_after = cards_to_db_list(list(human.hand))
+                    cards_after = cards_to_db_list(remaining_cards)
                     self.tracker.record_turn(
                         player_name=human.name,
                         drew_from=self.turn_drew_from,
@@ -741,7 +796,6 @@ class GameSession:
                         deadwood_after=post_discard_deadwood
                     )
 
-                result = self.game.knock()
                 self._save_round_result(result)
                 return self.get_state()
 
@@ -772,7 +826,7 @@ class GameSession:
 
             return self.get_state()
 
-        except (InvalidActionError, KeyError, ValueError) as e:
+        except (InvalidActionError, CardNotInHandError, KeyError, ValueError) as e:
             return {'error': str(e)}
 
     def knock(self) -> dict[str, Any]:
@@ -869,27 +923,7 @@ class GameSession:
 
         if turn_result == TurnResult.DRAW:
             # Deck exhausted
-            self.last_round_result = RoundResultData(
-                winner=None,
-                points=0,
-                is_gin=False,
-                is_undercut=False,
-                is_draw=True,
-                player_hand=self._build_hand_result(self.human_idx),
-                opponent_hand=self._build_hand_result(1 - self.human_idx),
-            )
-            self.game.phase = GamePhase.ROUND_OVER
-            # Record draw in database only if game was started (human played)
-            if self.db_game_started:
-                self.tracker.end_hand(
-                    winner_name=None,
-                    loser_name=None,
-                    points=0,
-                    is_draw=True,
-                    knocker_name=None,
-                    winner_deadwood=0,
-                    loser_deadwood=0
-                )
+            self._end_round_as_draw()
         elif turn_result == TurnResult.KNOCKED and round_result:
             self._save_round_result(round_result)
 
@@ -1000,6 +1034,11 @@ class GameSession:
         # Don't start a new round if the game is over
         if self.game_over:
             return self.get_state()
+
+        # Only valid once the current round has actually ended - otherwise a
+        # mid-hand request abandons the hand and corrupts DB tracking
+        if self.game.phase != GamePhase.ROUND_OVER:
+            return {'error': 'Cannot start a new round while a round is in progress'}
 
         self.game.new_round()
         self.game.deal()
