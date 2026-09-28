@@ -2,7 +2,7 @@
 
 _Audited at commit `779a7ad` (2026-09-28). Line numbers refer to that commit and will drift._
 
-**Summary:** about 25k lines of source. There are 263 passing tests (1 skipped), 76 ruff errors, 42/57 files not ruff-formatted and 79 `ty` diagnostics. There is no CI. _As of `72c06c3`: 307 tests pass, ruff reports 0 errors, every file is ruff-formatted, and CI runs on push._
+**Summary:** about 25k lines of source. There are 263 passing tests (1 skipped), 76 ruff errors, 42/57 files not ruff-formatted and 79 `ty` diagnostics. There is no CI. _As of the core consolidation (step 4, 2026-09-28): 342 tests pass, ruff reports 0 errors, every file is ruff-formatted, CI runs on push, and `ty` reports 43 diagnostics (was 79)._
 
 The biggest structural problem is that the **game/round loop is implemented four separate times**: CLI vs AI, CLI PvP, simulator and scenario quiz (a fifth copy, the network server, was deleted on 2026-09-28). The web session and trainer run partial copies. Result recording and card serialization are copied in the same way. Several real bugs below come directly from those copies drifting apart.
 
@@ -12,7 +12,7 @@ The biggest structural problem is that the **game/round loop is implemented four
 
 Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. The **Status** column shows what has been done since the audit.
 
-**Progress (2026-09-28):** B1–B6 were re-confirmed against the code and fixed in commits `1646e4e`–`e196cf6`, each with a regression test. Second batch (`2c8224b`–`72c06c3`) fixed B7, B12, B13, B14, B15 and the two B5 follow-ups below, and added the §5/§6 safety net. Still open: B8 and B9 (both belong with §2.3/§2.4). The **B7 regression** found in the second review below was fixed in `23d25b6`; the other follow-ups from that review (reason assertion, `learning` marker, CPU-only torch index for CI, duplicate test id) landed right after.
+**Progress (2026-09-28):** B1–B6 were re-confirmed against the code and fixed in commits `1646e4e`–`e196cf6`, each with a regression test. Second batch (`2c8224b`–`72c06c3`) fixed B7, B12, B13, B14, B15 and the two B5 follow-ups below, and added the §5/§6 safety net. B8 and B9 were fixed with the reasoning-twin merge (§2.4). The **B7 regression** found in the second review below was fixed in `23d25b6`; the other follow-ups from that review (reason assertion, `learning` marker, CPU-only torch index for CI, duplicate test id) landed right after.
 
 **Review of the fix commits (`1646e4e`, `cb442ff`, `b506c21`, `e196cf6`):** all four were read in full and verified. **291 tests pass** (was 263). Ruff errors went from 76 to 70, and the touched files add no new lint. Notes and follow-ups:
 
@@ -48,8 +48,8 @@ Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. T
 | B5 ✅ | **`--resume` trains the wrong network.** It replaces `trainer.learning_ai`, but the optimizers still hold the old network's parameters. Curriculum and exploration state are not restored either. | `learning/trainer.py:737-742` vs `:152-163` | **Fixed.** `Trainer.load_checkpoint()` loads into the existing networks and restores exploration/curriculum/episode. Test: `test_learning.py::TestTrainerResume` |
 | B6 ✅ | **Stored XSS via player names.** Names from the DB go into `innerHTML` unescaped. `escapeHtml` exists only as a private `HandReplay` method. | `game.js:404-409, 621, 1606, 1701-1716, 1753`; `history.js:~236-265` | **Fixed.** Shared `CardUtils.escapeHtml` used at every name interpolation in `game.js`, `history.js`, `replay.js` |
 | B7 | MonteCarloAI early returns don't reset `last_mc_thinking`, so the `*_with_reasoning` wrappers report the previous turn's numbers. | `ai/monte_carlo.py:746, 846, 1049, 1120` | **Fixed** (`2c8224b`, regression fixed in `23d25b6`). `_clear_thinking()` runs only on early returns that skip simulation. Tests: `test_monte_carlo.py::TestThinkingReset` covers both clearing and keeping the gin / deck-nearly-empty reasons |
-| B8 | StatisticalAI and LearningAI inherit `BasicAI.*_with_reasoning`, so the reasoning stored in the DB describes greedy-deadwood logic, not the real decision. | `ai/basic.py:234-395` | Open |
-| B9 | The Oklahoma knock threshold is ignored outside ContextAware/MC, which hard-code `10`. | `context_aware.py:360,415,800,847`, `basic.py:192`, `statistical.py:249`, `learning_ai.py:268`, `learning/state.py:161` | Open |
+| B8 | StatisticalAI and LearningAI inherit `BasicAI.*_with_reasoning`, so the reasoning stored in the DB describes greedy-deadwood logic, not the real decision. | `ai/basic.py:234-395` | **Fixed** (§2.4). StatisticalAI and LearningAI have their own reasoning twins; `tests/test_reasoning_agreement.py` showed 94 disagreements for StatisticalAI before the fix |
+| B9 | The Oklahoma knock threshold is ignored outside ContextAware/MC, which hard-code `10`. | `context_aware.py:360,415,800,847`, `basic.py:192`, `statistical.py:249`, `learning_ai.py:268`, `learning/state.py:161` | **Fixed** (§2.4). Every AI reads `context.knock_threshold` when a context is given; tests in `test_ai.py::TestKnockThresholdFromContext` and `test_learning.py` |
 | B10 | Network server `_handle_knock` edits hand and discard pile directly, bypassing the discard-back rule and `_discard_history`. It also catches the wrong exception type. | `network/server.py:371-386` | **Gone** with `network/` |
 | B11 | The CLI PvP first discard prompts "1-11" but shows the hand without numbers and indexes the unsorted hand. | `cli.py:810`, `cli.py:328` | **Fixed.** PvP reuses `play_human_first_discard` |
 | B12 | The scenario quiz doesn't reset panel AI tracking between failed generation attempts. | `scenario_quiz.py:340-345` vs `409-411` | **Fixed** in both the CLI quiz and `web/scenario_session.py` via `reset_panel_tracking()` per attempt |
@@ -79,6 +79,8 @@ Game loops are implemented in `cli.py:704-795`, `cli.py:798-870`, `simulator.py:
 **Target:** `gin_rummy/engine/round_runner.py` with a `Seat` interface (human prompt, AI, remote/web client) that returns a `RoundResult`. `game_runner.execute_ai_turn` is already shared by CLI and web; extend that pattern.
 
 ### 2.2 One result/turn recorder
+_Done (`cb442ff`, `1eb5d6d`): `GameTracker.end_hand_from_result()` and `gin_rummy/tracking.py` (`TurnSnapshot`, `TurnRecord`, `TurnRecorder`) replace the copies; `tests/test_turn_recording.py` checks the rows written by the CLI and the web session._
+
 - Turn recording is copied **five times**: `cli.py:504-516, 526-539, 585-630`; `game_session.py:787-830, 893-920`.
 - The draw-hand `end_hand(...)` block is copied at `cli.py:750-758, 829-837` and `game_session.py:701-709`.
 - ~~The web version uses `RoundResult` correctly and the CLI doesn't (B2).~~ Done: both now call `GameTracker.end_hand_from_result()`, which is the seed of the `RoundRecorder` below.
@@ -86,6 +88,8 @@ Game loops are implemented in `cli.py:704-795`, `cli.py:798-870`, `simulator.py:
 **Target:** `gin_rummy/tracking.py` with a `RoundRecorder` / `TrackingCallbacks` wrapping `GameTracker`, exposing `record_turn(...)`, `record_round(result: RoundResult)` and `record_draw()`.
 
 ### 2.3 A common `AIPlayer` protocol and AI factory
+_Done (`06d3307`): BasicAI is the interface (uniform signatures, `needs_context`, tracking no-ops on the base class); `ai/factory.py` has `make_ai`, `AI_TYPES`, `DIFFICULTY_TO_AI`. No `isinstance`/`hasattr` gates remain in the runner, simulator, trainer or quiz._
+
 There is no shared interface. Signatures differ (`context=`, `pending_discard=`), so callers use `isinstance`/`hasattr` about 15 times (`game_runner.py:92-291`, `simulator.py:359-633`, `trainer.py:346-620`, `scenario_quiz.py:226,279`). This caused B4.
 
 - Define `AIPlayer` in `ai/types.py` with uniform signatures (context always optional) and no-op defaults for `update_context`, `record_opponent_*` and `reset_for_new_hand`.
@@ -93,9 +97,13 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 - **Factory:** string→class mapping exists in `simulator.py:502-512`, `trainer.py:216-229` and `game_session.py:296-301, 359-364, 1055-1060`. Replace it with `AI_REGISTRY` / `make_ai()` in `ai/factory.py`, with a lazy import for `learning`.
 
 ### 2.4 Merge decision methods with their `_with_reasoning` twins
+_Done (step 4): BasicAI uses `_evaluate_*` cores (no strings on the rollout path); ContextAwareAI's plain methods return the reasoning implementation's choice; StatisticalAI and LearningAI got their own twins (B8). `tests/test_reasoning_agreement.py` guards it._
+
 `basic.py` and `context_aware.py` copy each decision body into a `_with_reasoning` twin: `context_aware.py:122-247 vs 574-694, 249-324 vs 696-782, 346-446 vs 784-870`, about 330 lines. MonteCarloAI already does it properly (`monte_carlo.py:1207-1311`): compute the reasoning once and have the plain method return `.choice`. Doing the same shrinks `context_aware.py` from ~870 to ~450 lines and fixes B8.
 
 ### 2.5 Card codec and shared hand helpers
+_Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / `Card.index` / `Card.from_index`, plus a process-stable `Card.__hash__`. The other rows below are still open._
+
 | Duplicate | Locations | Target |
 |---|---|---|
 | Card ↔ `"7H"` string | `database.py:22-77`, `game_session.py:18-60`, `analyze_hand.py:23-54`, `scripts/stress_test_db.py:19-21` | `Card.code` / `Card.parse()` in `models/card.py` |
@@ -285,7 +293,7 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 1. ~~**Quick fixes:** B1 decision (delete `network/`), B2, B3, B4, B5, B6. Add tests for each as you go.~~ Done 2026-09-28.
 2. ~~**Safety net:** CI + pre-commit, a one-time `ruff --fix` + `ruff format`, `conftest.py`, web `TestClient` and DB tests.~~ Done 2026-09-28.
 3. ~~**First:** fix the B7 regression (two lines plus a test). Optional: a CPU-only torch index for CI.~~ Done 2026-09-28.
-4. **Consolidate the core:** card codec (§2.5), `AIPlayer` protocol + factory (§2.3), shared recorder (§2.2), reasoning twins (§2.4).
+4. ~~**Consolidate the core:** card codec (§2.5), `AIPlayer` protocol + factory (§2.3), shared recorder (§2.2), reasoning twins (§2.4).~~ Done 2026-09-28, one commit per step, each verified against `scripts/fingerprint.py` (seeded per-game hashes, unchanged throughout) and the twin-agreement test.
 5. **Round runner (§2.1):** move CLI, simulator, quiz and trainer onto it.
 6. **Split the large files (§3):** `monte_carlo.py`, `game_session.py`/`app.py`, `database.py`, `cli.py`, `context.py`.
 7. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
