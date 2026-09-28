@@ -12,48 +12,7 @@ from gin_rummy.ai.monte_carlo import _sample_state, _rollout_discard
 from gin_rummy.config import Config, MonteCarloAIConfig
 from gin_rummy.context import GameContext, KnownCards
 from gin_rummy.models import Hand, Card, Suit, Rank
-
-
-def make_test_config(**overrides) -> Config:
-    """Create a fast, sequential MC test config."""
-    params = dict(
-        draw_simulations=10,
-        discard_simulations=10,
-        knock_simulations=10,
-        max_rollout_turns=4,
-        min_unknown_for_simulation=3,
-        rollout_knock_strategy="conservative",
-        rollout_conservative_threshold=3,
-        draw_min_advantage=1.5,
-        discard_min_advantage=1.0,
-        knock_min_advantage=2.0,
-        max_workers=1,
-        sample_strategy="paired",
-        weighted_sampling=True,
-        defensive_rollout=True,
-        joint_turn_evaluation=True,
-    )
-    params.update(overrides)
-    config = Config()
-    config.monte_carlo_ai = MonteCarloAIConfig(**params)
-    return config
-
-
-def make_context(hand: Hand, deck_remaining: int = 20) -> GameContext:
-    known_cards = KnownCards(
-        my_hand=frozenset(hand),
-        opponent_hand_known=frozenset(),
-        discard_top=None,
-        discard_buried=frozenset(),
-    )
-    return GameContext(
-        deck_remaining=deck_remaining,
-        deck_position_pct=1.0 - (deck_remaining / 31.0),
-        my_score=0,
-        opponent_score=0,
-        target_score=100,
-        known_cards=known_cards,
-    )
+from tests.helpers import make_context, make_mc_config as make_test_config
 
 
 class TestWeightedSampling:

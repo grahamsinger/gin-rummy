@@ -5,17 +5,7 @@ from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
 from gin_rummy.models import Hand, Card, Suit, Rank
 from gin_rummy.context import GameContext, OpponentModel
 from gin_rummy.config import Config, AIConfig, ContextAwareAIConfig
-
-
-def make_test_config(knock_strategy: str = "always") -> Config:
-    """Create a test config with specified knock strategy."""
-    config = Config()
-    config.ai = AIConfig(
-        knock_strategy=knock_strategy,
-        conservative_knock_threshold=5,
-        min_deadwood_improvement=1,
-    )
-    return config
+from tests.helpers import make_ai_config as make_test_config
 
 
 class TestBasicAI:

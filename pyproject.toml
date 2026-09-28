@@ -22,6 +22,10 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "learning: tests that need the optional torch dependency",
+]
 
 [tool.ruff]
 line-length = 120
@@ -33,5 +37,9 @@ select = [
     "W",     # pycodestyle warnings
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# pytest.importorskip must run before the torch-dependent imports
+"tests/test_learning.py" = ["E402"]
+
 [dependency-groups]
-dev = ["pytest>=8.0", "ty", "ruff>=0.8"]
+dev = ["pytest>=8.0", "pytest-cov", "httpx", "ty", "ruff>=0.8"]

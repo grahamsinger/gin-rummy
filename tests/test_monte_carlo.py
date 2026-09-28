@@ -10,53 +10,7 @@ from gin_rummy.ai.monte_carlo import (
 from gin_rummy.models import Hand, Card, Suit, Rank, analyze_hand
 from gin_rummy.context import GameContext
 from gin_rummy.config import Config, AIConfig, MonteCarloAIConfig
-
-
-def make_test_config() -> Config:
-    """Create a test config with MC defaults."""
-    config = Config()
-    config.monte_carlo_ai = MonteCarloAIConfig(
-        draw_simulations=10,  # Fewer sims for fast tests
-        discard_simulations=10,
-        knock_simulations=10,
-        max_rollout_turns=4,
-        min_unknown_for_simulation=3,
-        rollout_knock_strategy="conservative",
-        rollout_conservative_threshold=3,
-        draw_min_advantage=1.5,
-        discard_min_advantage=1.0,
-        knock_min_advantage=2.0,
-        max_workers=1,  # Sequential for deterministic tests
-        sample_strategy="paired",
-    )
-    return config
-
-
-def make_context(
-    hand: Hand,
-    deck_remaining: int = 20,
-    my_score: int = 0,
-    opponent_score: int = 0,
-    target_score: int = 100,
-) -> GameContext:
-    """Create a GameContext for testing."""
-    from gin_rummy.context import KnownCards
-
-    deck_position_pct = 1.0 - (deck_remaining / 31.0)
-    known_cards = KnownCards(
-        my_hand=frozenset(hand),
-        opponent_hand_known=frozenset(),
-        discard_top=None,
-        discard_buried=frozenset(),
-    )
-    return GameContext(
-        deck_remaining=deck_remaining,
-        deck_position_pct=deck_position_pct,
-        my_score=my_score,
-        opponent_score=opponent_score,
-        target_score=target_score,
-        known_cards=known_cards,
-    )
+from tests.helpers import make_context, make_mc_config as make_test_config
 
 
 class TestScoreKnock:
@@ -919,3 +873,25 @@ class TestParallelMode:
         ai = MonteCarloAI(config=config)
         ai.shutdown()
         assert ai._pool is None
+
+
+class TestThinkingReset:
+    """B7: early returns must not leave the previous turn's MC numbers behind."""
+
+    def test_early_return_clears_stale_draw_thinking(self):
+        ai = MonteCarloAI(config=make_test_config())
+        ai.last_mc_thinking = {'draw': {'deck_sims': 99}, 'discard': None, 'knock': {'x': 1}}
+        hand = Hand([Card(Rank.ACE, Suit.SPADES), Card(Rank.TWO, Suit.HEARTS)])
+
+        # No discard top -> early return before any simulation
+        assert ai.decide_draw(hand, None, make_context(hand)) == DrawChoice.DECK
+        assert ai.last_mc_thinking['draw'] is None
+        assert ai.last_mc_thinking['knock'] == {'x': 1}  # untouched
+
+    def test_early_return_clears_stale_knock_thinking(self):
+        ai = MonteCarloAI(config=make_test_config())
+        ai.last_mc_thinking = {'draw': None, 'discard': None, 'knock': {'knock_sims': 99}}
+        high_deadwood = Hand([Card(Rank.KING, Suit.SPADES), Card(Rank.QUEEN, Suit.HEARTS)])
+
+        assert ai.should_knock(high_deadwood, make_context(high_deadwood)) is False
+        assert ai.last_mc_thinking['knock'] is None
