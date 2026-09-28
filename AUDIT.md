@@ -194,7 +194,7 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 ### Frontend state
 - `game.js` has about 12 mutable globals.
 - Draw, discard and AI-turn have no in-flight guard, so a double-click can fire duplicate POSTs. `scenario.js:37-56` already has a `busy` flag; copy that.
-- Dead knock-confirm flow: `pendingDiscardCard` is never set, so `knock()` (`game.js:707`), the modal, `style.css:764-808`, `/api/game/knock` (`app.py:187-194`) and `GameSession.knock` are all unused.
+- Dead knock-confirm flow: `pendingDiscardCard` is never set, so ~~`knock()` (`game.js:707`)~~ (removed in `3b8bfb5`, along with the unused `getState()`), the modal, `style.css:764-808`, `/api/game/knock` (`app.py:187-194`) and `GameSession.knock` are all unused.
 
 ### Database
 - Every write opens a new connection (`database.py:283, 383, 411`), and `end_hand` + `update_player_stats` run in separate transactions (`:348-365`).
@@ -220,7 +220,7 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 - `learning/state.py`: `index_to_card_tuple`, `get_card_indices`
 - `learning/rewards.py`: `normalize_reward`
 - Legacy `GameContext` fields (`context.py:146-149`)
-- The knock-confirm flow above
+- The knock-confirm flow above (JS entry point already gone; modal, CSS, route and `GameSession.knock` remain)
 - ~~`network/` (§1)~~ done
 
 ---
@@ -243,7 +243,7 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 
 ## 6. Tooling and repo hygiene
 
-- ~~**No CI.**~~ Done (`72c06c3`): `.github/workflows/ci.yml` runs `uv sync --all-extras`, `ruff check`, `ruff format --check`, `pytest` and `npm run lint`; `.pre-commit-config.yaml` has ruff and ruff-format.
+- ~~**No CI.**~~ Done (`72c06c3`): `.github/workflows/ci.yml` runs `uv sync --all-extras`, `ruff check`, `ruff format --check`, `pytest` and `npm run lint`; `.pre-commit-config.yaml` has ruff and ruff-format. First two runs passed; eslint is at 0 warnings as of `3b8bfb5`.
 - **Ruff:** ~~run `ruff check --fix` and `ruff format` once, then list that commit in `.git-blame-ignore-revs`.~~ Done (`0b76869`, listed in `.git-blame-ignore-revs`). Still to do: extend `select` beyond `F,E,W` with `I, UP, B, SIM` (101 more hits, 52 auto-fixable), and optionally `RUF, PT, PERF`.
 - **ty:** 79 diagnostics. The meaningful ones are `object` not callable from loosely typed dicts (`simulator.py:360-450`, `trainer.py:347-622`) and `BasicAI` has no `update_context` (`scenario_quiz.py:227-279`); both go away with §2.3. Add a `[tool.ty]` section.
 - ~~**Pytest:** add `addopts = "-ra --strict-markers"` and a `learning` marker so the torch skip is visible.~~ Done; `test_learning.py` should still be tagged with the marker.
