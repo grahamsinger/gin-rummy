@@ -13,14 +13,12 @@ from gin_rummy.game_runner import calculate_post_discard_deadwood
 from gin_rummy.models import Card, Hand
 from gin_rummy.scenario_quiz import (
     HUMAN_SEAT,
-    MAX_GENERATION_ATTEMPTS,
     PanelMember,
     build_panel,
-    generate_scenario,
+    generate_stable_scenario,
     panel_discard_choices,
     panel_draw_choices,
     panel_knock_choices,
-    reset_panel_tracking,
 )
 from gin_rummy.web.game_session import card_to_dict
 
@@ -69,13 +67,7 @@ class ScenarioSession:
         panel = self._ensure_panel()
 
         base = seed if seed is not None else random.randrange(1_000_000)
-        game = None
-        for attempt in range(MAX_GENERATION_ATTEMPTS):
-            # Each attempt is a fresh hand, so the panel must forget the last one
-            reset_panel_tracking(panel)
-            game = generate_scenario(base + attempt * 1000, panel)
-            if game is not None:
-                break
+        game = generate_stable_scenario(base, panel)
         if game is None:
             return {"error": "Could not generate a stable scenario, try again"}
 

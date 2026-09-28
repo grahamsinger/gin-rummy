@@ -166,6 +166,11 @@ Examples:
         type=int,
         help="Min experiences before training (default: 1000)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="Seed random, numpy and torch for a reproducible run",
+    )
 
     # Reward shaping
     parser.add_argument(
@@ -260,6 +265,7 @@ def build_config(args: argparse.Namespace) -> tuple[TrainingConfig, str]:
         "exploration_start": "exploration_start",
         "exploration_end": "exploration_end",
         "exploration_decay": "exploration_decay",
+        "seed": "seed",
         "target_update_freq": "target_update_freq",
         "buffer_capacity": "buffer_capacity",
         "min_buffer_size": "min_buffer_size",

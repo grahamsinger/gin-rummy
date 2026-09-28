@@ -149,6 +149,47 @@ def generate_scenario(
     return game
 
 
+def reset_panel_tracking(panel: list[PanelMember]) -> None:
+    """Clear per-hand opponent tracking on every panel member."""
+    for member in panel:
+        member.ai.reset_for_new_hand()
+
+
+def generate_stable_scenario(base_seed: int, panel: list[PanelMember]) -> Game | None:
+    """Retry generate_scenario with derived seeds until one reaches the human seat.
+
+    Each attempt plays a fresh hand, so the panel forgets what it saw during
+    a failed attempt (the callbacks feed it opponent actions).
+    """
+    for attempt in range(MAX_GENERATION_ATTEMPTS):
+        reset_panel_tracking(panel)
+        game = generate_scenario(base_seed + attempt * 1000, panel)
+        if game is not None:
+            return game
+    return None
+
+
+def describe_position(game: Game, panel: list[PanelMember]) -> dict:
+    """The frozen position, and the panel's draw advice, as plain data.
+
+    Used by the behaviour fingerprint and the golden scenario test: any
+    change in generation, opponent tracking or the panel feed shows up here.
+    """
+    ctx = game.get_game_context(HUMAN_SEAT)
+    human = game.players[HUMAN_SEAT]
+    opponent = game.players[1 - HUMAN_SEAT]
+    return {
+        "dealer": game.dealer_idx,
+        "hand": [c.code for c in human.hand],
+        "opponent_hand": [c.code for c in opponent.hand],
+        "discard_pile": [c.code for c in game.discard_pile],
+        "deck": [c.code for c in game.deck],
+        "opponent_pickups": [c.code for c in ctx.opponent_pickups],
+        "dead_cards": sorted(c.code for c in ctx.dead_cards),
+        "panel_draw": {e["name"]: e["choice"].name for e in panel_draw_choices(panel, game)},
+    }
+
+
 def show_position(game: Game) -> None:
     """Print the frozen position from the human's perspective."""
     ctx = game.get_game_context(HUMAN_SEAT)
@@ -323,22 +364,10 @@ def reveal_knock_choices(
         print(f"  [{marker}] {member.name:<16} {entry['reasoning']}")
 
 
-def reset_panel_tracking(panel: list[PanelMember]) -> None:
-    """Clear per-hand opponent tracking on every panel member."""
-    for member in panel:
-        member.ai.reset_for_new_hand()
-
-
 def run_scenario(seed: int, panel: list[PanelMember]) -> bool:
     """Run one scenario. Returns False if generation failed for this seed."""
-    for attempt in range(MAX_GENERATION_ATTEMPTS):
-        # Each attempt plays a fresh hand, so the panel must forget what it
-        # saw during a failed attempt (the callbacks feed it opponent actions).
-        reset_panel_tracking(panel)
-        game = generate_scenario(seed + attempt * 1000, panel)
-        if game is not None:
-            break
-    else:
+    game = generate_stable_scenario(seed, panel)
+    if game is None:
         return False
 
     show_position(game)

@@ -7,11 +7,13 @@ curriculum learning, and evaluation.
 from __future__ import annotations
 
 import logging
+import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -79,6 +81,17 @@ class TrainingConfig:
     # Reward configuration
     reward_config: RewardConfig = field(default_factory=RewardConfig)
 
+    # Reproducibility: seeds random, numpy and torch before the networks are
+    # built (None = unseeded)
+    seed: int | None = None
+
+
+def seed_everything(seed: int) -> None:
+    """Seed every generator the trainer draws from (deck, exploration, replay sampling, weights)."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
 
 @dataclass
 class TrainingMetrics:
@@ -126,6 +139,9 @@ class Trainer:
         self.config = config
         self.save_path = save_path
         self.tensorboard_path = tensorboard_path
+
+        if config.seed is not None:
+            seed_everything(config.seed)
 
         # Initialize device (CUDA > CPU, MPS has dtype issues)
         if torch.cuda.is_available():
@@ -717,6 +733,12 @@ def main() -> None:
         help="Save checkpoint every N episodes",
     )
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Seed random, numpy and torch for a reproducible run",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -745,6 +767,7 @@ def main() -> None:
         num_episodes=args.episodes,
         eval_freq=args.eval_freq,
         save_freq=args.save_freq,
+        seed=args.seed,
     )
 
     # Create trainer

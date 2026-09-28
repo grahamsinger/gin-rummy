@@ -415,3 +415,39 @@ class TestLearningReasoning:
         oklahoma = replace(make_context(h), knock_threshold=5)
         assert ai.should_knock(h, oklahoma) is False
         assert ai.should_knock_with_reasoning(h, oklahoma).should_knock is False
+
+
+class TestTrainerSeed:
+    """TrainingConfig.seed makes a run reproducible (deck, exploration, sampling, weights)."""
+
+    @staticmethod
+    def _run(tmp_path, seed):
+        from gin_rummy.learning.trainer import Trainer, TrainingConfig
+
+        config = TrainingConfig(
+            num_episodes=2,
+            target_score=20,
+            max_rounds_per_game=3,
+            batch_size=8,
+            min_buffer_size=20,
+            eval_freq=10_000,
+            save_freq=10_000,
+            curriculum=[("basic", 10)],
+            seed=seed,
+        )
+        trainer = Trainer(config, tmp_path / f"seed{seed}.pt")
+        trainer.train()
+        rewards = [m.total_reward for m in trainer.metrics_history]
+        weights = [p.detach().clone() for p in trainer.learning_ai.discard_net.parameters()]
+        return rewards, weights
+
+    def test_same_seed_reproduces_rewards_and_weights(self, tmp_path):
+        rewards_a, weights_a = self._run(tmp_path / "a", 3)
+        rewards_b, weights_b = self._run(tmp_path / "b", 3)
+        assert rewards_a == rewards_b
+        assert all(torch.equal(x, y) for x, y in zip(weights_a, weights_b, strict=True))
+
+    def test_seed_is_optional_and_on_the_cli(self):
+        from gin_rummy.learning.trainer import TrainingConfig
+
+        assert TrainingConfig().seed is None

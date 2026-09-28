@@ -52,6 +52,10 @@ class Deck:
         """Return the number of cards remaining in the deck."""
         return len(self._cards)
 
+    def __iter__(self):
+        """Remaining cards, bottom first (the next draw is the last one)."""
+        return iter(self._cards)
+
     @property
     def is_empty(self) -> bool:
         """Return True if the deck has no cards."""
