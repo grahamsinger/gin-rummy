@@ -144,7 +144,7 @@ class TurnRecorder:
             self.tracker.record_ai_decision(
                 turn_id=turn_id,
                 decision_type="discard",
-                choice=str(reasoning.discard.card),
+                choice=reasoning.discard.card.code,  # same ASCII format as every other card column
                 reasoning=reasoning.discard.reasoning,
                 options_considered=options,
             )

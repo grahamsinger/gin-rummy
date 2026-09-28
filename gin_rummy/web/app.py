@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from typing import Literal
+
 from pydantic import BaseModel
 
 from gin_rummy.config import get_config
@@ -97,7 +99,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # Request models
 class NewGameRequest(BaseModel):
     player_name: str | None = None  # Player's name
-    ai_difficulty: str | None = None  # "easy", "medium", or "hard"
+    ai_difficulty: Literal["easy", "medium", "hard"] | None = None
     game_mode: str | None = None  # "practice" or "target"
     target_score: int | None = None  # Target score for "target" mode (100, 150, 200, 250)
     oklahoma_gin: bool | None = None  # Whether to use Oklahoma Gin rules
@@ -110,7 +112,7 @@ class ResumeGameRequest(BaseModel):
 
 
 class DrawRequest(BaseModel):
-    source: str  # "deck" or "discard"
+    source: Literal["deck", "discard"]
 
 
 class DiscardRequest(BaseModel):
@@ -524,7 +526,7 @@ class NewScenarioRequest(BaseModel):
 
 
 class ScenarioDrawRequest(BaseModel):
-    source: str  # "deck" or "discard"
+    source: Literal["deck", "discard"]
 
 
 class ScenarioDiscardRequest(BaseModel):

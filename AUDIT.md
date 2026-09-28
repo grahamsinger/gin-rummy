@@ -1,5 +1,33 @@
 # Codebase Audit
 
+> ## Latest review: core consolidation (`6a033ee`…`9e76db6`), 2026-09-28
+>
+> **Verdict: verified. The four steps preserve behaviour where they claim to.** No blocking issues; five small follow-ups below.
+>
+> **What was independently checked** (read-only; temporary checkouts in a scratch directory, all removed):
+>
+> - **Checks at `9e76db6`:** 342 tests pass, `ruff check` and `ruff format --check` are clean, eslint shows 0 warnings, and `ty` reports 43 diagnostics.
+> - **Behaviour fingerprint at every step.** `scripts/fingerprint.py` (150 games, seed 42) was run against `6a033ee` (baseline), `f6aeb6b`, `37ec056`, `06d3307`, `1eb5d6d` and `3297c87`.
+>   - All six give `49ebb018605bbae6` / `56c04fee7ecf6e24`, wins 62-88 and 134-16.
+>   - Each run was confirmed to import its own checkout's code: the baseline has no `Card.code`.
+>   - Runtime stayed at about 24 s per run, so ContextAwareAI's plain path now building reasoning strings costs nothing measurable.
+> - **Recorded rows, before vs after step 3.** The same seeded CLI and web rounds were played on `a2f4989` (just before step 3), `1eb5d6d` and `9e76db6`, and the stored rows diffed (ids and timestamps excluded):
+>   - `turns` and `hands` rows: **identical** for both UIs.
+>   - Web `ai_decisions` rows: **identical**.
+>   - CLI `ai_decisions` rows: **changed, as the commit message says** (intentional). The CLI now stores the same structured reasoning as the web UI. That means uppercase `DISCARD`/`DECK`, a knock row every turn, and full `options_considered`, where it used to store generic strings like `"Drew 3S from discard"`. Existing databases therefore hold both formats for CLI games. The replay view only displays `choice` as text, so nothing breaks.
+>   - `tests/test_turn_recording.py` was added in the same commit as the refactor, so it never ran against the old code. It **does pass on `a2f4989`**, so its invariants held before and after.
+> - **Code read:**
+>   - `Card.code`/`parse`/`index`/`from_index`/`__hash__`. The hash is consistent with equality, and `T` is accepted on input only.
+>   - `ai/factory.py`, `tracking.py`, the `BasicAI` interface and `_evaluate_*` cores, the ContextAwareAI plain→reasoning binding (pinned so MonteCarloAI's `super()` fallbacks can't recurse), the StatisticalAI/LearningAI twins, the B9 threshold plumbing, and `test_reasoning_agreement.py`.
+>
+> **Follow-ups (all minor):**
+>
+> 1. **One B9 leftover:** `learning/state.py:142` still falls back to a hard-coded `10` when no context is given. Use the configured `game_rules.knock_threshold`, as `BasicAI._knock_threshold_for` does.
+> 2. **Mixed card formats in `ai_decisions`:** the discard `choice` is stored as the display string (`str(card)`, e.g. `K♦`), while every other card column in the DB uses `Card.code` (`KD`). This was already true in the web UI and now applies to the CLI too. Consider storing `Card.code` and formatting for display in JS, or document it as display-only.
+> 3. **StatisticalAI's `_evaluate_stats_*` cores have side effects:** they append to `_round_knocks`, and discard stats are recorded unless `_in_hypothetical`. That's fine while the runner calls exactly one of plain/twin per decision. Anything that calls both on the same instance would record twice, which is why the agreement test correctly uses fresh instances. Worth a comment on the cores, or move the recording out of them.
+> 4. **`DIFFICULTY_TO_AI.get(difficulty, "context")` silently maps unknown difficulties to medium** (`game_session.py:256, 306, 872`). Validate `ai_difficulty` as a `Literal` in the request model (see §4, Web server).
+> 5. **Optional:** turn the before/after row diff above into a real golden test. Commit the expected `turns` rows for the seeded CLI and web rounds, so the next recording change is compared against actual data, not just invariants.
+
 _Audited at commit `779a7ad` (2026-09-28). Line numbers refer to that commit and will drift._
 
 **Summary:** about 25k lines of source. There are 263 passing tests (1 skipped), 76 ruff errors, 42/57 files not ruff-formatted and 79 `ty` diagnostics. There is no CI. _As of the core consolidation (step 4, 2026-09-28): 342 tests pass, ruff reports 0 errors, every file is ruff-formatted, CI runs on push, and `ty` reports 43 diagnostics (was 79)._

@@ -498,12 +498,15 @@
                     </details>
                 ` : '';
 
+                // Discard choices are stored as card codes ("KD"); older rows hold the
+                // display string ("K♦"). Format codes, pass anything else through.
+                const choiceText = /^(10|[2-9AJQK])[SHDC]$/.test(d.choice) ? formatCard(d.choice) : d.choice;
                 return `
                     <div class="ai-decision ai-decision-${d.decision_type}">
                         <div class="ai-decision-header">
                             <span class="ai-decision-icon">${typeIcon}</span>
                             <span class="ai-decision-type">${typeLabel}:</span>
-                            <span class="ai-decision-choice">${this.escapeHtml(d.choice)}</span>
+                            <span class="ai-decision-choice">${this.escapeHtml(choiceText)}</span>
                         </div>
                         <div class="ai-decision-reasoning">${this.escapeHtml(d.reasoning)}</div>
                         ${factorsHtml}

@@ -89,9 +89,12 @@ class StatisticalAI(BasicAI):
         self._round_draws = []
         self._round_knocks = []
 
-    # Each decision has one implementation (`_evaluate_*`) that also records
-    # the sample for learning; the plain method returns its choice and the
-    # *_with_reasoning twin describes the statistics it used.
+    # Each decision has one implementation (`_evaluate_stats_*`) that ALSO
+    # RECORDS the sample for learning (_round_draws/_round_discards/
+    # _round_knocks). The plain method returns its choice and the
+    # *_with_reasoning twin describes the statistics it used. Call exactly one
+    # of the pair per decision on a given instance: calling both would record
+    # the sample twice (tests that compare them use a fresh instance per call).
 
     def decide_draw(self, hand: Hand, discard_top: Card | None, context: GameContext | None = None) -> DrawChoice:
         """Use statistics to decide draw, with BasicAI fallback."""

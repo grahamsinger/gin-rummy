@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 
+from gin_rummy.config import get_config
+
 if TYPE_CHECKING:
     from gin_rummy.context import GameContext, KnownCards, OpponentModel
     from gin_rummy.models import Card, Hand
@@ -120,7 +122,7 @@ class StateEncoder:
         Returns 8-dimensional vector:
         - deck_position_pct: 0.0 (full) to 1.0 (empty)
         - my_deadwood_normalized: deadwood / 100
-        - can_knock: 1.0 if deadwood <= knock threshold (from context, default 10), else 0.0
+        - can_knock: 1.0 if deadwood <= knock threshold (from context, else the configured rule), else 0.0
         - is_gin: 1.0 if deadwood == 0, else 0.0
         - score_differential_normalized: (my - opp) / 100, clamped to [-1, 1]
         - points_to_win_normalized: points_to_win / 100
@@ -139,7 +141,7 @@ class StateEncoder:
             if context.my_outs is not None:
                 encoding[7] = min(context.my_outs.live_out_count / 20.0, 1.0)
 
-        knock_threshold = context.knock_threshold if context is not None else 10
+        knock_threshold = context.knock_threshold if context is not None else get_config().game_rules.knock_threshold
         encoding[1] = deadwood / 100.0
         encoding[2] = 1.0 if deadwood <= knock_threshold else 0.0
         encoding[3] = 1.0 if deadwood == 0 else 0.0
