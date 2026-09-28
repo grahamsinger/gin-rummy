@@ -10,6 +10,8 @@ import pytest
 torch = pytest.importorskip("torch")
 numpy = pytest.importorskip("numpy")
 
+pytestmark = pytest.mark.learning
+
 from gin_rummy.models import Card, Rank, Suit, Hand
 from gin_rummy.learning.state import StateEncoder, card_to_index, NUM_CARDS
 from gin_rummy.learning.models import DrawNet, DiscardNet, KnockNet, ModelPersistence

@@ -41,5 +41,17 @@ select = [
 # pytest.importorskip must run before the torch-dependent imports
 "tests/test_learning.py" = ["E402"]
 
+# CI and other Linux machines get the CPU-only torch wheels (no multi-GB
+# CUDA download). macOS/Windows keep resolving torch from PyPI.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-cov", "httpx", "ty", "ruff>=0.8"]

@@ -86,7 +86,7 @@ class TestValidation:
     def test_malformed_card_id_is_400_not_500(self, client: TestClient):
         """B14: id_to_card("10") used to raise IndexError and return a 500."""
         client.post("/api/game/new", json={"player_name": "Tester", "ai_difficulty": "easy"})
-        for bad in ("10", "", "ZZ", "7X", "10"):
+        for bad in ("10", "", "ZZ", "7X", "7h"):
             r = client.post("/api/game/discard", json={"card": bad})
             assert r.status_code == 400, (bad, r.status_code, r.text)
 

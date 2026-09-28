@@ -954,8 +954,7 @@ class TestThinkingReset:
         gin = Hand(cards("AS 2S 3S 4S 5S 6S 7S 8S 9S 10S"))
 
         assert ai.should_knock(gin, make_context(gin)) is True
-        knock = ai.last_mc_thinking["knock"]
-        assert knock is not None and knock != {"knock_sims": 99}
+        assert ai.last_mc_thinking["knock"]["reason"] == "gin"
 
     def test_late_deck_knock_keeps_its_own_reasoning(self):
         ai = MonteCarloAI(config=make_test_config())
@@ -963,7 +962,7 @@ class TestThinkingReset:
         low = Hand(cards("AS 2S 3S 4H 5H 6H 7C 8C 9C 2D"))  # 2 deadwood
 
         assert ai.should_knock(low, make_context(low, deck_remaining=3)) is True
-        assert ai.last_mc_thinking["knock"] is not None
+        assert ai.last_mc_thinking["knock"]["reason"] == "deck_nearly_empty"
 
     def test_early_return_clears_stale_knock_thinking(self):
         ai = MonteCarloAI(config=make_test_config())
