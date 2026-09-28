@@ -7,7 +7,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, MonteCarloAI, StatisticalAI
+from gin_rummy.ai import AI_TYPES, BasicAI, DrawChoice, make_ai
 from gin_rummy.models import Card, Player
 from gin_rummy.config import Config
 from gin_rummy.game import Game, GamePhase, RoundResult
@@ -16,20 +16,6 @@ from gin_rummy.game_runner import (
     TurnActions,
     execute_ai_turn,
 )
-
-# Lazy import for LearningAI to avoid requiring torch
-_LearningAI = None
-
-
-def _get_learning_ai():
-    """Lazy import LearningAI to avoid torch dependency."""
-    global _LearningAI
-    if _LearningAI is None:
-        from gin_rummy.learning import LearningAI
-
-        _LearningAI = LearningAI
-    return _LearningAI
-
 
 logger = logging.getLogger(__name__)
 
@@ -361,8 +347,7 @@ class Simulator:
 
         # Reset AI tracking for new hand (ContextAwareAI and LearningAI)
         for ai in (self.ai1, self.ai2):
-            if hasattr(ai, "reset_for_new_hand"):
-                ai.reset_for_new_hand()
+            ai.reset_for_new_hand()
 
         # First discard by non-dealer
         non_dealer_idx = 1 - game.dealer_idx
@@ -372,8 +357,7 @@ class Simulator:
 
         # Record first discard for opponent tracking
         other_ai = self.ai2 if non_dealer_idx == 0 else self.ai1
-        if hasattr(other_ai, "record_opponent_discard"):
-            other_ai.record_opponent_discard(discard)
+        other_ai.record_opponent_discard(discard)
 
         # Main game loop
         while game.phase == GamePhase.DRAWING:
@@ -500,21 +484,8 @@ def create_ai(
     Returns:
         BasicAI, ContextAwareAI, StatisticalAI, or LearningAI instance.
     """
-    config = None
-    if config_path:
-        config = Config.with_overrides(config_path)
-
-    if ai_type == "learning":
-        LearningAI = _get_learning_ai()
-        return LearningAI(model_path=model_path, config=config)
-    elif ai_type == "montecarlo":
-        return MonteCarloAI(config)
-    elif ai_type == "context":
-        return ContextAwareAI(config)
-    elif ai_type == "statistical":
-        return StatisticalAI(stats_path=stats_path, config=config)
-    else:
-        return BasicAI(config)
+    config = Config.with_overrides(config_path) if config_path else None
+    return make_ai(ai_type, config, model_path=model_path, stats_path=stats_path)
 
 
 def main() -> None:
@@ -560,14 +531,14 @@ def main() -> None:
     parser.add_argument(
         "--ai1-type",
         type=str,
-        choices=["basic", "context", "learning", "statistical", "montecarlo"],
+        choices=list(AI_TYPES),
         default="context",
         help="AI type for player 1",
     )
     parser.add_argument(
         "--ai2-type",
         type=str,
-        choices=["basic", "context", "learning", "statistical", "montecarlo"],
+        choices=list(AI_TYPES),
         default="basic",
         help="AI type for player 2",
     )

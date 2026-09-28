@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 
 from gin_rummy.models import Card, Hand, analyze_hand
 from gin_rummy.config import get_config, Config
+from gin_rummy.context import GameContext, OpponentModel
 from gin_rummy.ai.types import (
     DrawChoice,
     DrawReasoning,
@@ -24,7 +26,16 @@ class BasicAI:
     - Draw from discard if the card improves hand by min_deadwood_improvement
     - Discard highest deadwood card not contributing to melds
     - Knock based on knock_strategy ("always" or "conservative")
+
+    BasicAI is also the base class and *the* AI interface: every AI accepts
+    the same arguments (an optional GameContext everywhere, plus
+    pending_discard on should_knock) and supports opponent tracking via
+    update_context / record_opponent_* / reset_for_new_hand. Callers never
+    need to check the concrete class. Subclasses that actually read the
+    context set ``needs_context = True`` so the runner builds one for them.
     """
+
+    needs_context: ClassVar[bool] = False
 
     def __init__(self, config: Config | None = None) -> None:
         """Initialize AI with settings from config.
@@ -43,7 +54,33 @@ class BasicAI:
         # recording statistics for discards that never happen
         self._in_hypothetical = False
 
-    def decide_draw(self, hand: Hand, discard_top: Card | None) -> DrawChoice:
+        # Opponent tracking. BasicAI itself ignores both, but keeping them on
+        # the base class means every AI can be fed the same events.
+        self.opponent_model = OpponentModel()
+        self._current_context: GameContext | None = None
+
+    # ---- Shared interface: context and opponent tracking ----
+
+    def update_context(self, context: GameContext) -> None:
+        """Store the current game context (called at the start of each turn)."""
+        self._current_context = context
+
+    def record_opponent_discard(self, card: Card) -> None:
+        """Record that the opponent discarded a card."""
+        self.opponent_model.record_discard(card)
+
+    def record_opponent_pickup(self, card: Card) -> None:
+        """Record that the opponent picked up a card from the discard pile."""
+        self.opponent_model.record_pickup(card)
+
+    def reset_for_new_hand(self) -> None:
+        """Forget per-hand tracking state."""
+        self.opponent_model.reset()
+        self._current_context = None
+
+    # ---- Decisions ----
+
+    def decide_draw(self, hand: Hand, discard_top: Card | None, context: GameContext | None = None) -> DrawChoice:
         """Decide whether to draw from deck or discard pile.
 
         Args:
@@ -127,7 +164,7 @@ class BasicAI:
             reason = f"improvement {improvement} < required {self.min_deadwood_improvement}"
             return False, reason
 
-    def decide_discard(self, hand: Hand) -> Card:
+    def decide_discard(self, hand: Hand, context: GameContext | None = None) -> Card:
         """Decide which card to discard.
 
         Args:
@@ -174,7 +211,7 @@ class BasicAI:
 
         return best_discard
 
-    def should_knock(self, hand: Hand) -> bool:
+    def should_knock(self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None) -> bool:
         """Decide whether to knock based on configured strategy.
 
         Args:
@@ -226,7 +263,9 @@ class BasicAI:
             )
             return True
 
-    def decide_draw_with_reasoning(self, hand: Hand, discard_top: Card | None) -> DrawReasoning:
+    def decide_draw_with_reasoning(
+        self, hand: Hand, discard_top: Card | None, context: GameContext | None = None
+    ) -> DrawReasoning:
         """Decide where to draw with detailed reasoning.
 
         Args:
@@ -267,7 +306,7 @@ class BasicAI:
             factors=factors,
         )
 
-    def decide_discard_with_reasoning(self, hand: Hand) -> DiscardReasoning:
+    def decide_discard_with_reasoning(self, hand: Hand, context: GameContext | None = None) -> DiscardReasoning:
         """Decide which card to discard with detailed reasoning.
 
         Args:
@@ -317,7 +356,9 @@ class BasicAI:
             options_considered=options_str[:5],  # Top 5 options
         )
 
-    def should_knock_with_reasoning(self, hand: Hand) -> KnockReasoning:
+    def should_knock_with_reasoning(
+        self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None
+    ) -> KnockReasoning:
         """Decide whether to knock with detailed reasoning.
 
         Args:
@@ -396,6 +437,7 @@ class BasicAI:
         hand: Hand,
         discard_top: Card | None,
         drawn_card: Card,
+        context: GameContext | None = None,
     ) -> tuple[Card, bool]:
         """Make discard and knock decisions after drawing.
 

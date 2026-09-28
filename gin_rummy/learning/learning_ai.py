@@ -14,7 +14,6 @@ import torch
 
 from gin_rummy.ai import BasicAI, DrawChoice
 from gin_rummy.config import Config
-from gin_rummy.context import OpponentModel
 from gin_rummy.learning.models import (
     DiscardNet,
     DrawNet,
@@ -43,6 +42,8 @@ class LearningAI(BasicAI):
     - DiscardNet: Decides which card to discard
     - KnockNet: Decides whether to knock
     """
+
+    needs_context = True
 
     def __init__(
         self,
@@ -91,10 +92,6 @@ class LearningAI(BasicAI):
         self.discard_net = self.discard_net.to(self.device)
         self.knock_net = self.knock_net.to(self.device)
 
-        # Context tracking (like ContextAwareAI)
-        self._current_context: GameContext | None = None
-        self.opponent_model = OpponentModel()
-
         # Track drawn card for discard decision
         self._drawn_card: Card | None = None
 
@@ -105,34 +102,9 @@ class LearningAI(BasicAI):
         self.knock_net = KnockNet()
         self.metadata: dict = {}
 
-    def update_context(self, context: GameContext) -> None:
-        """Update the current game context.
-
-        Args:
-            context: Current game state snapshot.
-        """
-        self._current_context = context
-
-    def record_opponent_discard(self, card: Card) -> None:
-        """Record that opponent discarded a card.
-
-        Args:
-            card: The card opponent discarded.
-        """
-        self.opponent_model.record_discard(card)
-
-    def record_opponent_pickup(self, card: Card) -> None:
-        """Record that opponent picked up from discard.
-
-        Args:
-            card: The card opponent picked up.
-        """
-        self.opponent_model.record_pickup(card)
-
     def reset_for_new_hand(self) -> None:
         """Reset tracking for a new hand."""
-        self.opponent_model.reset()
-        self._current_context = None
+        super().reset_for_new_hand()
         self._drawn_card = None
 
     def decide_draw(
@@ -186,7 +158,7 @@ class LearningAI(BasicAI):
 
         return choice
 
-    def decide_discard(self, hand: Hand) -> Card:
+    def decide_discard(self, hand: Hand, context: GameContext | None = None) -> Card:
         """Use DiscardNet to decide which card to discard.
 
         Args:
@@ -212,7 +184,9 @@ class LearningAI(BasicAI):
             return super().decide_discard(hand)
 
         # Encode state
-        state = self.encoder.encode_discard_state(hand, drawn_card, self._current_context, self.opponent_model)
+        state = self.encoder.encode_discard_state(
+            hand, drawn_card, context or self._current_context, self.opponent_model
+        )
         state = state.unsqueeze(0).to(self.device).float()
 
         with torch.no_grad():
@@ -249,7 +223,7 @@ class LearningAI(BasicAI):
 
         return choice
 
-    def should_knock(self, hand: Hand) -> bool:
+    def should_knock(self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None) -> bool:
         """Use KnockNet to decide whether to knock.
 
         Args:
@@ -277,7 +251,7 @@ class LearningAI(BasicAI):
             return choice
 
         # Encode state
-        state = self.encoder.encode_knock_state(hand, self._current_context, self.opponent_model)
+        state = self.encoder.encode_knock_state(hand, context or self._current_context, self.opponent_model)
         state = state.unsqueeze(0).to(self.device).float()
 
         with torch.no_grad():
@@ -302,6 +276,7 @@ class LearningAI(BasicAI):
         hand: Hand,
         discard_top: Card | None,
         drawn_card: Card,
+        context: GameContext | None = None,
     ) -> tuple[Card, bool]:
         """Make discard and knock decisions after drawing.
 

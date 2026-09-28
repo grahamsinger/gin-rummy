@@ -9,7 +9,6 @@ from gin_rummy.models import Card, Hand, analyze_hand
 from gin_rummy.config import get_config, Config
 from gin_rummy.context import (
     OutsCalculator,
-    OpponentModel,
     DynamicThresholdCalculator,
 )
 from gin_rummy.ai.types import (
@@ -39,6 +38,8 @@ class ContextAwareAI(BasicAI):
     All parameters are configurable via config.toml [context_aware_ai] section.
     """
 
+    needs_context = True
+
     def __init__(self, config: Config | None = None) -> None:
         """Initialize with context-aware components.
 
@@ -51,50 +52,17 @@ class ContextAwareAI(BasicAI):
         self.context_config = cfg.context_aware_ai
 
         self.outs_calculator = OutsCalculator(self.context_config)
-        self.opponent_model = OpponentModel()
         self.threshold_calculator = DynamicThresholdCalculator(self.context_config)
 
-        # Current game context (updated each turn)
-        self._current_context: GameContext | None = None
-
-    def update_context(self, context: GameContext) -> None:
-        """Update the current game context.
-
-        Should be called at the start of each turn with fresh context.
-
-        Args:
-            context: Current game state snapshot.
-        """
-        self._current_context = context
-
-        # Calculate outs for this hand
-        if context.my_outs is None:
-            # Need to get hand from somewhere - context should have it
-            # For now, outs will be calculated in decide_draw
-            pass
-
     def record_opponent_discard(self, card: Card) -> None:
-        """Record that opponent discarded a card.
-
-        Args:
-            card: The card opponent discarded.
-        """
+        """Record an opponent discard (only if pattern tracking is enabled)."""
         if self.context_config.track_opponent_patterns:
-            self.opponent_model.record_discard(card)
+            super().record_opponent_discard(card)
 
     def record_opponent_pickup(self, card: Card) -> None:
-        """Record that opponent picked up from discard.
-
-        Args:
-            card: The card opponent picked up.
-        """
+        """Record an opponent pickup (only if pattern tracking is enabled)."""
         if self.context_config.track_opponent_patterns:
-            self.opponent_model.record_pickup(card)
-
-    def reset_for_new_hand(self) -> None:
-        """Reset tracking for a new hand."""
-        self.opponent_model.reset()
-        self._current_context = None
+            super().record_opponent_pickup(card)
 
     def decide_draw(
         self,
@@ -119,7 +87,7 @@ class ContextAwareAI(BasicAI):
         # Delegate to BasicAI's proven draw logic
         return super().decide_draw(hand, discard_top)
 
-    def decide_discard(self, hand: Hand) -> Card:
+    def decide_discard(self, hand: Hand, context: GameContext | None = None) -> Card:
         """Context-aware discard decision with safety scoring.
 
         Extends BasicAI's deadwood-minimizing logic with:
@@ -141,7 +109,7 @@ class ContextAwareAI(BasicAI):
 
         # Get context for unavailable cards calculation (buried discards
         # plus cards known to be in opponent's hand - neither can be drawn)
-        ctx = self._current_context
+        ctx = context or self._current_context
         dead_cards = ctx.unavailable_cards if ctx else set()
         deck_position = ctx.deck_position_pct if ctx else 0.0
 
@@ -553,7 +521,7 @@ class ContextAwareAI(BasicAI):
         # Delegate to BasicAI's proven draw logic
         return super().decide_draw_with_reasoning(hand, discard_top)
 
-    def decide_discard_with_reasoning(self, hand: Hand) -> DiscardReasoning:
+    def decide_discard_with_reasoning(self, hand: Hand, context: GameContext | None = None) -> DiscardReasoning:
         """Context-aware discard decision with detailed reasoning.
 
         Extends BasicAI's reasoning with safety scoring and live outs analysis.
@@ -571,7 +539,7 @@ class ContextAwareAI(BasicAI):
 
         # Get context for unavailable cards calculation (buried discards
         # plus cards known to be in opponent's hand - neither can be drawn)
-        ctx = self._current_context
+        ctx = context or self._current_context
         dead_cards = ctx.unavailable_cards if ctx else set()
         deck_position = ctx.deck_position_pct if ctx else 0.0
 

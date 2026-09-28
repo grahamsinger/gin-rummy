@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
+from gin_rummy.ai import BasicAI, DrawChoice, make_ai
 from gin_rummy.game import Game
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.learning.learning_ai import LearningAI
@@ -244,18 +244,16 @@ class Trainer:
 
         opponent_type, _ = self.config.curriculum[self._curriculum_idx]
 
-        if opponent_type == "basic":
-            return BasicAI()
-        elif opponent_type == "context":
-            return ContextAwareAI()
-        elif opponent_type == "self":
+        if opponent_type == "self":
             # Self-play with frozen copy
             return LearningAI(
                 model_path=self.save_path if self.save_path.exists() else None,
                 exploration_rate=0.0,
                 device=self.device,
             )
-        else:
+        try:
+            return make_ai(opponent_type)
+        except ValueError:
             logger.warning("Unknown opponent type: %s, using BasicAI", opponent_type)
             return BasicAI()
 
@@ -385,8 +383,7 @@ class Trainer:
 
                 # Reset AI tracking for new hand
                 self.learning_ai.reset_for_new_hand()
-                if hasattr(opponent, "reset_for_new_hand"):
-                    opponent.reset_for_new_hand()
+                opponent.reset_for_new_hand()
 
         # Train on collected experiences
         if len(self.replay_buffer) >= self.config.min_buffer_size:
@@ -419,8 +416,7 @@ class Trainer:
         # Record first discard for opponent tracking
         if non_dealer_idx == 0:
             # Learning AI discarded, record for opponent
-            if hasattr(opponent, "record_opponent_discard"):
-                opponent.record_opponent_discard(discard)
+            opponent.record_opponent_discard(discard)
         else:
             # Opponent discarded, record for learning AI
             self.learning_ai.record_opponent_discard(discard)
@@ -435,10 +431,7 @@ class Trainer:
             else:
                 ai = opponent
 
-            # Update context if AI supports it
-            if hasattr(ai, "update_context"):
-                ctx = game.get_game_context(current_player_idx)
-                ai.update_context(ctx)
+            ai.update_context(game.get_game_context(current_player_idx))
 
             # Store state before turn (for learning AI only)
             state_before = None
@@ -651,9 +644,7 @@ class Trainer:
             current_player_idx = game.current_player_idx
             ai = self.learning_ai if current_player_idx == 0 else opponent
 
-            if hasattr(ai, "update_context"):
-                ctx = game.get_game_context(current_player_idx)
-                ai.update_context(ctx)
+            ai.update_context(game.get_game_context(current_player_idx))
 
             other_ai = opponent if current_player_idx == 0 else self.learning_ai
             result, _, _ = execute_ai_turn(game, ai, other_ai)

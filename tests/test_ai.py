@@ -1,5 +1,7 @@
 """Tests for AI module."""
 
+import pytest
+
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
 from gin_rummy.models import Hand, Card, Suit, Rank
 from gin_rummy.context import GameContext, OpponentModel
@@ -635,3 +637,81 @@ class TestReasoningMethods:
         assert reasoning.card in list(hand)
         # Should have factors explaining the decision
         assert len(reasoning.factors) > 0
+
+
+class TestSharedInterface:
+    """Every AI honours the BasicAI interface, so callers never check the class (AUDIT §2.3)."""
+
+    import inspect as _inspect
+
+    ALL_TYPES = ("basic", "context", "statistical", "montecarlo")
+
+    def _make(self, kind):
+        from gin_rummy.ai import make_ai
+        from tests.helpers import make_mc_config
+
+        return make_ai(kind, make_mc_config() if kind == "montecarlo" else None)
+
+    @pytest.mark.parametrize("kind", ALL_TYPES)
+    def test_uniform_signatures(self, kind):
+        ai = self._make(kind)
+        params = lambda f: list(self._inspect.signature(f).parameters)  # noqa: E731
+        assert params(ai.decide_draw) == ["hand", "discard_top", "context"]
+        assert params(ai.decide_discard) == ["hand", "context"]
+        assert params(ai.should_knock) == ["hand", "context", "pending_discard"]
+        assert params(ai.decide_draw_with_reasoning) == ["hand", "discard_top", "context"]
+        assert params(ai.decide_discard_with_reasoning) == ["hand", "context"]
+        assert params(ai.should_knock_with_reasoning) == ["hand", "context", "pending_discard"]
+
+    @pytest.mark.parametrize("kind", ALL_TYPES)
+    def test_tracking_hooks_exist_and_are_safe(self, kind):
+        from gin_rummy.context import GameContext
+
+        ai = self._make(kind)
+        card = Card(Rank.SEVEN, Suit.HEARTS)
+        ai.update_context(GameContext(deck_remaining=20, deck_position_pct=0.3))
+        ai.record_opponent_pickup(card)
+        ai.record_opponent_discard(card)
+        ai.reset_for_new_hand()
+        assert ai._current_context is None
+        assert ai.opponent_model.total_discards == 0
+
+    def test_needs_context_flags(self):
+        from gin_rummy.ai import MonteCarloAI, StatisticalAI
+
+        assert BasicAI.needs_context is False
+        assert StatisticalAI.needs_context is False
+        assert ContextAwareAI.needs_context is True
+        assert MonteCarloAI.needs_context is True
+
+    def test_basic_ai_ignores_context_and_pending_discard(self):
+        ai = BasicAI(make_test_config())
+        hand = Hand([Card(Rank.ACE, Suit.SPADES), Card(Rank.TWO, Suit.HEARTS)])
+        assert ai.should_knock(hand) == ai.should_knock(hand, None, pending_discard=Card(Rank.KING, Suit.CLUBS))
+        assert ai.decide_discard(hand) == ai.decide_discard(hand, None)
+
+
+class TestFactory:
+    def test_make_ai_types(self):
+        from gin_rummy.ai import AI_TYPES, MonteCarloAI, StatisticalAI, make_ai
+        from tests.helpers import make_mc_config
+
+        assert set(AI_TYPES) == {"basic", "context", "statistical", "montecarlo", "learning"}
+        assert type(make_ai("basic")) is BasicAI
+        assert type(make_ai("context")) is ContextAwareAI
+        assert type(make_ai("statistical")) is StatisticalAI
+        mc = make_ai("montecarlo", make_mc_config())
+        assert type(mc) is MonteCarloAI
+        mc.shutdown()
+
+    def test_unknown_type_raises(self):
+        from gin_rummy.ai import make_ai
+
+        with pytest.raises(ValueError, match="Unknown AI type"):
+            make_ai("chess")
+
+    def test_difficulty_map_covers_web_levels(self):
+        from gin_rummy.ai import AI_TYPES, DIFFICULTY_TO_AI
+
+        assert set(DIFFICULTY_TO_AI) == {"easy", "medium", "hard"}
+        assert set(DIFFICULTY_TO_AI.values()) <= set(AI_TYPES)

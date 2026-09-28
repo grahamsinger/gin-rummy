@@ -11,6 +11,7 @@ from gin_rummy.models import Card, Hand, analyze_hand
 from gin_rummy.config import Config
 from gin_rummy.ai.types import DrawChoice
 from gin_rummy.ai.basic import BasicAI
+from gin_rummy.context import GameContext
 
 
 logger = logging.getLogger(__name__)
@@ -82,11 +83,12 @@ class StatisticalAI(BasicAI):
 
     def reset_for_new_hand(self) -> None:
         """Reset tracking for a new hand."""
+        super().reset_for_new_hand()
         self._round_discards = []
         self._round_draws = []
         self._round_knocks = []
 
-    def decide_draw(self, hand: Hand, discard_top: Card | None) -> DrawChoice:
+    def decide_draw(self, hand: Hand, discard_top: Card | None, context: GameContext | None = None) -> DrawChoice:
         """Use statistics to decide draw, with BasicAI fallback.
 
         Args:
@@ -153,7 +155,7 @@ class StatisticalAI(BasicAI):
 
         return choice
 
-    def decide_discard(self, hand: Hand) -> Card:
+    def decide_discard(self, hand: Hand, context: GameContext | None = None) -> Card:
         """Use statistics to influence discard decision.
 
         Blends BasicAI's deadwood analysis with historical win rates.
@@ -222,7 +224,7 @@ class StatisticalAI(BasicAI):
 
         return best_discard
 
-    def should_knock(self, hand: Hand) -> bool:
+    def should_knock(self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None) -> bool:
         """Use statistics to decide whether to knock.
 
         Args:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, MonteCarloAI, DrawChoice
+from gin_rummy.ai import BasicAI, DIFFICULTY_TO_AI, DrawChoice, MonteCarloAI, make_ai
 from gin_rummy.database import GameTracker, get_connection, get_resumable_game
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
@@ -245,12 +245,6 @@ class GameSession:
         self.winner = None
 
         # Create AI based on difficulty
-        ai_map = {
-            "easy": BasicAI,
-            "medium": ContextAwareAI,
-            "hard": MonteCarloAI,
-        }
-        ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
 
         self.game = Game(
             self.player_name,
@@ -258,7 +252,7 @@ class GameSession:
             is_oklahoma_gin=self.oklahoma_gin,
             spade_doubling_enabled=self.spade_doubling,
         )
-        self.ai = ai_class()
+        self.ai = make_ai(DIFFICULTY_TO_AI.get(self.ai_difficulty, "context"))
         self.human_idx = 0
         self.last_round_result = None
         self.last_ai_action = None
@@ -308,13 +302,7 @@ class GameSession:
         self.winner = None
 
         # Create AI
-        ai_map = {
-            "easy": BasicAI,
-            "medium": ContextAwareAI,
-            "hard": MonteCarloAI,
-        }
-        ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
-        self.ai = ai_class()
+        self.ai = make_ai(DIFFICULTY_TO_AI.get(self.ai_difficulty, "context"))
 
         # Create Game object
         self.game = Game(
@@ -988,13 +976,7 @@ class GameSession:
             self.buffered_ai_turns = []
 
         # Reset AI state with same difficulty
-        ai_map = {
-            "easy": BasicAI,
-            "medium": ContextAwareAI,
-            "hard": MonteCarloAI,
-        }
-        ai_class = ai_map.get(self.ai_difficulty, ContextAwareAI)
-        self.ai = ai_class()
+        self.ai = make_ai(DIFFICULTY_TO_AI.get(self.ai_difficulty, "context"))
 
         self.last_round_result = None
         self.last_ai_action = None

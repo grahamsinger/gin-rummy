@@ -7,14 +7,17 @@ This module provides several AI implementations with varying strategies:
   deck position, score pressure)
 - StatisticalAI: Learns from experience by tracking action outcomes
 
-All AIs share a common interface:
-- decide_draw(hand, discard_top) -> DrawChoice
-- decide_discard(hand) -> Card
-- should_knock(hand) -> bool
-- make_turn_decision(hand, discard_top, drawn_card) -> (Card, bool)
+All AIs share the BasicAI interface (context is optional everywhere):
+- decide_draw(hand, discard_top, context=None) -> DrawChoice
+- decide_discard(hand, context=None) -> Card
+- should_knock(hand, context=None, pending_discard=None) -> bool
+- make_turn_decision(hand, discard_top, drawn_card, context=None) -> (Card, bool)
+- update_context / record_opponent_pickup / record_opponent_discard /
+  reset_for_new_hand (no-ops on BasicAI, real tracking on the others)
 
-Each method also has a `*_with_reasoning` variant that returns detailed
-decision reasoning for debugging and UI display.
+Each decision method also has a `*_with_reasoning` variant that returns
+detailed reasoning for debugging and UI display. Use `make_ai(name)` to
+build one by name.
 """
 
 from gin_rummy.ai.types import (
@@ -29,6 +32,7 @@ from gin_rummy.ai.basic import BasicAI
 from gin_rummy.ai.context_aware import ContextAwareAI
 from gin_rummy.ai.statistical import StatisticalAI
 from gin_rummy.ai.monte_carlo import MonteCarloAI
+from gin_rummy.ai.factory import AI_TYPES, DIFFICULTY_TO_AI, make_ai
 
 __all__ = [
     # Types
@@ -43,4 +47,8 @@ __all__ = [
     "ContextAwareAI",
     "StatisticalAI",
     "MonteCarloAI",
+    # Factory
+    "AI_TYPES",
+    "DIFFICULTY_TO_AI",
+    "make_ai",
 ]

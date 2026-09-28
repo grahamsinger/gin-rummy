@@ -43,10 +43,6 @@ class PanelMember:
     discard_agreements: int = 0
     knock_agreements: int = 0
 
-    @property
-    def is_context_aware(self) -> bool:
-        return isinstance(self.ai, ContextAwareAI)
-
 
 class _PanelFeedCallbacks:
     """Turn callbacks that feed opponent actions to the panel AIs.
@@ -59,7 +55,7 @@ class _PanelFeedCallbacks:
         self.opponent_name = opponent_name
 
     def _context_members(self):
-        return [m.ai for m in self.panel if m.is_context_aware]
+        return [m.ai for m in self.panel]
 
     def on_draw(self, player, source, card) -> None:
         if player.name == self.opponent_name and source == DrawChoice.DISCARD:
@@ -225,11 +221,8 @@ def panel_draw_choices(panel: list[PanelMember], game: Game) -> list[dict]:
     ctx = game.get_game_context(HUMAN_SEAT)
     choices = []
     for member in panel:
-        if member.is_context_aware:
-            member.ai.update_context(ctx)
-            reasoning = member.ai.decide_draw_with_reasoning(hand, game.top_of_discard, ctx)
-        else:
-            reasoning = member.ai.decide_draw_with_reasoning(hand, game.top_of_discard)
+        member.ai.update_context(ctx)
+        reasoning = member.ai.decide_draw_with_reasoning(hand, game.top_of_discard, ctx)
         choices.append(
             {
                 "name": member.name,
@@ -250,9 +243,8 @@ def panel_discard_choices(panel: list[PanelMember], game: Game) -> list[dict]:
     ctx = game.get_game_context(HUMAN_SEAT)
     choices = []
     for member in panel:
-        if member.is_context_aware:
-            member.ai.update_context(ctx)
-        reasoning = member.ai.decide_discard_with_reasoning(hand)
+        member.ai.update_context(ctx)
+        reasoning = member.ai.decide_discard_with_reasoning(hand, ctx)
         mc_candidates = None
         if isinstance(member.ai, MonteCarloAI) and member.ai.last_mc_thinking:
             thinking = member.ai.last_mc_thinking.get("discard")
@@ -277,11 +269,8 @@ def panel_knock_choices(panel: list[PanelMember], game: Game, post_hand: Hand, p
     ctx = game.get_game_context(HUMAN_SEAT)
     choices = []
     for member in panel:
-        if member.is_context_aware:
-            member.ai.update_context(ctx)
-            reasoning = member.ai.should_knock_with_reasoning(post_hand, ctx, pending_discard=pending)
-        else:
-            reasoning = member.ai.should_knock_with_reasoning(post_hand)
+        member.ai.update_context(ctx)
+        reasoning = member.ai.should_knock_with_reasoning(post_hand, ctx, pending_discard=pending)
         choices.append(
             {
                 "name": member.name,
@@ -334,10 +323,9 @@ def reveal_knock_choices(
 
 
 def reset_panel_tracking(panel: list[PanelMember]) -> None:
-    """Clear per-hand opponent tracking on every panel member that has it."""
+    """Clear per-hand opponent tracking on every panel member."""
     for member in panel:
-        if member.is_context_aware:
-            member.ai.reset_for_new_hand()
+        member.ai.reset_for_new_hand()
 
 
 def run_scenario(seed: int, panel: list[PanelMember]) -> bool:

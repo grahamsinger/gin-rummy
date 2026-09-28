@@ -352,3 +352,13 @@ class TestTrainerResume:
 
         execute_ai_turn(game, opponent, other_ai=learner)
         assert learner.opponent_model.total_discards == 1
+
+
+class TestLearningFactory:
+    def test_make_ai_learning(self):
+        from gin_rummy.ai import make_ai
+        from gin_rummy.learning.learning_ai import LearningAI
+
+        ai = make_ai("learning", exploration_rate=0.0)
+        assert type(ai) is LearningAI
+        assert LearningAI.needs_context is True

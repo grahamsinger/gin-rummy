@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Protocol
 
 from gin_rummy.ai import (
     BasicAI,
-    ContextAwareAI,
     DrawChoice,
     TurnReasoning,
     DrawReasoning,
@@ -84,17 +83,14 @@ class NoOpCallbacks:
 
 
 def get_ai_context(game: Game, ai: BasicAI, player_idx: int) -> GameContext | None:
-    """Build game context for ContextAwareAI, or return None for BasicAI.
+    """Build game context for AIs that use it (``ai.needs_context``), else None.
 
     Args:
         game: Current game state.
         ai: The AI player.
         player_idx: Index of the AI player (0 or 1).
-
-    Returns:
-        GameContext if ai is ContextAwareAI, else None.
     """
-    if isinstance(ai, ContextAwareAI):
+    if ai.needs_context:
         return game.get_game_context(player_idx)
     return None
 
@@ -105,20 +101,18 @@ def get_ai_draw_decision(
     discard_top: Card | None,
     context: GameContext | None,
 ) -> DrawChoice:
-    """Get AI's draw decision, handling context appropriately.
+    """Get AI's draw decision.
 
     Args:
         ai: The AI player.
         hand: Current hand.
         discard_top: Top of discard pile, or None.
-        context: Game context for ContextAwareAI, or None.
+        context: Game context, or None for AIs that don't use it.
 
     Returns:
         DrawChoice (DECK or DISCARD).
     """
-    if isinstance(ai, ContextAwareAI) and context is not None:
-        return ai.decide_draw(hand, discard_top, context)
-    return ai.decide_draw(hand, discard_top)
+    return ai.decide_draw(hand, discard_top, context)
 
 
 def execute_draw(game: Game, draw_choice: DrawChoice) -> Card | None:
@@ -147,11 +141,8 @@ def record_opponent_pickup(other_ai: BasicAI | None, card: Card) -> None:
         other_ai: The other AI (opponent), or None.
         card: The card that was picked up.
     """
-    # Duck-typed: ContextAwareAI, MonteCarloAI and LearningAI all track
-    # opponent actions but do not share a base class (see AUDIT §2.3).
-    record = getattr(other_ai, "record_opponent_pickup", None)
-    if record is not None:
-        record(card)
+    if other_ai is not None:
+        other_ai.record_opponent_pickup(card)
 
 
 def record_opponent_discard(other_ai: BasicAI | None, card: Card) -> None:
@@ -161,9 +152,8 @@ def record_opponent_discard(other_ai: BasicAI | None, card: Card) -> None:
         other_ai: The other AI (opponent), or None.
         card: The card that was discarded.
     """
-    record = getattr(other_ai, "record_opponent_discard", None)
-    if record is not None:
-        record(card)
+    if other_ai is not None:
+        other_ai.record_opponent_discard(card)
 
 
 def calculate_post_discard_deadwood(hand: Hand, discard: Card) -> int:
@@ -211,16 +201,13 @@ def execute_ai_turn(
     # Capture state before turn
     deadwood_before = current.hand.deadwood_total
 
-    # Build context for ContextAwareAI
+    # Build context for AIs that use it
     context = get_ai_context(game, ai, current_idx)
 
     # AI decides where to draw (with optional reasoning capture)
     draw_reasoning: DrawReasoning | None = None
     if capture_reasoning:
-        if isinstance(ai, ContextAwareAI) and context is not None:
-            draw_reasoning = ai.decide_draw_with_reasoning(current.hand, game.top_of_discard, context)
-        else:
-            draw_reasoning = ai.decide_draw_with_reasoning(current.hand, game.top_of_discard)
+        draw_reasoning = ai.decide_draw_with_reasoning(current.hand, game.top_of_discard, context)
         draw_choice = draw_reasoning.choice
     else:
         draw_choice = get_ai_draw_decision(ai, current.hand, game.top_of_discard, context)
@@ -285,16 +272,10 @@ def execute_ai_turn(
         test_hand = Hand(test_cards)
 
         if capture_reasoning:
-            if isinstance(ai, ContextAwareAI) and context is not None:
-                knock_reasoning = ai.should_knock_with_reasoning(test_hand, context, pending_discard=discard)
-            else:
-                knock_reasoning = ai.should_knock_with_reasoning(test_hand)
+            knock_reasoning = ai.should_knock_with_reasoning(test_hand, context, pending_discard=discard)
             should_knock = knock_reasoning.should_knock
         else:
-            if isinstance(ai, ContextAwareAI):
-                should_knock = ai.should_knock(test_hand, context, pending_discard=discard)
-            else:
-                should_knock = ai.should_knock(test_hand)
+            should_knock = ai.should_knock(test_hand, context, pending_discard=discard)
     else:
         should_knock = False
         if capture_reasoning:

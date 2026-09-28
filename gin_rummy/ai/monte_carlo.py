@@ -896,13 +896,13 @@ class MonteCarloAI(ContextAwareAI):
 
         return choice
 
-    def decide_discard(self, hand: Hand) -> Card:
+    def decide_discard(self, hand: Hand, context: GameContext | None = None) -> Card:
         """Monte Carlo discard decision: evaluate non-meld cards via simulation.
 
         Analyzes hand to find deadwood cards (not in any meld), then runs
         rollouts for each to find the best discard.
         """
-        ctx = self._current_context
+        ctx = context or self._current_context
         known, unknown = self._get_known_and_unknown(hand, ctx)
 
         if len(unknown) < self.min_unknown_for_simulation:
@@ -1328,9 +1328,9 @@ class MonteCarloAI(ContextAwareAI):
             factors=factors,
         )
 
-    def decide_discard_with_reasoning(self, hand: Hand) -> DiscardReasoning:
+    def decide_discard_with_reasoning(self, hand: Hand, context: GameContext | None = None) -> DiscardReasoning:
         """Discard decision with MC reasoning data."""
-        card = self.decide_discard(hand)
+        card = self.decide_discard(hand, context)
 
         factors = []
         options_str: list[tuple[str, int]] = []
