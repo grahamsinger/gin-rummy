@@ -8,6 +8,7 @@ play a seeded round through each UI and check the rows written to the
 from __future__ import annotations
 
 import json
+import os
 import random
 import sqlite3
 from pathlib import Path
@@ -60,6 +61,33 @@ def _check_turn_rows(rows: list[sqlite3.Row], human_name: str, ai_name: str) -> 
             assert row["n_decisions"] == 0
 
 
+GOLDEN_DIR = Path(__file__).parent / "golden"
+GOLDEN_COLUMNS = (
+    "player_name",
+    "drew_from",
+    "card_drawn",
+    "card_discarded",
+    "did_knock",
+    "deadwood_before",
+    "deadwood_after",
+)
+
+
+def _check_golden(rows: list[sqlite3.Row], name: str) -> None:
+    """Compare the recorded rows with tests/golden/<name>.json.
+
+    Regenerate with UPDATE_GOLDEN=1 after an intentional change to what a
+    seeded round records.
+    """
+    actual = [{col: row[col] for col in GOLDEN_COLUMNS} for row in rows]
+    path = GOLDEN_DIR / f"{name}.json"
+    if os.environ.get("UPDATE_GOLDEN"):
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps(actual, indent=1) + "\n")
+    expected = json.loads(path.read_text())
+    assert actual == expected, f"recorded rows differ from {path.name} (UPDATE_GOLDEN=1 to accept)"
+
+
 @pytest.fixture
 def quiet_config(monkeypatch: pytest.MonkeyPatch) -> Config:
     cfg = Config()
@@ -97,6 +125,7 @@ class TestCliRecording:
         rows = _turn_rows(isolated_db)
         _check_turn_rows(rows, "Human", "Computer")
         assert {r["player_name"] for r in rows} == {"Human", "Computer"}
+        _check_golden(rows, "turn_rows_cli_seed7")
 
 
 class TestWebRecording:
@@ -125,3 +154,4 @@ class TestWebRecording:
         rows = _turn_rows(isolated_db)
         _check_turn_rows(rows, "Human", "Computer")
         assert {r["player_name"] for r in rows} == {"Human", "Computer"}
+        _check_golden(rows, "turn_rows_web_seed7")

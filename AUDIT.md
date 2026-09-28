@@ -20,7 +20,8 @@
 >   - `Card.code`/`parse`/`index`/`from_index`/`__hash__`. The hash is consistent with equality, and `T` is accepted on input only.
 >   - `ai/factory.py`, `tracking.py`, the `BasicAI` interface and `_evaluate_*` cores, the ContextAwareAI plain→reasoning binding (pinned so MonteCarloAI's `super()` fallbacks can't recurse), the StatisticalAI/LearningAI twins, the B9 threshold plumbing, and `test_reasoning_agreement.py`.
 >
-> **Follow-ups (all minor):**
+> **Follow-ups (all minor):** _all five addressed in `8424e62` and the commit after it: configured threshold fallback in the state encoder; discard `choice` stored as `Card.code` with the replay view formatting codes (old display-string rows still render); side-effect comment on the StatisticalAI cores; `ai_difficulty` and draw `source` validated as `Literal` in the request models; golden `turns` rows for the seeded CLI and web rounds in `tests/golden/` (regenerate with `UPDATE_GOLDEN=1`)._
+>
 >
 > 1. **One B9 leftover:** `learning/state.py:142` still falls back to a hard-coded `10` when no context is given. Use the configured `game_rules.knock_threshold`, as `BasicAI._knock_threshold_for` does.
 > 2. **Mixed card formats in `ai_decisions`:** the discard `choice` is stored as the display string (`str(card)`, e.g. `K♦`), while every other card column in the DB uses `Card.code` (`KD`). This was already true in the web UI and now applies to the CLI too. Consider storing `Card.code` and formatting for display in JS, or document it as display-only.

@@ -1,0 +1,119 @@
+[
+ {
+  "player_name": "Computer",
+  "drew_from": "deck",
+  "card_drawn": "JH",
+  "card_discarded": "KD",
+  "did_knock": 0,
+  "deadwood_before": 59,
+  "deadwood_after": 59
+ },
+ {
+  "player_name": "Human",
+  "drew_from": "deck",
+  "card_drawn": "6D",
+  "card_discarded": "3S",
+  "did_knock": 0,
+  "deadwood_before": 60,
+  "deadwood_after": 63
+ },
+ {
+  "player_name": "Computer",
+  "drew_from": "discard",
+  "card_drawn": "3S",
+  "card_discarded": "JD",
+  "did_knock": 0,
+  "deadwood_before": 59,
+  "deadwood_after": 52
+ },
+ {
+  "player_name": "Human",
+  "drew_from": "deck",
+  "card_drawn": "6H",
+  "card_discarded": "5C",
+  "did_knock": 0,
+  "deadwood_before": 63,
+  "deadwood_after": 64
+ },
+ {
+  "player_name": "Computer",
+  "drew_from": "discard",
+  "card_drawn": "5C",
+  "card_discarded": "10S",
+  "did_knock": 0,
+  "deadwood_before": 52,
+  "deadwood_after": 32
+ },
+ {
+  "player_name": "Human",
+  "drew_from": "deck",
+  "card_drawn": "8C",
+  "card_discarded": "7C",
+  "did_knock": 0,
+  "deadwood_before": 64,
+  "deadwood_after": 65
+ },
+ {
+  "player_name": "Computer",
+  "drew_from": "discard",
+  "card_drawn": "7C",
+  "card_discarded": "JH",
+  "did_knock": 0,
+  "deadwood_before": 32,
+  "deadwood_after": 22
+ },
+ {
+  "player_name": "Human",
+  "drew_from": "deck",
+  "card_drawn": "8D",
+  "card_discarded": "QH",
+  "did_knock": 0,
+  "deadwood_before": 65,
+  "deadwood_after": 63
+ },
+ {
+  "player_name": "Computer",
+  "drew_from": "deck",
+  "card_drawn": "5H",
+  "card_discarded": "9H",
+  "did_knock": 0,
+  "deadwood_before": 22,
+  "deadwood_after": 18
+ },
+ {
+  "player_name": "Human",
+  "drew_from": "deck",
+  "card_drawn": "4H",
+  "card_discarded": "7H",
+  "did_knock": 0,
+  "deadwood_before": 63,
+  "deadwood_after": 60
+ },
+ {
+  "player_name": "Computer",
+  "drew_from": "deck",
+  "card_drawn": "2C",
+  "card_discarded": "5S",
+  "did_knock": 0,
+  "deadwood_before": 18,
+  "deadwood_after": 15
+ },
+ {
+  "player_name": "Human",
+  "drew_from": "deck",
+  "card_drawn": "QD",
+  "card_discarded": "3C",
+  "did_knock": 0,
+  "deadwood_before": 60,
+  "deadwood_after": 67
+ },
+ {
+  "player_name": "Computer",
+  "drew_from": "discard",
+  "card_drawn": "3C",
+  "card_discarded": "5H",
+  "did_knock": 1,
+  "deadwood_before": 15,
+  "deadwood_after": 4
+ }
+]
