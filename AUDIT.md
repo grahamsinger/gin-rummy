@@ -12,7 +12,7 @@ The biggest structural problem is that the **game/round loop is implemented four
 
 Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. The **Status** column shows what has been done since the audit.
 
-**Progress (2026-09-28):** B1–B6 were re-confirmed against the code and fixed in commits `1646e4e`–`e196cf6`, each with a regression test. Second batch (`2c8224b`–`72c06c3`) fixed B7, B12, B13, B14, B15 and the two B5 follow-ups below, and added the §5/§6 safety net. Still open: B8 and B9 (both belong with §2.3/§2.4).
+**Progress (2026-09-28):** B1–B6 were re-confirmed against the code and fixed in commits `1646e4e`–`e196cf6`, each with a regression test. Second batch (`2c8224b`–`72c06c3`) fixed B7, B12, B13, B14, B15 and the two B5 follow-ups below, and added the §5/§6 safety net. Still open: B8 and B9 (both belong with §2.3/§2.4). The **B7 regression** found in the second review below was fixed in `23d25b6`; the other follow-ups from that review (reason assertion, `learning` marker, CPU-only torch index for CI, duplicate test id) landed right after.
 
 **Review of the fix commits (`1646e4e`, `cb442ff`, `b506c21`, `e196cf6`):** all four were read in full and verified. **291 tests pass** (was 263). Ruff errors went from 76 to 70, and the touched files add no new lint. Notes and follow-ups:
 
@@ -26,6 +26,19 @@ Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. T
   - _All three addressed in `2c8224b`: checkpoints store completed episodes, `train()` warns when there is nothing left to train, and the docs note both._
 - **B6, XSS:** correct and complete for player names. Names in `data-players`/`data-player1` attributes are escaped. When the page reads them back, they go into `textContent` (`history.js:493`) or into `HandReplay`, which escapes them again, so there is no second injection point. The only remaining unescaped interpolation is `scenario.js:202` (`row.name`), and that's safe for now because those names are fixed, server-side AI panel names. `HandReplay.escapeHtml` (`replay.js:527`) now delegates to `CardUtils.escapeHtml`, so there is a single implementation.
 
+**Review of the second batch (`2c8224b`, `f68eb01`, `2174d93`, `0b76869`, `72c06c3`, `3b8bfb5`):** all were read in full and the checks re-run at `8c65454`: **307 tests pass**, `ruff check` is clean, `ruff format --check` is clean (59 files), eslint shows 0 warnings, and `ty` reports **63** diagnostics (was 79). The format commit `0b76869` was verified as purely mechanical: re-running `ruff check --fix` + `ruff format` (0.14.14) on its parent reproduces it exactly, apart from `AUDIT.md`. That file was bundled into the same commit, so its edits are hidden from blame too; that's harmless, but keep docs out of blame-ignored commits in future. Notes:
+
+- ~~⚠️~~ **B7 fix regressed gin / deck-nearly-empty knock reasoning** (fixed in `23d25b6`, with the suggested test). In `MonteCarloAI.should_knock`, both shortcut paths store `knock_thinking` with a `reason` and then immediately call `self._clear_thinking("knock")` (`monte_carlo.py:1110` and `:1136`). `should_knock_with_reasoning` (`:1376`) then falls through to the `(fallback)` branch, so the DB and the MC thinking panel show `Knocked: deadwood=0 (fallback)` instead of `Knock (gin): deadwood=0`. **Fix:** delete those two `_clear_thinking` calls; they belong only on paths that *don't* record thinking. **Test to add:** `should_knock` on a gin hand leaves `last_mc_thinking["knock"]["reason"] == "gin"`. `TestThinkingReset` covers only the clearing direction, which is why this passed.
+- **B5 follow-ups:** correct. Periodic saves store `episode + 1` and the final save stores `num_episodes`, so both mean "completed episodes". The warning and the docs line are in. Checkpoints written before `2c8224b` still store the old `e` value, so resuming one of them retrains one episode, which is harmless.
+- **B12:** correct. `reset_panel_tracking()` is shared by the CLI quiz and `web/scenario_session.py`, and it runs before every generation attempt.
+- **B13, B15:** correct. `stress_test.db` is now in `.gitignore`.
+- **B14:** correct. The new `id_to_card` parses `rank = id[:-1], suit = id[-1]` and raises `ValueError` on anything it doesn't know (including lowercase), and the route maps that to 400. `tests/test_web_app.py` covers it at both the unit and HTTP level. (`"10"` appears twice in the HTTP test's bad-id list; harmless.)
+- **`init_db()` in the web lifespan:** a good catch beyond the audit; history and stats routes previously failed on a fresh DB.
+- **Test infra:** `conftest.py` patches `database.get_db_path`, and all three callers (`init_db`, `get_connection`, `GameTracker.__init__`) resolve it at call time, so isolation holds, including for the app lifespan under `TestClient`. ~~The `learning` marker is registered but not yet applied to `test_learning.py`.~~ Applied.
+- **`2174d93` (hand fixes for ruff):** behaviour-preserving. The removed `non_terminal_mask` in `replay.py` was computed and never used, and the `simulator.py` import move is safe because the lazy `LearningAI` helper doesn't depend on import order.
+- **CI:** the workflow looks right, and the pre-commit ruff rev (`v0.14.14`) matches the locked ruff. One cost issue: the install step is labelled "CPU torch", but nothing selects a CPU index. `uv.lock` resolves the CUDA build (51 `nvidia-*` entries), so every CI run downloads several GB. Add a `pytorch-cpu` index in `[tool.uv.index]` / `[tool.uv.sources]` (with a Linux marker) to make CI much faster. _Done: the lock now has 0 `nvidia-*` entries; Linux resolves `torch 2.14.0+cpu`, macOS keeps the PyPI build._
+- **Dead JS (`3b8bfb5`):** correct. `getState`/`knock` had no callers. The rest of the knock-confirm flow (modal, CSS, `/api/game/knock`, `GameSession.knock`) is still listed in §4.
+
 | # | Bug | Location | Status |
 |---|---|---|---|
 | B1 ✅ | **`network/` cannot be imported.** It imports `gin_rummy.card`/`gin_rummy.melds`, which moved to `gin_rummy/models/`. The `gin-server`/`gin-client` entry points crash. See §1. | `network/server.py:15`, `client.py:13`, `protocol.py:15` | **Fixed** by deleting `network/` (see §1) |
@@ -34,7 +47,7 @@ Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. T
 | B4 ✅ | **LearningAI never sees opponent actions.** `record_opponent_pickup/discard` only forward to `ContextAwareAI` instances, so ~34 opponent-model state features stay empty during training. | `game_runner.py:144,155` | **Fixed.** Forwarders now duck-type on the method. Tests: `test_game_runner.py`, `test_learning.py` |
 | B5 ✅ | **`--resume` trains the wrong network.** It replaces `trainer.learning_ai`, but the optimizers still hold the old network's parameters. Curriculum and exploration state are not restored either. | `learning/trainer.py:737-742` vs `:152-163` | **Fixed.** `Trainer.load_checkpoint()` loads into the existing networks and restores exploration/curriculum/episode. Test: `test_learning.py::TestTrainerResume` |
 | B6 ✅ | **Stored XSS via player names.** Names from the DB go into `innerHTML` unescaped. `escapeHtml` exists only as a private `HandReplay` method. | `game.js:404-409, 621, 1606, 1701-1716, 1753`; `history.js:~236-265` | **Fixed.** Shared `CardUtils.escapeHtml` used at every name interpolation in `game.js`, `history.js`, `replay.js` |
-| B7 | MonteCarloAI early returns don't reset `last_mc_thinking`, so the `*_with_reasoning` wrappers report the previous turn's numbers. | `ai/monte_carlo.py:746, 846, 1049, 1120` | **Fixed.** `_clear_thinking()` on every early return. Test: `test_monte_carlo.py::TestThinkingReset` |
+| B7 | MonteCarloAI early returns don't reset `last_mc_thinking`, so the `*_with_reasoning` wrappers report the previous turn's numbers. | `ai/monte_carlo.py:746, 846, 1049, 1120` | **Fixed** (`2c8224b`, regression fixed in `23d25b6`). `_clear_thinking()` runs only on early returns that skip simulation. Tests: `test_monte_carlo.py::TestThinkingReset` covers both clearing and keeping the gin / deck-nearly-empty reasons |
 | B8 | StatisticalAI and LearningAI inherit `BasicAI.*_with_reasoning`, so the reasoning stored in the DB describes greedy-deadwood logic, not the real decision. | `ai/basic.py:234-395` | Open |
 | B9 | The Oklahoma knock threshold is ignored outside ContextAware/MC, which hard-code `10`. | `context_aware.py:360,415,800,847`, `basic.py:192`, `statistical.py:249`, `learning_ai.py:268`, `learning/state.py:161` | Open |
 | B10 | Network server `_handle_knock` edits hand and discard pile directly, bypassing the discard-back rule and `_discard_history`. It also catches the wrong exception type. | `network/server.py:371-386` | **Gone** with `network/` |
@@ -245,12 +258,12 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 
 - ~~**No CI.**~~ Done (`72c06c3`): `.github/workflows/ci.yml` runs `uv sync --all-extras`, `ruff check`, `ruff format --check`, `pytest` and `npm run lint`; `.pre-commit-config.yaml` has ruff and ruff-format. First two runs passed; eslint is at 0 warnings as of `3b8bfb5`.
 - **Ruff:** ~~run `ruff check --fix` and `ruff format` once, then list that commit in `.git-blame-ignore-revs`.~~ Done (`0b76869`, listed in `.git-blame-ignore-revs`). Still to do: extend `select` beyond `F,E,W` with `I, UP, B, SIM` (101 more hits, 52 auto-fixable), and optionally `RUF, PT, PERF`.
-- **ty:** 79 diagnostics. The meaningful ones are `object` not callable from loosely typed dicts (`simulator.py:360-450`, `trainer.py:347-622`) and `BasicAI` has no `update_context` (`scenario_quiz.py:227-279`); both go away with §2.3. Add a `[tool.ty]` section.
-- ~~**Pytest:** add `addopts = "-ra --strict-markers"` and a `learning` marker so the torch skip is visible.~~ Done; `test_learning.py` should still be tagged with the marker.
+- **ty:** 79 diagnostics (63 as of `8c65454`). The meaningful ones are `object` not callable from loosely typed dicts (`simulator.py:360-450`, `trainer.py:347-622`) and `BasicAI` has no `update_context` (`scenario_quiz.py:227-279`); both go away with §2.3. Add a `[tool.ty]` section.
+- ~~**Pytest:** add `addopts = "-ra --strict-markers"` and a `learning` marker so the torch skip is visible.~~ Done, including the `pytestmark` in `test_learning.py`.
 - **Dependencies:** `fastapi`/`uvicorn` are an optional `web` extra, but the web UI is the primary interface; consider making them core. ~~Add `httpx` and `pytest-cov` to dev.~~ Done.
 - **pyproject metadata:** `readme`, `license` and `authors` are missing.
 - **Layout:**
-  - `scripts/stress_test_db.py` uses a `sys.path` hack and writes an un-ignored `stress_test.db` to the repo root.
+  - `scripts/stress_test_db.py` uses a `sys.path` hack and writes `stress_test.db` to the repo root (now git-ignored as of `2c8224b`).
   - `experiments/` (ad-hoc benchmarks that read private attributes like `ai._turn_plan`) and `gin_rummy/learning/experiment.py` (a CLI) have confusingly similar names. Consider renaming `experiments/` to `benchmarks/` and adding a short README.
 - **Generated artifacts in git:** `docs/learning-ai.pdf` and `gin_rummy/READING_ORDER.pdf` duplicate their `.md` sources, and the second one ships inside the wheel. Remove both and generate on demand. Decide whether `models/statistical_ai_backup.json` (tracked) or `statistical_ai.json` (ignored) is the canonical one.
 - **Local clutter** (ignored, but worth cleaning): `game.log` (43 MB), `.coverage`, `gin_rummy/game_history.db`, `models/experiments/` (3.6 MB).
@@ -270,8 +283,9 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 
 1. ~~**Quick fixes:** B1 decision (delete `network/`), B2, B3, B4, B5, B6. Add tests for each as you go.~~ Done 2026-09-28.
 2. ~~**Safety net:** CI + pre-commit, a one-time `ruff --fix` + `ruff format`, `conftest.py`, web `TestClient` and DB tests.~~ Done 2026-09-28.
-3. **Consolidate the core:** card codec (§2.5), `AIPlayer` protocol + factory (§2.3), shared recorder (§2.2), reasoning twins (§2.4).
-4. **Round runner (§2.1):** move CLI, simulator, quiz and trainer onto it.
-5. **Split the large files (§3):** `monte_carlo.py`, `game_session.py`/`app.py`, `database.py`, `cli.py`, `context.py`.
-6. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
-7. **Docs and TODO cleanup.**
+3. ~~**First:** fix the B7 regression (two lines plus a test). Optional: a CPU-only torch index for CI.~~ Done 2026-09-28.
+4. **Consolidate the core:** card codec (§2.5), `AIPlayer` protocol + factory (§2.3), shared recorder (§2.2), reasoning twins (§2.4).
+5. **Round runner (§2.1):** move CLI, simulator, quiz and trainer onto it.
+6. **Split the large files (§3):** `monte_carlo.py`, `game_session.py`/`app.py`, `database.py`, `cli.py`, `context.py`.
+7. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
+8. **Docs and TODO cleanup.**
