@@ -46,10 +46,8 @@ def toggle_assist_values() -> bool:
     """Toggle assist mode value display. Returns new state."""
     global _assist_show_values
     config = get_config()
-    if _assist_show_values is None:
-        _assist_show_values = not config.assist.show_values
-    else:
-        _assist_show_values = not _assist_show_values
+    current = config.assist.show_values if _assist_show_values is None else _assist_show_values
+    _assist_show_values = not current
     return _assist_show_values
 
 

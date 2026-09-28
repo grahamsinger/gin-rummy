@@ -448,10 +448,7 @@ class GameSession:
         if self.game.phase == GamePhase.ROUND_OVER:
             message = "Round over!"
         elif self.game.phase == GamePhase.FIRST_DISCARD:
-            if your_turn:
-                message = "Discard one card to start the round"
-            else:
-                message = "Computer is starting..."
+            message = "Discard one card to start the round" if your_turn else "Computer is starting..."
         elif your_turn:
             if phase == "drawing":
                 message = "Your turn - click deck or discard pile to draw"

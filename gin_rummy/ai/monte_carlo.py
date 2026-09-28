@@ -966,7 +966,7 @@ class MonteCarloAI(ContextAwareAI):
         knock_eligible = {card: (immediate_dw <= knock_threshold) for card, immediate_dw in top_candidates}
 
         tasks: list[tuple[Any, ...]] = []
-        for card, immediate_dw in top_candidates:
+        for card, _immediate_dw in top_candidates:
             tasks.append(
                 (
                     _discard_sim_batch,

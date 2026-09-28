@@ -324,9 +324,11 @@ class TestTrainerResume:
         assert self._param_ids(target.knock_optimizer) == {id(p) for p in target.learning_ai.knock_net.parameters()}
 
         # Weights actually loaded.
-        for a, b in zip(source.learning_ai.draw_net.parameters(), target.learning_ai.draw_net.parameters()):
+        for a, b in zip(
+            source.learning_ai.draw_net.parameters(), target.learning_ai.draw_net.parameters(), strict=True
+        ):
             assert torch.equal(a, b)
-        for a, b in zip(target.learning_ai.draw_net.parameters(), target.target_ai.draw_net.parameters()):
+        for a, b in zip(target.learning_ai.draw_net.parameters(), target.target_ai.draw_net.parameters(), strict=True):
             assert torch.equal(a, b)
 
         # Training state restored.

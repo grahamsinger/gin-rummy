@@ -68,7 +68,7 @@ def generate_data(conn: sqlite3.Connection, num_games: int, hands_per_game: int 
     turn_id = 0
 
     for g in range(num_games):
-        game_id += 1
+        game_id = g + 1
         p1, p2 = random.sample(PLAYER_NAMES, 2)
         game_start = base_date + timedelta(hours=g)
         game_end = game_start + timedelta(minutes=random.randint(10, 60))

@@ -48,7 +48,7 @@ def find_all_sets(cards: list[Card]) -> list[Meld]:
         by_rank.setdefault(card.rank, []).append(card)
 
     # Find sets of 3 or 4
-    for rank, rank_cards in by_rank.items():
+    for rank_cards in by_rank.values():
         if len(rank_cards) >= 3:
             # Add all combinations of 3
             for combo in combinations(rank_cards, 3):
@@ -77,7 +77,7 @@ def find_all_runs(cards: list[Card]) -> list[Meld]:
         by_suit.setdefault(card.suit, []).append(card)
 
     # Find runs in each suit
-    for suit, suit_cards in by_suit.items():
+    for suit_cards in by_suit.values():
         if len(suit_cards) < 3:
             continue
 

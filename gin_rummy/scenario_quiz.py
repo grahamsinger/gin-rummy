@@ -285,7 +285,7 @@ def reveal_draw_choices(panel: list[PanelMember], game: Game, user_choice: DrawC
     took = f"take {game.top_of_discard}" if user_choice == DrawChoice.DISCARD else "draw from deck"
     print(f"\nYou chose: {took}")
     print("-" * 62)
-    for member, entry in zip(panel, panel_draw_choices(panel, game)):
+    for member, entry in zip(panel, panel_draw_choices(panel, game), strict=True):
         agrees = entry["choice"] == user_choice
         member.draw_agreements += agrees
         marker = "=" if agrees else "≠"
@@ -295,7 +295,7 @@ def reveal_draw_choices(panel: list[PanelMember], game: Game, user_choice: DrawC
 def reveal_discard_choices(panel: list[PanelMember], game: Game, user_card: Card) -> None:
     print(f"\nYou discarded: {user_card}")
     print("-" * 62)
-    for member, entry in zip(panel, panel_discard_choices(panel, game)):
+    for member, entry in zip(panel, panel_discard_choices(panel, game), strict=True):
         agrees = entry["card"] == user_card
         member.discard_agreements += agrees
         marker = "=" if agrees else "≠"
@@ -315,7 +315,7 @@ def reveal_knock_choices(
 ) -> None:
     print(f"\nYou chose: {'KNOCK' if user_knocks else 'keep playing'}")
     print("-" * 62)
-    for member, entry in zip(panel, panel_knock_choices(panel, game, post_hand, pending)):
+    for member, entry in zip(panel, panel_knock_choices(panel, game, post_hand, pending), strict=True):
         agrees = entry["knocks"] == user_knocks
         member.knock_agreements += agrees
         marker = "=" if agrees else "≠"
@@ -346,10 +346,7 @@ def run_scenario(seed: int, panel: list[PanelMember]) -> bool:
     user_draw = ask_draw(game)
     reveal_draw_choices(panel, game, user_draw)
 
-    if user_draw == DrawChoice.DISCARD:
-        drawn = game.draw_from_discard()
-    else:
-        drawn = game.draw_from_deck()
+    drawn = game.draw_from_discard() if user_draw == DrawChoice.DISCARD else game.draw_from_deck()
     print(f"\nYou drew: {drawn}")
 
     # --- Decision 2: discard ---

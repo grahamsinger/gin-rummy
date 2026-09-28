@@ -427,10 +427,7 @@ class Trainer:
             current_player = game.players[current_player_idx]
 
             # Get the AI for current player
-            if current_player_idx == learning_player_idx:
-                ai = self.learning_ai
-            else:
-                ai = opponent
+            ai = self.learning_ai if current_player_idx == learning_player_idx else opponent
 
             ai.update_context(game.get_game_context(current_player_idx))
 
@@ -790,10 +787,7 @@ def main() -> None:
         elapsed = time.time() - start_time
         progress = metrics.episode / config.num_episodes
 
-        if progress > 0:
-            eta = elapsed / progress - elapsed
-        else:
-            eta = 0
+        eta = elapsed / progress - elapsed if progress > 0 else 0
 
         avg_reward = sum(last_rewards) / len(last_rewards)
 

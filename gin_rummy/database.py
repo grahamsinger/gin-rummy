@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 from collections.abc import Generator
@@ -157,18 +158,14 @@ def init_db(db_path: Path | None = None) -> None:
                     "ALTER TABLE games ADD COLUMN ai_difficulty TEXT",
                     "ALTER TABLE games ADD COLUMN match_mode INTEGER DEFAULT 0",
                 ]:
-                    try:
+                    with contextlib.suppress(sqlite3.OperationalError):  # column already exists
                         conn.execute(col_sql)
-                    except sqlite3.OperationalError:
-                        pass  # Column already exists
                 conn.execute("UPDATE schema_info SET version = ?", (3,))
                 current_version = 3
             if current_version < 4:
                 # Migration: add match_id column to games table
-                try:
+                with contextlib.suppress(sqlite3.OperationalError):  # column already exists
                     conn.execute("ALTER TABLE games ADD COLUMN match_id INTEGER")
-                except sqlite3.OperationalError:
-                    pass  # Column already exists
                 conn.execute("UPDATE schema_info SET version = ?", (SCHEMA_VERSION,))
         conn.commit()
 
@@ -503,7 +500,7 @@ class GameTracker:
                     updates["knock_count"] = 1
 
                 # Execute update
-                update_clauses = ", ".join(f"{k} = {k} + ?" for k in updates.keys())
+                update_clauses = ", ".join(f"{k} = {k} + ?" for k in updates)
                 update_clauses += ", last_updated = ?"
                 values = list(updates.values()) + [datetime.now().isoformat(), player_name]
 

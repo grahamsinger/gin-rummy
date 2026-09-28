@@ -478,9 +478,8 @@ class Game:
             loser = defender
 
         # Apply spade doubling for Oklahoma Gin
-        if self.is_oklahoma_gin and self.spade_doubling_enabled and self.upcard:
-            if self.upcard.suit == Suit.SPADES:
-                points *= 2  # Double the points for spades
+        if self.is_oklahoma_gin and self.spade_doubling_enabled and self.upcard and self.upcard.suit == Suit.SPADES:
+            points *= 2  # Double the points for spades
 
         winner.score += points
         self.phase = GamePhase.ROUND_OVER

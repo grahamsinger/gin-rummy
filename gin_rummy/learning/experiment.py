@@ -334,10 +334,7 @@ def main() -> None:
     config, exp_name = build_config(args)
 
     # Setup paths
-    if args.output:
-        save_path = Path(args.output)
-    else:
-        save_path = Path(f"models/experiments/{exp_name}.pt")
+    save_path = Path(args.output) if args.output else Path(f"models/experiments/{exp_name}.pt")
 
     tensorboard_path = None if args.no_tensorboard else Path(f"runs/{exp_name}")
 
