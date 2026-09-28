@@ -14,11 +14,11 @@ numpy = pytest.importorskip("numpy")
 
 pytestmark = pytest.mark.learning
 
-from gin_rummy.models import Card, Rank, Suit, Hand
-from gin_rummy.learning.state import StateEncoder, NUM_CARDS
-from gin_rummy.learning.models import DrawNet, DiscardNet, KnockNet, ModelPersistence
+from gin_rummy.learning.models import DiscardNet, DrawNet, KnockNet, ModelPersistence
 from gin_rummy.learning.replay import Experience, ReplayBuffer, batch_to_tensors
 from gin_rummy.learning.rewards import RewardCalculator
+from gin_rummy.learning.state import NUM_CARDS, StateEncoder
+from gin_rummy.models import Card, Hand, Rank, Suit
 
 
 class TestStateEncoder:

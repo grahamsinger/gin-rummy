@@ -3,8 +3,8 @@
 import pytest
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
-from gin_rummy.models import Hand, Card, Suit, Rank
 from gin_rummy.context import GameContext, OpponentModel
+from gin_rummy.models import Card, Hand, Rank, Suit
 from tests.helpers import make_ai_config as make_test_config
 
 
@@ -483,7 +483,7 @@ class TestReasoningMethods:
 
     def test_basic_ai_draw_with_reasoning_deck_empty_discard(self):
         """BasicAI should return proper reasoning when discard pile is empty."""
-        from gin_rummy.ai import DrawReasoning, DrawChoice
+        from gin_rummy.ai import DrawChoice, DrawReasoning
 
         ai = BasicAI()
         hand = Hand(
@@ -501,7 +501,7 @@ class TestReasoningMethods:
 
     def test_basic_ai_draw_with_reasoning_takes_helpful_card(self):
         """BasicAI should explain why it takes a helpful card."""
-        from gin_rummy.ai import DrawReasoning, DrawChoice
+        from gin_rummy.ai import DrawChoice, DrawReasoning
 
         ai = BasicAI()
         # Hand with two aces - third ace would form a set

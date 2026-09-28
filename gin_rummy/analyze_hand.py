@@ -16,8 +16,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from gin_rummy.models import Card, Suit, Hand, analyze_hand
-from gin_rummy.context import OutsCalculator, KnownCards
+from gin_rummy.context import KnownCards, OutsCalculator
+from gin_rummy.models import Card, Hand, Suit, analyze_hand
 
 
 def parse_card(card_str: str) -> Card:

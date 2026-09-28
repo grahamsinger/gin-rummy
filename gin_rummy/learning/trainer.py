@@ -7,9 +7,10 @@ curriculum learning, and evaluation.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
@@ -17,7 +18,7 @@ import torch.optim as optim
 
 from gin_rummy.ai import BasicAI, DrawChoice, make_ai
 from gin_rummy.game import Game
-from gin_rummy.game_runner import execute_ai_turn, TurnResult
+from gin_rummy.game_runner import TurnResult, execute_ai_turn
 from gin_rummy.learning.learning_ai import LearningAI
 from gin_rummy.learning.models import ModelPersistence
 from gin_rummy.learning.replay import (
@@ -765,8 +766,8 @@ def main() -> None:
             logger.warning("Checkpoint %s not found; starting from scratch", resume_path)
 
     # Progress bar state
-    import time
     import sys
+    import time
 
     start_time = time.time()
     last_rewards: list[float] = []

@@ -19,7 +19,7 @@ import random
 import sys
 from dataclasses import dataclass, replace
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, MonteCarloAI, DrawChoice
+from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, MonteCarloAI
 from gin_rummy.cli import display_hand_by_suit
 from gin_rummy.config import get_config
 from gin_rummy.game import Game, GamePhase

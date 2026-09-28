@@ -8,14 +8,14 @@ import time
 from dataclasses import dataclass, field
 
 from gin_rummy.ai import AI_TYPES, BasicAI, DrawChoice, make_ai
-from gin_rummy.models import Card, Player
 from gin_rummy.config import Config
 from gin_rummy.game import Game, GamePhase, RoundResult
 from gin_rummy.game_runner import (
-    TurnResult,
     TurnActions,
+    TurnResult,
     execute_ai_turn,
 )
+from gin_rummy.models import Card, Player
 
 logger = logging.getLogger(__name__)
 

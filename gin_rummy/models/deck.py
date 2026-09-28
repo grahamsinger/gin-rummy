@@ -1,7 +1,8 @@
 """Deck of cards for Gin Rummy."""
 
 import random
-from gin_rummy.models.card import Card, Suit, Rank
+
+from gin_rummy.models.card import Card, Rank, Suit
 
 
 class DeckEmptyError(Exception):

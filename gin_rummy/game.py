@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
+from gin_rummy.config import get_config
 from gin_rummy.models import Card, Deck, Player, Suit
 from gin_rummy.models.melds import calculate_layoff
-from gin_rummy.config import get_config
 
 if TYPE_CHECKING:
     from gin_rummy.context import GameContext
@@ -152,7 +152,7 @@ class Game:
         """Return cards a player picked from discard pile this hand."""
         return self._discard_pickups.get(player_name, []).copy()
 
-    def get_game_context(self, player_idx: int) -> "GameContext":
+    def get_game_context(self, player_idx: int) -> GameContext:
         """Build game context for AI decision-making.
 
         Creates a snapshot of the current game state from the perspective

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import combinations
 
-from gin_rummy.models.card import Card, Suit, Rank
+from gin_rummy.models.card import Card, Rank, Suit
 
 
 class MeldType(Enum):

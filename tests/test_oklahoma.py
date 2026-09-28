@@ -1,7 +1,7 @@
 """Tests for Oklahoma Gin mode."""
 
 from gin_rummy.game import Game, GamePhase
-from gin_rummy.models import Card, Suit, Rank
+from gin_rummy.models import Card, Rank, Suit
 
 
 class TestOklahomaDeal:

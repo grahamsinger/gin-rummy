@@ -4,32 +4,30 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from typing import Literal
 
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from gin_rummy.config import get_config
-from gin_rummy.web.game_session import GameSession
-from gin_rummy.web.session_store import SessionStore
 from gin_rummy.database import (
-    get_game_hands,
-    get_all_players,
-    delete_player_stats,
-    get_hand_turns,
-    get_connection,
-    cleanup_empty_games,
-    get_ai_decisions_for_turn,
-    delete_game,
     GameTracker,
+    cleanup_empty_games,
+    delete_game,
+    delete_player_stats,
+    get_ai_decisions_for_turn,
+    get_all_players,
+    get_connection,
+    get_game_hands,
+    get_hand_turns,
     get_incomplete_games,
     init_db,
 )
 from gin_rummy.models import Card, analyze_hand
-
+from gin_rummy.web.game_session import GameSession
+from gin_rummy.web.session_store import SessionStore
 
 # Initialize logging from config
 config = get_config()

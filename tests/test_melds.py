@@ -1,15 +1,15 @@
 """Tests for meld detection module."""
 
 from gin_rummy.models import (
+    Card,
+    HandAnalysis,
     Meld,
     MeldType,
-    HandAnalysis,
-    Card,
-    Suit,
     Rank,
+    Suit,
     analyze_hand,
 )
-from gin_rummy.models.melds import find_all_sets, find_all_runs, find_optimal_melds
+from gin_rummy.models.melds import find_all_runs, find_all_sets, find_optimal_melds
 
 
 class TestFindSets:

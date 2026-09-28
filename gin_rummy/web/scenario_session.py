@@ -15,10 +15,10 @@ from gin_rummy.scenario_quiz import (
     PanelMember,
     build_panel,
     generate_scenario,
-    reset_panel_tracking,
     panel_discard_choices,
     panel_draw_choices,
     panel_knock_choices,
+    reset_panel_tracking,
 )
 from gin_rummy.web.game_session import card_to_dict
 

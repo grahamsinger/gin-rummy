@@ -3,17 +3,19 @@
 import random
 
 import pytest
-from gin_rummy.ai import MonteCarloAI, BasicAI, DrawChoice
+
+from gin_rummy.ai import BasicAI, DrawChoice, MonteCarloAI
 from gin_rummy.ai.monte_carlo import (
+    ALL_CARDS,
+    RolloutResult,
+    evaluate_terminal,
     rollout,
     score_knock,
-    evaluate_terminal,
-    RolloutResult,
-    ALL_CARDS,
 )
-from gin_rummy.models import Hand, Card, Suit, Rank
 from gin_rummy.config import Config, MonteCarloAIConfig
-from tests.helpers import cards, make_context, make_mc_config as make_test_config
+from gin_rummy.models import Card, Hand, Rank, Suit
+from tests.helpers import cards, make_context
+from tests.helpers import make_mc_config as make_test_config
 
 
 class TestScoreKnock:
@@ -311,7 +313,7 @@ class TestMonteCarloAI:
 
     def test_reasoning_methods_return_correct_types(self):
         """Reasoning methods should return proper reasoning objects."""
-        from gin_rummy.ai.types import DrawReasoning, DiscardReasoning, KnockReasoning
+        from gin_rummy.ai.types import DiscardReasoning, DrawReasoning, KnockReasoning
 
         random.seed(42)
         ai = MonteCarloAI(config=make_test_config())

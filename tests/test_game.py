@@ -1,8 +1,9 @@
 """Tests for game module."""
 
 import pytest
+
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
-from gin_rummy.models import Card, Suit, Rank
+from gin_rummy.models import Card, Rank, Suit
 
 
 class TestGameSetup:

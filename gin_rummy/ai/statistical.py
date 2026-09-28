@@ -7,13 +7,11 @@ import logging
 import random
 from pathlib import Path
 
-from gin_rummy.models import Card, Hand, analyze_hand
-from gin_rummy.config import Config
-from gin_rummy.ai.types import DrawChoice
 from gin_rummy.ai.basic import BasicAI
-from gin_rummy.ai.types import DiscardReasoning, DrawReasoning, KnockReasoning
+from gin_rummy.ai.types import DiscardReasoning, DrawChoice, DrawReasoning, KnockReasoning
+from gin_rummy.config import Config
 from gin_rummy.context import GameContext
-
+from gin_rummy.models import Card, Hand, analyze_hand
 
 logger = logging.getLogger(__name__)
 

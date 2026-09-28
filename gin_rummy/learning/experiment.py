@@ -22,7 +22,6 @@ from pathlib import Path
 from gin_rummy.learning.rewards import RewardConfig
 from gin_rummy.learning.trainer import Trainer, TrainingConfig, TrainingMetrics
 
-
 # Preset configurations for common experiments
 PRESETS = {
     "fast": {

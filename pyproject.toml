@@ -35,6 +35,8 @@ select = [
     "F",     # Pyflakes (unused imports, unused variables, redefined-unused, etc.)
     "E",     # pycodestyle errors
     "W",     # pycodestyle warnings
+    "I",     # isort
+    "UP",    # pyupgrade
 ]
 
 [tool.ruff.lint.per-file-ignores]

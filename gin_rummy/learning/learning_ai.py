@@ -306,7 +306,8 @@ class LearningAI(BasicAI):
         discard = self.decide_discard(hand)
 
         # Check if we can knock after discarding
-        from gin_rummy.models import Hand as HandClass, analyze_hand
+        from gin_rummy.models import Hand as HandClass
+        from gin_rummy.models import analyze_hand
 
         test_cards = [c for c in hand if c != discard]
         test_analysis = analyze_hand(test_cards)

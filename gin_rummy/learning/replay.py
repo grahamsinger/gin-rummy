@@ -13,7 +13,6 @@ from typing import Literal
 
 import torch
 
-
 DecisionType = Literal["draw", "discard", "knock"]
 
 

@@ -1,7 +1,7 @@
 """Test that AI doesn't discard from the middle of a 4-card run."""
 
-from gin_rummy.models import Card, Hand, Rank, Suit
 from gin_rummy.ai import ContextAwareAI
+from gin_rummy.models import Card, Hand, Rank, Suit
 
 
 def test_4card_run():
