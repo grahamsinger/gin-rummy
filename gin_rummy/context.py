@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from gin_rummy.models import Card, Suit, Rank, find_all_melds, Meld, MeldType
+from gin_rummy.models import Card, Suit, Rank, find_all_melds, MeldType
 
 if TYPE_CHECKING:
     from gin_rummy.models import Hand
@@ -230,9 +230,7 @@ class OutsCalculator:
         analysis = OutsAnalysis()
 
         # Find meld-completing outs
-        analysis.meld_completing_outs = self._find_meld_completing_outs(
-            hand_cards, dead_cards, deck_position_pct
-        )
+        analysis.meld_completing_outs = self._find_meld_completing_outs(hand_cards, dead_cards, deck_position_pct)
 
         # Find partial outs (pairs, run extensions) - weighted by game phase
         # Exclude cards already counted as meld-completing to avoid double-counting
@@ -272,14 +270,10 @@ class OutsCalculator:
                     if card in meld.cards:
                         # Verify this meld wasn't already possible
                         old_melds = find_all_melds(list(hand_cards))
-                        meld_is_new = not any(
-                            set(m.cards) == set(meld.cards) for m in old_melds
-                        )
+                        meld_is_new = not any(set(m.cards) == set(meld.cards) for m in old_melds)
                         if meld_is_new:
                             is_dead = card in dead_cards
-                            meld_type_str = (
-                                "set" if meld.meld_type == MeldType.SET else "run"
-                            )
+                            meld_type_str = "set" if meld.meld_type == MeldType.SET else "run"
                             cards_str = " ".join(str(c) for c in meld.cards)
                             outs.append(
                                 OutInfo(
@@ -484,11 +478,7 @@ class OpponentModel:
         for rank, cards in by_rank.items():
             if len(cards) >= 2:
                 # Find remaining cards of this rank that would complete the set
-                completing = frozenset(
-                    Card(rank, suit)
-                    for suit in Suit
-                    if Card(rank, suit) not in cards
-                )
+                completing = frozenset(Card(rank, suit) for suit in Suit if Card(rank, suit) not in cards)
                 self.inferred_melds.append(
                     InferredMeld(
                         cards=frozenset(cards),
@@ -543,9 +533,7 @@ class OpponentModel:
 
                 i = j if j > i + 1 else i + 1
 
-    def _find_run_completing_cards(
-        self, run_cards: list[Card], suit: Suit
-    ) -> frozenset[Card]:
+    def _find_run_completing_cards(self, run_cards: list[Card], suit: Suit) -> frozenset[Card]:
         """Find cards that would complete or extend a run."""
         completing: set[Card] = set()
         values = sorted(c.rank.value for c in run_cards)
@@ -706,9 +694,7 @@ class OpponentModel:
 
         # Count high card discards (10, J, Q, K) - suggests they have melds to hold
         high_ranks = {Rank.TEN, Rank.JACK, Rank.QUEEN, Rank.KING}
-        high_card_discards = sum(
-            1 for rank in self.discarded_ranks.elements() if rank in high_ranks
-        )
+        high_card_discards = sum(1 for rank in self.discarded_ranks.elements() if rank in high_ranks)
         high_card_adjustment = -1 * high_card_discards
 
         estimated = base + pickup_adjustment + meld_adjustment + high_card_adjustment
@@ -785,9 +771,7 @@ class DynamicThresholdCalculator:
         # Outs: many live outs = can afford to wait = higher threshold
         outs_modifier = 0.0
         if context.my_outs:
-            outs_modifier = min(
-                context.my_outs.live_out_count / 10.0, self.max_outs_modifier
-            )
+            outs_modifier = min(context.my_outs.live_out_count / 10.0, self.max_outs_modifier)
 
         # Score pressure
         score_modifier = 0.0

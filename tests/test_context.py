@@ -1,8 +1,5 @@
 """Tests for context-aware AI components."""
 
-import pytest
-from collections import Counter
-
 from gin_rummy.models import Card, Suit, Rank, Hand
 from gin_rummy.context import (
     OutType,
@@ -57,18 +54,20 @@ class TestOutsCalculator:
     def test_finds_meld_completing_out_for_pair(self):
         """A pair should have 2 meld-completing outs (the other two of that rank)."""
         # Hand with a pair of aces
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.THREE, Suit.CLUBS),
-            Card(Rank.FIVE, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.SPADES),
-            Card(Rank.NINE, Suit.HEARTS),
-            Card(Rank.JACK, Suit.CLUBS),
-            Card(Rank.QUEEN, Suit.DIAMONDS),
-            Card(Rank.KING, Suit.SPADES),
-            Card(Rank.TEN, Suit.HEARTS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.THREE, Suit.CLUBS),
+                Card(Rank.FIVE, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.SPADES),
+                Card(Rank.NINE, Suit.HEARTS),
+                Card(Rank.JACK, Suit.CLUBS),
+                Card(Rank.QUEEN, Suit.DIAMONDS),
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.TEN, Suit.HEARTS),
+            ]
+        )
 
         calc = OutsCalculator()
         analysis = calc.calculate_outs(hand, dead_cards=set())
@@ -81,18 +80,20 @@ class TestOutsCalculator:
     def test_finds_meld_completing_out_for_run(self):
         """A 2-card run should have meld-completing outs at both ends."""
         # Hand with 7♥ 8♥ (needs 6♥ or 9♥ to complete)
-        hand = Hand([
-            Card(Rank.SEVEN, Suit.HEARTS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.THREE, Suit.CLUBS),
-            Card(Rank.FIVE, Suit.DIAMONDS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.QUEEN, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.TWO, Suit.SPADES),
-            Card(Rank.FOUR, Suit.HEARTS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.SEVEN, Suit.HEARTS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.THREE, Suit.CLUBS),
+                Card(Rank.FIVE, Suit.DIAMONDS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.QUEEN, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.TWO, Suit.SPADES),
+                Card(Rank.FOUR, Suit.HEARTS),
+            ]
+        )
 
         calc = OutsCalculator()
         analysis = calc.calculate_outs(hand, dead_cards=set())
@@ -104,18 +105,20 @@ class TestOutsCalculator:
 
     def test_marks_dead_outs(self):
         """Outs that are in dead_cards should be marked as dead."""
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.THREE, Suit.CLUBS),
-            Card(Rank.FIVE, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.SPADES),
-            Card(Rank.NINE, Suit.HEARTS),
-            Card(Rank.JACK, Suit.CLUBS),
-            Card(Rank.QUEEN, Suit.DIAMONDS),
-            Card(Rank.KING, Suit.SPADES),
-            Card(Rank.TEN, Suit.HEARTS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.THREE, Suit.CLUBS),
+                Card(Rank.FIVE, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.SPADES),
+                Card(Rank.NINE, Suit.HEARTS),
+                Card(Rank.JACK, Suit.CLUBS),
+                Card(Rank.QUEEN, Suit.DIAMONDS),
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.TEN, Suit.HEARTS),
+            ]
+        )
 
         # Mark A♦ as dead (in discard pile)
         dead_cards = {Card(Rank.ACE, Suit.DIAMONDS)}
@@ -125,34 +128,32 @@ class TestOutsCalculator:
 
         # Find the A♦ out - it should be marked dead
         ace_diamond_out = next(
-            (o for o in analysis.meld_completing_outs if o.card == Card(Rank.ACE, Suit.DIAMONDS)),
-            None
+            (o for o in analysis.meld_completing_outs if o.card == Card(Rank.ACE, Suit.DIAMONDS)), None
         )
         assert ace_diamond_out is not None
         assert ace_diamond_out.is_dead is True
 
         # A♣ should not be dead
-        ace_club_out = next(
-            (o for o in analysis.meld_completing_outs if o.card == Card(Rank.ACE, Suit.CLUBS)),
-            None
-        )
+        ace_club_out = next((o for o in analysis.meld_completing_outs if o.card == Card(Rank.ACE, Suit.CLUBS)), None)
         assert ace_club_out is not None
         assert ace_club_out.is_dead is False
 
     def test_pair_outs_are_meld_completing(self):
         """Pairs should have meld-completing outs (not partial) since adding one card creates a set."""
-        hand = Hand([
-            Card(Rank.FIVE, Suit.SPADES),
-            Card(Rank.FIVE, Suit.HEARTS),  # Pair of 5s
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.SPADES),
-            Card(Rank.NINE, Suit.HEARTS),
-            Card(Rank.JACK, Suit.CLUBS),
-            Card(Rank.QUEEN, Suit.DIAMONDS),
-            Card(Rank.KING, Suit.SPADES),
-            Card(Rank.TEN, Suit.HEARTS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.FIVE, Suit.SPADES),
+                Card(Rank.FIVE, Suit.HEARTS),  # Pair of 5s
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.SPADES),
+                Card(Rank.NINE, Suit.HEARTS),
+                Card(Rank.JACK, Suit.CLUBS),
+                Card(Rank.QUEEN, Suit.DIAMONDS),
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.TEN, Suit.HEARTS),
+            ]
+        )
 
         calc = OutsCalculator()
         analysis = calc.calculate_outs(hand, dead_cards=set(), deck_position_pct=0.1)  # Early game
@@ -173,18 +174,20 @@ class TestOutsCalculator:
         Note: Pairs and 2-card sequences are meld-completing (not partial).
         Partial outs exist for gap scenarios (e.g., 5-7 needing 6).
         """
-        hand = Hand([
-            Card(Rank.FIVE, Suit.SPADES),
-            Card(Rank.SEVEN, Suit.SPADES),  # Gap - 6♠ fills it (partial)
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.NINE, Suit.HEARTS),
-            Card(Rank.JACK, Suit.CLUBS),
-            Card(Rank.QUEEN, Suit.DIAMONDS),
-            Card(Rank.KING, Suit.SPADES),
-            Card(Rank.TEN, Suit.HEARTS),
-            Card(Rank.TWO, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.FIVE, Suit.SPADES),
+                Card(Rank.SEVEN, Suit.SPADES),  # Gap - 6♠ fills it (partial)
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.NINE, Suit.HEARTS),
+                Card(Rank.JACK, Suit.CLUBS),
+                Card(Rank.QUEEN, Suit.DIAMONDS),
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.TEN, Suit.HEARTS),
+                Card(Rank.TWO, Suit.CLUBS),
+            ]
+        )
 
         calc = OutsCalculator()
 
@@ -205,18 +208,20 @@ class TestOutsCalculator:
         A pair like 7♥ 7♠ has outs 7♣ 7♦ that complete a set.
         These should only be counted as meld-completing, not also as partial.
         """
-        hand = Hand([
-            Card(Rank.SEVEN, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),  # Pair of 7s
-            Card(Rank.EIGHT, Suit.SPADES),  # Adjacent to 7♠
-            Card(Rank.THREE, Suit.CLUBS),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.TWO, Suit.HEARTS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.DIAMONDS),
-            Card(Rank.JACK, Suit.DIAMONDS),
-            Card(Rank.TEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.SEVEN, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),  # Pair of 7s
+                Card(Rank.EIGHT, Suit.SPADES),  # Adjacent to 7♠
+                Card(Rank.THREE, Suit.CLUBS),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.TWO, Suit.HEARTS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.DIAMONDS),
+                Card(Rank.JACK, Suit.DIAMONDS),
+                Card(Rank.TEN, Suit.CLUBS),
+            ]
+        )
 
         calc = OutsCalculator()
         analysis = calc.calculate_outs(hand, dead_cards=set(), deck_position_pct=0.0)
@@ -239,9 +244,7 @@ class TestOutsCalculator:
 
         live_before = analysis.live_out_count
         live_after = dead_analysis.live_out_count
-        assert live_before - live_after == 2, (
-            f"Expected 2 outs lost when 2 cards die, got {live_before - live_after}"
-        )
+        assert live_before - live_after == 2, f"Expected 2 outs lost when 2 cards die, got {live_before - live_after}"
 
 
 class TestOpponentModel:
@@ -479,8 +482,7 @@ class TestDynamicThresholdCalculator:
         # Create analysis with many outs
         many_outs = OutsAnalysis(
             meld_completing_outs=[
-                OutInfo(Card(Rank.ACE, Suit.SPADES), OutType.MELD_COMPLETING, 10.0, "test")
-                for _ in range(15)
+                OutInfo(Card(Rank.ACE, Suit.SPADES), OutType.MELD_COMPLETING, 10.0, "test") for _ in range(15)
             ]
         )
         few_outs = OutsAnalysis()
@@ -582,18 +584,20 @@ class TestOutsCalculatorRealHands:
           - 8♦, 8♥ (complete set of 8s)
           - K♠, K♥ (complete set of Ks)
         """
-        hand = Hand([
-            Card(Rank.THREE, Suit.SPADES),
-            Card(Rank.EIGHT, Suit.SPADES),
-            Card(Rank.TWO, Suit.HEARTS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.SIX, Suit.DIAMONDS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.EIGHT, Suit.CLUBS),
-            Card(Rank.KING, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.THREE, Suit.SPADES),
+                Card(Rank.EIGHT, Suit.SPADES),
+                Card(Rank.TWO, Suit.HEARTS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.SIX, Suit.DIAMONDS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.EIGHT, Suit.CLUBS),
+                Card(Rank.KING, Suit.CLUBS),
+            ]
+        )
 
         calc = OutsCalculator()
         analysis = calc.calculate_outs(hand, dead_cards=set())
@@ -625,18 +629,20 @@ class TestOutsCalculatorRealHands:
 
         Hand with 2♦, 3♦ should find 4♦ and A♦ as run-completing outs.
         """
-        hand = Hand([
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.SPADES),
-            Card(Rank.EIGHT, Suit.SPADES),
-            Card(Rank.TEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.HEARTS),
-            Card(Rank.QUEEN, Suit.CLUBS),
-            Card(Rank.KING, Suit.CLUBS),
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.FIVE, Suit.HEARTS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.SPADES),
+                Card(Rank.EIGHT, Suit.SPADES),
+                Card(Rank.TEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.HEARTS),
+                Card(Rank.QUEEN, Suit.CLUBS),
+                Card(Rank.KING, Suit.CLUBS),
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.FIVE, Suit.HEARTS),
+            ]
+        )
 
         calc = OutsCalculator()
         analysis = calc.calculate_outs(hand, dead_cards=set())

@@ -74,10 +74,10 @@ class TestHand:
 
     def test_deadwood_total(self):
         cards = [
-            Card(Rank.ACE, Suit.SPADES),    # 1
-            Card(Rank.FIVE, Suit.HEARTS),   # 5
-            Card(Rank.TEN, Suit.CLUBS),     # 10
-            Card(Rank.KING, Suit.DIAMONDS), # 10
+            Card(Rank.ACE, Suit.SPADES),  # 1
+            Card(Rank.FIVE, Suit.HEARTS),  # 5
+            Card(Rank.TEN, Suit.CLUBS),  # 10
+            Card(Rank.KING, Suit.DIAMONDS),  # 10
         ]
         hand = Hand(cards)
         assert hand.deadwood_total == 26

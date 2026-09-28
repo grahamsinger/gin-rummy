@@ -178,13 +178,13 @@ class TestKnocking:
 
         # Actually let's make it 10 or less
         game.current_player.hand._cards = [
-            Card(Rank.ACE, Suit.SPADES),   # 1
-            Card(Rank.ACE, Suit.HEARTS),   # 1
-            Card(Rank.ACE, Suit.CLUBS),    # 1
-            Card(Rank.ACE, Suit.DIAMONDS), # 1
-            Card(Rank.TWO, Suit.SPADES),   # 2
-            Card(Rank.TWO, Suit.HEARTS),   # 2
-            Card(Rank.TWO, Suit.CLUBS),    # 2
+            Card(Rank.ACE, Suit.SPADES),  # 1
+            Card(Rank.ACE, Suit.HEARTS),  # 1
+            Card(Rank.ACE, Suit.CLUBS),  # 1
+            Card(Rank.ACE, Suit.DIAMONDS),  # 1
+            Card(Rank.TWO, Suit.SPADES),  # 2
+            Card(Rank.TWO, Suit.HEARTS),  # 2
+            Card(Rank.TWO, Suit.CLUBS),  # 2
         ]  # Total: 10
 
         assert game.can_knock
@@ -300,7 +300,7 @@ class TestLayingOff:
             Card(Rank.FIVE, Suit.HEARTS),
             Card(Rank.SIX, Suit.HEARTS),
             Card(Rank.SEVEN, Suit.HEARTS),
-            Card(Rank.TWO, Suit.SPADES),   # 2 deadwood
+            Card(Rank.TWO, Suit.SPADES),  # 2 deadwood
             Card(Rank.THREE, Suit.CLUBS),  # 3 deadwood
         ]  # Total deadwood: 5
 
@@ -309,7 +309,7 @@ class TestLayingOff:
         # With layoff: 10 deadwood (only K♠)
         defender.hand._cards = [
             Card(Rank.EIGHT, Suit.HEARTS),  # 8 points, can lay off
-            Card(Rank.KING, Suit.SPADES),   # 10 points, cannot lay off
+            Card(Rank.KING, Suit.SPADES),  # 10 points, cannot lay off
         ]
 
         result = game.knock()
@@ -334,7 +334,7 @@ class TestLayingOff:
             Card(Rank.KING, Suit.SPADES),
             Card(Rank.KING, Suit.HEARTS),
             Card(Rank.KING, Suit.CLUBS),
-            Card(Rank.TWO, Suit.SPADES),   # 2 deadwood
+            Card(Rank.TWO, Suit.SPADES),  # 2 deadwood
             Card(Rank.THREE, Suit.CLUBS),  # 3 deadwood
         ]  # Total deadwood: 5
 
@@ -343,7 +343,7 @@ class TestLayingOff:
         # With layoff: 9 deadwood (only 9♠)
         defender.hand._cards = [
             Card(Rank.KING, Suit.DIAMONDS),  # 10 points, can lay off
-            Card(Rank.NINE, Suit.SPADES),    # 9 points, cannot lay off
+            Card(Rank.NINE, Suit.SPADES),  # 9 points, cannot lay off
         ]
 
         result = game.knock()
@@ -369,7 +369,7 @@ class TestLayingOff:
             Card(Rank.SIX, Suit.HEARTS),
             Card(Rank.SEVEN, Suit.HEARTS),
             Card(Rank.THREE, Suit.SPADES),  # 3 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),    # 5 deadwood
+            Card(Rank.FIVE, Suit.CLUBS),  # 5 deadwood
         ]  # Total deadwood: 8
 
         # Defender has 8♥ + 4♥ (both can lay off) + 2♠ (cannot)
@@ -377,8 +377,8 @@ class TestLayingOff:
         # With layoff: 2 deadwood (only 2♠) - UNDERCUT!
         defender.hand._cards = [
             Card(Rank.EIGHT, Suit.HEARTS),  # 8 points, can lay off
-            Card(Rank.FOUR, Suit.HEARTS),   # 4 points, can lay off
-            Card(Rank.TWO, Suit.SPADES),    # 2 points, cannot lay off
+            Card(Rank.FOUR, Suit.HEARTS),  # 4 points, can lay off
+            Card(Rank.TWO, Suit.SPADES),  # 2 points, cannot lay off
         ]
 
         result = game.knock()
@@ -404,7 +404,7 @@ class TestLayingOff:
             Card(Rank.FIVE, Suit.HEARTS),
             Card(Rank.SIX, Suit.HEARTS),
             Card(Rank.SEVEN, Suit.HEARTS),
-            Card(Rank.TEN, Suit.SPADES),   # 10 deadwood
+            Card(Rank.TEN, Suit.SPADES),  # 10 deadwood
         ]
 
         # Defender has 8♥, 9♥ (both can chain lay off) + 3♠
@@ -412,7 +412,7 @@ class TestLayingOff:
         # With chain layoff: 3 deadwood (only 3♠)
         defender.hand._cards = [
             Card(Rank.EIGHT, Suit.HEARTS),  # Can lay off directly
-            Card(Rank.NINE, Suit.HEARTS),   # Can lay off after 8♥
+            Card(Rank.NINE, Suit.HEARTS),  # Can lay off after 8♥
             Card(Rank.THREE, Suit.SPADES),  # Cannot lay off
         ]
 
@@ -448,7 +448,7 @@ class TestLayingOff:
         # But no layoff allowed on gin
         defender.hand._cards = [
             Card(Rank.EIGHT, Suit.HEARTS),  # Would lay off, but gin prevents it
-            Card(Rank.KING, Suit.DIAMONDS), # Would lay off, but gin prevents it
+            Card(Rank.KING, Suit.DIAMONDS),  # Would lay off, but gin prevents it
         ]
 
         result = game.knock()
@@ -474,17 +474,17 @@ class TestLayingOff:
             Card(Rank.FIVE, Suit.HEARTS),
             Card(Rank.SIX, Suit.HEARTS),
             Card(Rank.SEVEN, Suit.HEARTS),
-            Card(Rank.TWO, Suit.SPADES),   # 2 deadwood
+            Card(Rank.TWO, Suit.SPADES),  # 2 deadwood
             Card(Rank.THREE, Suit.CLUBS),  # 3 deadwood
         ]  # Total deadwood: 5
 
         # Defender has their own set of Aces (meld) + 8♥ (can lay off) + K♠ (deadwood)
         defender.hand._cards = [
-            Card(Rank.ACE, Suit.SPADES),    # Part of defender's meld
-            Card(Rank.ACE, Suit.HEARTS),    # Part of defender's meld
-            Card(Rank.ACE, Suit.CLUBS),     # Part of defender's meld
+            Card(Rank.ACE, Suit.SPADES),  # Part of defender's meld
+            Card(Rank.ACE, Suit.HEARTS),  # Part of defender's meld
+            Card(Rank.ACE, Suit.CLUBS),  # Part of defender's meld
             Card(Rank.EIGHT, Suit.HEARTS),  # Can lay off on knocker's run
-            Card(Rank.KING, Suit.SPADES),   # Deadwood: 10
+            Card(Rank.KING, Suit.SPADES),  # Deadwood: 10
         ]
         # Defender's own melds: set of Aces (0 deadwood from those)
         # Remaining deadwood cards: 8♥ (8) + K♠ (10) = 18

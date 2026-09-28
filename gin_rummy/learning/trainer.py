@@ -6,9 +6,7 @@ curriculum learning, and evaluation.
 
 from __future__ import annotations
 
-import copy
 import logging
-import random
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -18,12 +16,11 @@ import torch.nn as nn
 import torch.optim as optim
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
-from gin_rummy.game import Game, RoundResult
+from gin_rummy.game import Game
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.learning.learning_ai import LearningAI
 from gin_rummy.learning.models import ModelPersistence
 from gin_rummy.learning.replay import (
-    DecisionType,
     Experience,
     ReplayBuffer,
     batch_to_tensors,
@@ -214,9 +211,7 @@ class Trainer:
         self.learning_ai.train_mode()
         self._sync_target_networks()
 
-        self.current_exploration_rate = float(
-            metadata.get("exploration_rate", self.config.exploration_start)
-        )
+        self.current_exploration_rate = float(metadata.get("exploration_rate", self.config.exploration_start))
         self.learning_ai.exploration_rate = self.current_exploration_rate
         self._curriculum_idx = int(metadata.get("curriculum_idx", 0))
         self._curriculum_episodes = int(metadata.get("curriculum_episodes", 0))
@@ -224,21 +219,18 @@ class Trainer:
 
         logger.info(
             "Loaded checkpoint %s (episode %d, exploration=%.3f, curriculum stage %d)",
-            path, self._start_episode, self.current_exploration_rate, self._curriculum_idx,
+            path,
+            self._start_episode,
+            self.current_exploration_rate,
+            self._curriculum_idx,
         )
         return self._start_episode
 
     def _sync_target_networks(self) -> None:
         """Copy weights from learning networks to target networks."""
-        self.target_ai.draw_net.load_state_dict(
-            self.learning_ai.draw_net.state_dict()
-        )
-        self.target_ai.discard_net.load_state_dict(
-            self.learning_ai.discard_net.state_dict()
-        )
-        self.target_ai.knock_net.load_state_dict(
-            self.learning_ai.knock_net.state_dict()
-        )
+        self.target_ai.draw_net.load_state_dict(self.learning_ai.draw_net.state_dict())
+        self.target_ai.discard_net.load_state_dict(self.learning_ai.discard_net.state_dict())
+        self.target_ai.knock_net.load_state_dict(self.learning_ai.knock_net.state_dict())
 
     def _get_opponent(self) -> BasicAI:
         """Get opponent based on curriculum stage."""
@@ -292,12 +284,14 @@ class Trainer:
             logger.warning(
                 "Checkpoint already has %d completed episodes and num_episodes is %d; "
                 "nothing to train. --episodes is the total, not additional episodes.",
-                self._start_episode, self.config.num_episodes,
+                self._start_episode,
+                self.config.num_episodes,
             )
         else:
             logger.info(
                 "Starting training: episodes %d to %d",
-                self._start_episode, self.config.num_episodes,
+                self._start_episode,
+                self.config.num_episodes,
             )
 
         for episode in range(self._start_episode, self.config.num_episodes):
@@ -343,9 +337,7 @@ class Trainer:
             # Log to TensorBoard
             if self._writer:
                 self._writer.add_scalar("reward/episode", episode_reward, episode)
-                self._writer.add_scalar(
-                    "exploration_rate", self.current_exploration_rate, episode
-                )
+                self._writer.add_scalar("exploration_rate", self.current_exploration_rate, episode)
                 if metrics.win_rate > 0:
                     self._writer.add_scalar("eval/win_rate", metrics.win_rate, episode)
 
@@ -513,9 +505,7 @@ class Trainer:
                     discard_state = self.encoder.encode_discard_state(
                         hand, actions.drawn_card, ctx, self.learning_ai.opponent_model
                     )
-                    knock_state = self.encoder.encode_knock_state(
-                        hand, ctx, self.learning_ai.opponent_model
-                    )
+                    knock_state = self.encoder.encode_knock_state(hand, ctx, self.learning_ai.opponent_model)
 
                     round_experiences.append(
                         Experience(
@@ -548,9 +538,7 @@ class Trainer:
                 break
             elif result == TurnResult.KNOCKED and round_result:
                 # Round ended, calculate final rewards
-                final_reward = self.reward_calculator.round_end_reward(
-                    round_result, "LearningAI"
-                )
+                final_reward = self.reward_calculator.round_end_reward(round_result, "LearningAI")
                 round_reward += final_reward
 
                 # Update last experiences with terminal reward
@@ -579,9 +567,7 @@ class Trainer:
                 continue
 
             # Convert to tensors
-            states, actions, rewards, next_states, dones = batch_to_tensors(
-                batch, self.device
-            )
+            states, actions, rewards, next_states, dones = batch_to_tensors(batch, self.device)
 
             # Compute current Q values
             network.train()
@@ -592,9 +578,7 @@ class Trainer:
             with torch.no_grad():
                 next_q = target_network(next_states)
                 max_next_q = next_q.max(dim=1)[0]
-                target_q_values = rewards + (
-                    self.config.gamma * max_next_q * (~dones).float()
-                )
+                target_q_values = rewards + (self.config.gamma * max_next_q * (~dones).float())
 
             # Compute loss and update
             loss = nn.functional.mse_loss(current_q_values, target_q_values)
@@ -744,7 +728,8 @@ def main() -> None:
         help="Save checkpoint every N episodes",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose logging",
     )
@@ -791,6 +776,7 @@ def main() -> None:
     # Progress bar state
     import time
     import sys
+
     start_time = time.time()
     last_rewards: list[float] = []
 

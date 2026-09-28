@@ -302,9 +302,7 @@ class Game:
         # Check if deck is at minimum (round ends in draw)
         if len(self.deck) <= self.min_deck_cards:
             self.phase = GamePhase.ROUND_OVER
-            raise InvalidActionError(
-                f"Deck has only {len(self.deck)} cards - round ends in draw"
-            )
+            raise InvalidActionError(f"Deck has only {len(self.deck)} cards - round ends in draw")
 
         card = self.deck.draw()
         self.current_player.hand.add(card)
@@ -361,9 +359,7 @@ class Game:
 
         # Cannot discard the same card just picked up from discard pile
         if card == self.discard_blocked_card:
-            raise InvalidActionError(
-                f"Cannot discard {card} - it was just taken from the discard pile"
-            )
+            raise InvalidActionError(f"Cannot discard {card} - it was just taken from the discard pile")
 
         # Track if this card was previously picked up (now being re-discarded)
         player_name = self.current_player.name
@@ -405,9 +401,7 @@ class Game:
             raise InvalidActionError(f"{card} is not in your hand")
 
         if card == self.discard_blocked_card:
-            raise InvalidActionError(
-                f"Cannot discard {card} - it was just taken from the discard pile"
-            )
+            raise InvalidActionError(f"Cannot discard {card} - it was just taken from the discard pile")
 
         self.current_player.hand.remove(card)
         self.discard_pile.append(card)
@@ -437,15 +431,11 @@ class Game:
         defender = self.opponent
 
         if len(knocker.hand) > 10:
-            raise InvalidActionError(
-                f"Must discard down to 10 cards before knocking "
-                f"(have {len(knocker.hand)})"
-            )
+            raise InvalidActionError(f"Must discard down to 10 cards before knocking (have {len(knocker.hand)})")
 
         if knocker.hand.deadwood_total > self.knock_threshold:
             raise InvalidActionError(
-                f"Cannot knock with {knocker.hand.deadwood_total} deadwood "
-                f"(must be {self.knock_threshold} or less)"
+                f"Cannot knock with {knocker.hand.deadwood_total} deadwood (must be {self.knock_threshold} or less)"
             )
 
         knocker_deadwood = knocker.hand.deadwood_total
@@ -465,9 +455,7 @@ class Game:
         else:
             # Defender can lay off cards on knocker's melds
             knocker_analysis = knocker.hand.analyze()
-            layoff_result = calculate_layoff(
-                list(defender.hand), knocker_analysis.melds
-            )
+            layoff_result = calculate_layoff(list(defender.hand), knocker_analysis.melds)
             defender_deadwood = layoff_result.deadwood_after
             layoff_cards = layoff_result.layoff_cards if layoff_result.layoff_cards else None
 

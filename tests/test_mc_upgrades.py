@@ -9,8 +9,6 @@ import random
 
 from gin_rummy.ai import MonteCarloAI, BasicAI
 from gin_rummy.ai.monte_carlo import _sample_state, _rollout_discard
-from gin_rummy.config import Config, MonteCarloAIConfig
-from gin_rummy.context import GameContext, KnownCards
 from gin_rummy.models import Hand, Card, Suit, Rank
 from tests.helpers import make_context, make_mc_config as make_test_config
 
@@ -138,19 +136,21 @@ class TestDefensiveRollout:
 class TestJointTurnEvaluation:
     def _knockable_hand(self) -> Hand:
         """11-card hand: discarding KD leaves 3 melds + 2H = 2 deadwood."""
-        return Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.SPADES),
-            Card(Rank.FOUR, Suit.SPADES),
-            Card(Rank.FIVE, Suit.SPADES),
-            Card(Rank.SEVEN, Suit.HEARTS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.NINE, Suit.HEARTS),
-            Card(Rank.TWO, Suit.HEARTS),
-            Card(Rank.KING, Suit.DIAMONDS),
-        ])
+        return Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.SPADES),
+                Card(Rank.FOUR, Suit.SPADES),
+                Card(Rank.FIVE, Suit.SPADES),
+                Card(Rank.SEVEN, Suit.HEARTS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.NINE, Suit.HEARTS),
+                Card(Rank.TWO, Suit.HEARTS),
+                Card(Rank.KING, Suit.DIAMONDS),
+            ]
+        )
 
     def test_plan_created_and_consumed(self):
         random.seed(99)
@@ -160,13 +160,13 @@ class TestJointTurnEvaluation:
 
         discard = ai.decide_discard(hand)
         assert ai._turn_plan is not None
-        assert ai._turn_plan['discard'] == discard
-        assert ai._turn_plan['knock_avg'] is not None
+        assert ai._turn_plan["discard"] == discard
+        assert ai._turn_plan["knock_avg"] is not None
 
         test_hand = Hand([c for c in hand if c != discard])
         ai.should_knock(test_hand, ai._current_context, pending_discard=discard)
         assert ai._turn_plan is None  # consumed
-        assert ai.last_mc_thinking['knock']['reason'] == 'joint_plan'
+        assert ai.last_mc_thinking["knock"]["reason"] == "joint_plan"
 
     def test_plan_ignored_for_different_discard(self):
         random.seed(99)
@@ -175,7 +175,7 @@ class TestJointTurnEvaluation:
         ai._current_context = make_context(hand)
 
         ai.decide_discard(hand)
-        plan_discard = ai._turn_plan['discard']
+        plan_discard = ai._turn_plan["discard"]
         other_card = next(c for c in hand if c != plan_discard)
 
         test_hand = Hand([c for c in hand if c != other_card])
@@ -183,8 +183,8 @@ class TestJointTurnEvaluation:
         # Plan must not have been consumed for a mismatched discard
         # (should_knock ran its own evaluation / eligibility check instead)
         assert ai._turn_plan is not None
-        knock_thinking = ai.last_mc_thinking['knock']
-        assert knock_thinking is None or knock_thinking.get('reason') != 'joint_plan'
+        knock_thinking = ai.last_mc_thinking["knock"]
+        assert knock_thinking is None or knock_thinking.get("reason") != "joint_plan"
 
     def test_no_plan_when_disabled(self):
         random.seed(99)

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from gin_rummy.ai import BasicAI, DrawChoice
-from gin_rummy.config import Config, get_config
+from gin_rummy.config import Config
 from gin_rummy.context import OpponentModel
 from gin_rummy.learning.models import (
     DiscardNet,
@@ -77,8 +77,8 @@ class LearningAI(BasicAI):
             path = Path(model_path) if isinstance(model_path, str) else model_path
             if ModelPersistence.exists(path):
                 logger.info("Loading model from %s", path)
-                self.draw_net, self.discard_net, self.knock_net, self.metadata = (
-                    ModelPersistence.load(path, self.device)
+                self.draw_net, self.discard_net, self.knock_net, self.metadata = ModelPersistence.load(
+                    path, self.device
                 )
             else:
                 logger.warning("Model path %s not found, using random networks", path)
@@ -166,9 +166,7 @@ class LearningAI(BasicAI):
             return choice
 
         # Encode state and get Q-values
-        state = self.encoder.encode_draw_state(
-            hand, discard_top, ctx, self.opponent_model
-        )
+        state = self.encoder.encode_draw_state(hand, discard_top, ctx, self.opponent_model)
         state = state.unsqueeze(0).to(self.device).float()  # Add batch dimension, ensure float32
 
         with torch.no_grad():
@@ -214,9 +212,7 @@ class LearningAI(BasicAI):
             return super().decide_discard(hand)
 
         # Encode state
-        state = self.encoder.encode_discard_state(
-            hand, drawn_card, self._current_context, self.opponent_model
-        )
+        state = self.encoder.encode_discard_state(hand, drawn_card, self._current_context, self.opponent_model)
         state = state.unsqueeze(0).to(self.device).float()
 
         with torch.no_grad():
@@ -266,9 +262,7 @@ class LearningAI(BasicAI):
 
         # Can't knock if deadwood over threshold
         if deadwood > self.knock_threshold:
-            logger.debug(
-                "Knock decision: NO (deadwood=%d > %d)", deadwood, self.knock_threshold
-            )
+            logger.debug("Knock decision: NO (deadwood=%d > %d)", deadwood, self.knock_threshold)
             return False
 
         # Always knock on gin
@@ -283,9 +277,7 @@ class LearningAI(BasicAI):
             return choice
 
         # Encode state
-        state = self.encoder.encode_knock_state(
-            hand, self._current_context, self.opponent_model
-        )
+        state = self.encoder.encode_knock_state(hand, self._current_context, self.opponent_model)
         state = state.unsqueeze(0).to(self.device).float()
 
         with torch.no_grad():

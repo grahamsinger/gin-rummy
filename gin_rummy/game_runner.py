@@ -7,8 +7,13 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Protocol
 
 from gin_rummy.ai import (
-    BasicAI, ContextAwareAI, DrawChoice,
-    TurnReasoning, DrawReasoning, DiscardReasoning, KnockReasoning,
+    BasicAI,
+    ContextAwareAI,
+    DrawChoice,
+    TurnReasoning,
+    DrawReasoning,
+    DiscardReasoning,
+    KnockReasoning,
 )
 from gin_rummy.models import Card, Hand, Player, analyze_hand
 from gin_rummy.game import Game, InvalidActionError, RoundResult
@@ -213,13 +218,9 @@ def execute_ai_turn(
     draw_reasoning: DrawReasoning | None = None
     if capture_reasoning:
         if isinstance(ai, ContextAwareAI) and context is not None:
-            draw_reasoning = ai.decide_draw_with_reasoning(
-                current.hand, game.top_of_discard, context
-            )
+            draw_reasoning = ai.decide_draw_with_reasoning(current.hand, game.top_of_discard, context)
         else:
-            draw_reasoning = ai.decide_draw_with_reasoning(
-                current.hand, game.top_of_discard
-            )
+            draw_reasoning = ai.decide_draw_with_reasoning(current.hand, game.top_of_discard)
         draw_choice = draw_reasoning.choice
     else:
         draw_choice = get_ai_draw_decision(ai, current.hand, game.top_of_discard, context)
@@ -285,17 +286,13 @@ def execute_ai_turn(
 
         if capture_reasoning:
             if isinstance(ai, ContextAwareAI) and context is not None:
-                knock_reasoning = ai.should_knock_with_reasoning(
-                    test_hand, context, pending_discard=discard
-                )
+                knock_reasoning = ai.should_knock_with_reasoning(test_hand, context, pending_discard=discard)
             else:
                 knock_reasoning = ai.should_knock_with_reasoning(test_hand)
             should_knock = knock_reasoning.should_knock
         else:
             if isinstance(ai, ContextAwareAI):
-                should_knock = ai.should_knock(
-                    test_hand, context, pending_discard=discard
-                )
+                should_knock = ai.should_knock(test_hand, context, pending_discard=discard)
             else:
                 should_knock = ai.should_knock(test_hand)
     else:

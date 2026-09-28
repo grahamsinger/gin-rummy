@@ -1,31 +1,33 @@
 """Tests for AI module."""
 
-import pytest
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
 from gin_rummy.models import Hand, Card, Suit, Rank
 from gin_rummy.context import GameContext, OpponentModel
-from gin_rummy.config import Config, AIConfig, ContextAwareAIConfig
 from tests.helpers import make_ai_config as make_test_config
 
 
 class TestBasicAI:
     def test_decide_draw_from_deck_when_no_discard(self):
         ai = BasicAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.THREE, Suit.HEARTS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.THREE, Suit.HEARTS),
+            ]
+        )
         choice = ai.decide_draw(hand, None)
         assert choice == DrawChoice.DECK
 
     def test_decide_draw_takes_helpful_card(self):
         ai = BasicAI()
         # Hand with two aces - third ace would form a set
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.KING, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.KING, Suit.CLUBS),
+            ]
+        )
         # Discard is third ace
         discard = Card(Rank.ACE, Suit.CLUBS)
         choice = ai.decide_draw(hand, discard)
@@ -33,11 +35,13 @@ class TestBasicAI:
 
     def test_decide_draw_ignores_unhelpful_card(self):
         ai = BasicAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.THREE, Suit.HEARTS),
-            Card(Rank.FIVE, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.THREE, Suit.HEARTS),
+                Card(Rank.FIVE, Suit.CLUBS),
+            ]
+        )
         # Discard doesn't help
         discard = Card(Rank.KING, Suit.DIAMONDS)
         choice = ai.decide_draw(hand, discard)
@@ -45,23 +49,27 @@ class TestBasicAI:
 
     def test_decide_discard_removes_highest_deadwood(self):
         ai = BasicAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),   # 1
-            Card(Rank.TWO, Suit.HEARTS),   # 2
-            Card(Rank.KING, Suit.CLUBS),   # 10 - highest deadwood
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),  # 1
+                Card(Rank.TWO, Suit.HEARTS),  # 2
+                Card(Rank.KING, Suit.CLUBS),  # 10 - highest deadwood
+            ]
+        )
         discard = ai.decide_discard(hand)
         # Should discard King (highest deadwood not in meld)
         assert discard == Card(Rank.KING, Suit.CLUBS)
 
     def test_decide_discard_keeps_meld_cards(self):
         ai = BasicAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),    # Part of set
-            Card(Rank.KING, Suit.DIAMONDS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),  # Part of set
+                Card(Rank.KING, Suit.DIAMONDS),
+            ]
+        )
         discard = ai.decide_discard(hand)
         # Should discard King, not break the set
         assert discard == Card(Rank.KING, Suit.DIAMONDS)
@@ -70,30 +78,36 @@ class TestBasicAI:
         # Use "always" knock strategy to test basic knock behavior
         ai = BasicAI(config=make_test_config(knock_strategy="always"))
         # Hand with 10 or less deadwood
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),  # 2 deadwood
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),  # 2 deadwood
+            ]
+        )
         assert ai.should_knock(hand)
 
     def test_should_not_knock_when_high_deadwood(self):
         ai = BasicAI()
-        hand = Hand([
-            Card(Rank.KING, Suit.SPADES),
-            Card(Rank.QUEEN, Suit.HEARTS),
-        ])  # 20 deadwood
+        hand = Hand(
+            [
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.QUEEN, Suit.HEARTS),
+            ]
+        )  # 20 deadwood
         assert not ai.should_knock(hand)
 
     def test_make_turn_decision(self):
         ai = BasicAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+            ]
+        )
         drawn = Card(Rank.KING, Suit.DIAMONDS)  # Already in hand conceptually
 
         discard, should_knock = ai.make_turn_decision(hand, None, drawn)
@@ -113,6 +127,7 @@ class TestBasicAI:
 
         # Test many random hands to ensure the bug doesn't occur
         import random
+
         random.seed(42)
 
         for _ in range(100):
@@ -163,18 +178,20 @@ class TestContextAwareAIKnock:
         """Should always knock with gin (0 deadwood)."""
         ai = ContextAwareAI()
         # Hand with all cards in melds - gin
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.DIAMONDS),
-            Card(Rank.SIX, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.DIAMONDS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.DIAMONDS),
+                Card(Rank.SIX, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.DIAMONDS),
+            ]
+        )
         context = self._make_context()
         assert ai.should_knock(hand, context) is True
 
@@ -182,18 +199,20 @@ class TestContextAwareAIKnock:
         """Should always knock when deck has ≤4 cards (avoid draw)."""
         ai = ContextAwareAI()
         # Hand with 8 deadwood (knocking would be marginal normally)
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.SPADES),  # 8 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.SPADES),  # 8 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
         context = self._make_context(deck_remaining=3)
         assert ai.should_knock(hand, context) is True
 
@@ -201,18 +220,20 @@ class TestContextAwareAIKnock:
         """Should always knock if it wins the game."""
         ai = ContextAwareAI()
         # Hand with 5 deadwood → 5 points if we knock
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
         # Score is 95, knock would give 5 points → win
         context = self._make_context(my_score=95, target_score=100)
         assert ai.should_knock(hand, context) is True
@@ -221,18 +242,20 @@ class TestContextAwareAIKnock:
         """Late game should increase knock score via urgency modifier."""
         ai = ContextAwareAI()
         # Hand with marginal deadwood (8) - above expanded gin pursuit threshold
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.SPADES),  # 8 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.SPADES),  # 8 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
 
         # Mid game context (past early knock phase)
         mid_context = self._make_context(deck_remaining=18)
@@ -248,18 +271,20 @@ class TestContextAwareAIKnock:
     def test_trailing_score_increases_aggressiveness(self):
         """When trailing significantly, should knock more aggressively."""
         ai = ContextAwareAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.SPADES),  # 7 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.SPADES),  # 7 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
 
         # Even score
         even_context = self._make_context(my_score=50, opponent_score=50)
@@ -275,18 +300,20 @@ class TestContextAwareAIKnock:
     def test_leading_score_decreases_aggressiveness(self):
         """When leading significantly, should be more selective with knocking."""
         ai = ContextAwareAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.SPADES),  # 7 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.SPADES),  # 7 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
 
         # Even score
         even_context = self._make_context(my_score=50, opponent_score=50)
@@ -302,18 +329,20 @@ class TestContextAwareAIKnock:
     def test_opponent_weak_increases_knock_score(self):
         """When opponent estimated weak, should be more willing to knock."""
         ai = ContextAwareAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.SPADES),  # 8 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.SPADES),  # 8 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
 
         # Fresh opponent (estimated ~35 deadwood)
         fresh_context = self._make_context(deck_remaining=30)
@@ -328,28 +357,32 @@ class TestContextAwareAIKnock:
         # Use "always" knock strategy to test fallback knocks with any deadwood ≤10
         ai = ContextAwareAI(config=make_test_config(knock_strategy="always"))
         # Hand with 5 deadwood - BasicAI with "always" strategy should knock
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
         # No context provided - falls back to BasicAI "always" strategy
         assert ai.should_knock(hand) is True
 
     def test_no_knock_when_cannot_knock(self):
         """Should not knock when deadwood > 10."""
         ai = ContextAwareAI()
-        hand = Hand([
-            Card(Rank.KING, Suit.SPADES),
-            Card(Rank.QUEEN, Suit.HEARTS),
-        ])  # 20 deadwood
+        hand = Hand(
+            [
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.QUEEN, Suit.HEARTS),
+            ]
+        )  # 20 deadwood
         context = self._make_context()
         assert ai.should_knock(hand, context) is False
 
@@ -451,10 +484,12 @@ class TestReasoningMethods:
         from gin_rummy.ai import DrawReasoning, DrawChoice
 
         ai = BasicAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.THREE, Suit.HEARTS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.THREE, Suit.HEARTS),
+            ]
+        )
         reasoning = ai.decide_draw_with_reasoning(hand, None)
 
         assert isinstance(reasoning, DrawReasoning)
@@ -468,11 +503,13 @@ class TestReasoningMethods:
 
         ai = BasicAI()
         # Hand with two aces - third ace would form a set
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.KING, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.KING, Suit.CLUBS),
+            ]
+        )
         discard = Card(Rank.ACE, Suit.CLUBS)
         reasoning = ai.decide_draw_with_reasoning(hand, discard)
 
@@ -485,11 +522,13 @@ class TestReasoningMethods:
         from gin_rummy.ai import DiscardReasoning
 
         ai = BasicAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.TWO, Suit.HEARTS),
-            Card(Rank.KING, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.TWO, Suit.HEARTS),
+                Card(Rank.KING, Suit.CLUBS),
+            ]
+        )
         reasoning = ai.decide_discard_with_reasoning(hand)
 
         assert isinstance(reasoning, DiscardReasoning)
@@ -504,18 +543,20 @@ class TestReasoningMethods:
 
         ai = BasicAI()
         # Hand with all cards in melds - gin
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.DIAMONDS),
-            Card(Rank.SIX, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.DIAMONDS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.DIAMONDS),
+                Card(Rank.SIX, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.DIAMONDS),
+            ]
+        )
         reasoning = ai.should_knock_with_reasoning(hand)
 
         assert isinstance(reasoning, KnockReasoning)
@@ -527,10 +568,12 @@ class TestReasoningMethods:
         from gin_rummy.ai import KnockReasoning
 
         ai = BasicAI()
-        hand = Hand([
-            Card(Rank.KING, Suit.SPADES),
-            Card(Rank.QUEEN, Suit.HEARTS),
-        ])  # 20 deadwood
+        hand = Hand(
+            [
+                Card(Rank.KING, Suit.SPADES),
+                Card(Rank.QUEEN, Suit.HEARTS),
+            ]
+        )  # 20 deadwood
         reasoning = ai.should_knock_with_reasoning(hand)
 
         assert isinstance(reasoning, KnockReasoning)
@@ -544,18 +587,20 @@ class TestReasoningMethods:
 
         ai = ContextAwareAI()
         # Hand with 5 deadwood
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
         context = GameContext(
             deck_remaining=20,
             deck_position_pct=0.35,
@@ -576,12 +621,14 @@ class TestReasoningMethods:
         from gin_rummy.ai import DiscardReasoning
 
         ai = ContextAwareAI()
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+            ]
+        )
         reasoning = ai.decide_discard_with_reasoning(hand)
 
         assert isinstance(reasoning, DiscardReasoning)

@@ -177,7 +177,7 @@ class StatisticalAI(BasicAI):
         options: list[tuple[Card, float, int, float]] = []
 
         for i, card in enumerate(cards):
-            remaining = cards[:i] + cards[i + 1:]
+            remaining = cards[:i] + cards[i + 1 :]
             analysis = analyze_hand(remaining)
             deadwood = analysis.deadwood_value
 
@@ -300,10 +300,7 @@ class StatisticalAI(BasicAI):
         # Update draw stats
         for bucket, choice in self._round_draws:
             if bucket not in self.draw_stats:
-                self.draw_stats[bucket] = {
-                    "deck_draws": 0, "deck_wins": 0,
-                    "discard_draws": 0, "discard_wins": 0
-                }
+                self.draw_stats[bucket] = {"deck_draws": 0, "deck_wins": 0, "discard_draws": 0, "discard_wins": 0}
             if choice == "deck":
                 self.draw_stats[bucket]["deck_draws"] += 1
                 self.draw_stats[bucket]["deck_wins"] += win_val
@@ -314,10 +311,7 @@ class StatisticalAI(BasicAI):
         # Update knock stats
         for deadwood, did_knock in self._round_knocks:
             if deadwood not in self.knock_stats:
-                self.knock_stats[deadwood] = {
-                    "knocked": 0, "knock_wins": 0,
-                    "continued": 0, "continue_wins": 0
-                }
+                self.knock_stats[deadwood] = {"knocked": 0, "knock_wins": 0, "continued": 0, "continue_wins": 0}
             if did_knock:
                 self.knock_stats[deadwood]["knocked"] += 1
                 self.knock_stats[deadwood]["knock_wins"] += win_val
@@ -368,14 +362,8 @@ class StatisticalAI(BasicAI):
     def get_stats_summary(self) -> dict:
         """Get a summary of current statistics for debugging."""
         total_discards = sum(s.get("times", 0) for s in self.discard_stats.values())
-        total_draws = sum(
-            s.get("deck_draws", 0) + s.get("discard_draws", 0)
-            for s in self.draw_stats.values()
-        )
-        total_knocks = sum(
-            s.get("knocked", 0) + s.get("continued", 0)
-            for s in self.knock_stats.values()
-        )
+        total_draws = sum(s.get("deck_draws", 0) + s.get("discard_draws", 0) for s in self.draw_stats.values())
+        total_knocks = sum(s.get("knocked", 0) + s.get("continued", 0) for s in self.knock_stats.values())
 
         return {
             "total_discard_samples": total_discards,

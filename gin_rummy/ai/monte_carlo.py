@@ -140,7 +140,7 @@ def _rollout_discard(
 
     ranked: list[tuple[int, Card]] = []
     for i, card in enumerate(current_hand):
-        remaining = current_hand[:i] + current_hand[i + 1:]
+        remaining = current_hand[:i] + current_hand[i + 1 :]
         ranked.append((analyze_hand(remaining).deadwood_value, card))
     ranked.sort(key=lambda x: x[0])
 
@@ -152,9 +152,7 @@ def _rollout_discard(
             break
         # benefit > 0 means the card melds into (or improves) the other hand
         # rather than sitting there as extra deadwood
-        benefit = (other_dw + card.deadwood_value) - analyze_hand(
-            other_hand + [card]
-        ).deadwood_value
+        benefit = (other_dw + card.deadwood_value) - analyze_hand(other_hand + [card]).deadwood_value
         if benefit <= 0:
             return card
 
@@ -369,10 +367,18 @@ def _draw_sim_batch(
             sim_deck = deck_copy  # use the deck with drawn card removed
 
         result = rollout(
-            list(sim_hand_after), list(opp_hand), list(sim_deck),
-            list(sim_discard_after), False, rollout_ai,
-            max_turns, knock_threshold, gin_bonus, undercut_bonus,
-            min_deck_cards, defensive,
+            list(sim_hand_after),
+            list(opp_hand),
+            list(sim_deck),
+            list(sim_discard_after),
+            False,
+            rollout_ai,
+            max_turns,
+            knock_threshold,
+            gin_bonus,
+            undercut_bonus,
+            min_deck_cards,
+            defensive,
         )
         total += result.my_points
     return total
@@ -415,17 +421,28 @@ def _discard_sim_batch(
 
         if evaluate_knock:
             points, _, _ = score_knock(
-                sim_hand, list(opp_hand),
-                gin_bonus, undercut_bonus, knock_threshold,
+                sim_hand,
+                list(opp_hand),
+                gin_bonus,
+                undercut_bonus,
+                knock_threshold,
             )
             knock_total += points
 
         sim_discard = [card_to_discard]
         result = rollout(
-            list(sim_hand), list(opp_hand), list(sim_deck),
-            list(sim_discard), False, rollout_ai,
-            max_turns, knock_threshold, gin_bonus, undercut_bonus,
-            min_deck_cards, defensive,
+            list(sim_hand),
+            list(opp_hand),
+            list(sim_deck),
+            list(sim_discard),
+            False,
+            rollout_ai,
+            max_turns,
+            knock_threshold,
+            gin_bonus,
+            undercut_bonus,
+            min_deck_cards,
+            defensive,
         )
         total += result.my_points
     return total, knock_total
@@ -461,8 +478,11 @@ def _knock_sim_batch(
 
         if option == "knock":
             points, _, _ = score_knock(
-                my_hand, list(opp_hand),
-                gin_bonus, undercut_bonus, knock_threshold,
+                my_hand,
+                list(opp_hand),
+                gin_bonus,
+                undercut_bonus,
+                knock_threshold,
             )
             total += points
         else:  # continue
@@ -472,10 +492,18 @@ def _knock_sim_batch(
             # from the opponent, inflating the value of continuing.
             sim_discard = [pending_discard] if pending_discard else []
             result = rollout(
-                list(my_hand), list(opp_hand), list(sim_deck),
-                sim_discard, False, rollout_ai,
-                max_turns, knock_threshold, gin_bonus, undercut_bonus,
-                min_deck_cards, defensive,
+                list(my_hand),
+                list(opp_hand),
+                list(sim_deck),
+                sim_discard,
+                False,
+                rollout_ai,
+                max_turns,
+                knock_threshold,
+                gin_bonus,
+                undercut_bonus,
+                min_deck_cards,
+                defensive,
             )
             total += result.my_points
     return total
@@ -567,13 +595,13 @@ class MonteCarloAI(ContextAwareAI):
         return samples
 
     # Sampling weight tuning constants (multiplicative, clamped at the end)
-    _W_DISCARD_SAME_RANK = 0.5    # opponent threw this rank away
-    _W_DISCARD_NEIGHBOR1 = 0.6    # same suit, adjacent rank to a discard
-    _W_DISCARD_NEIGHBOR2 = 0.8    # same suit, two ranks from a discard
-    _W_PICKUP_SAME_RANK = 1.8     # opponent collected this rank
-    _W_PICKUP_NEIGHBOR1 = 1.8     # same suit, adjacent rank to a pickup
-    _W_PICKUP_NEIGHBOR2 = 1.3     # same suit, two ranks from a pickup
-    _W_INFERRED_MELD_OUT = 2.0    # completes an inferred opponent meld
+    _W_DISCARD_SAME_RANK = 0.5  # opponent threw this rank away
+    _W_DISCARD_NEIGHBOR1 = 0.6  # same suit, adjacent rank to a discard
+    _W_DISCARD_NEIGHBOR2 = 0.8  # same suit, two ranks from a discard
+    _W_PICKUP_SAME_RANK = 1.8  # opponent collected this rank
+    _W_PICKUP_NEIGHBOR1 = 1.8  # same suit, adjacent rank to a pickup
+    _W_PICKUP_NEIGHBOR2 = 1.3  # same suit, two ranks from a pickup
+    _W_INFERRED_MELD_OUT = 2.0  # completes an inferred opponent meld
     _W_MIN, _W_MAX = 0.05, 8.0
 
     def _build_sample_weights(self) -> dict[Card, float] | None:
@@ -623,10 +651,7 @@ class MonteCarloAI(ContextAwareAI):
             for card in meld.completing_cards:
                 scale(card, self._W_INFERRED_MELD_OUT)
 
-        return {
-            card: max(self._W_MIN, min(self._W_MAX, w))
-            for card, w in weights.items()
-        }
+        return {card: max(self._W_MIN, min(self._W_MAX, w)) for card, w in weights.items()}
 
     def _run_parallel(
         self,
@@ -657,9 +682,7 @@ class MonteCarloAI(ContextAwareAI):
     def __del__(self) -> None:
         self.shutdown()
 
-    def _get_known_and_unknown(
-        self, hand: Hand, context: GameContext | None = None
-    ) -> tuple[set[Card], list[Card]]:
+    def _get_known_and_unknown(self, hand: Hand, context: GameContext | None = None) -> tuple[set[Card], list[Card]]:
         """Build known/unknown card sets for information set sampling.
 
         Known locations: my hand, discard pile history, cards opponent picked up.
@@ -747,22 +770,21 @@ class MonteCarloAI(ContextAwareAI):
         ctx = context or self._current_context
 
         if discard_top is None:
-            self._clear_thinking('draw')
+            self._clear_thinking("draw")
             return DrawChoice.DECK
 
         known, unknown = self._get_known_and_unknown(hand, ctx)
 
         if len(unknown) < self.min_unknown_for_simulation:
-            self._clear_thinking('draw')
+            self._clear_thinking("draw")
             return super().decide_draw(hand, discard_top, context)
 
         opponent_known = set()
         if ctx and ctx.known_cards:
             opponent_known = set(ctx.known_cards.opponent_hand_known)
 
-
         knock_threshold = self._knock_threshold
-        if ctx and hasattr(ctx, 'knock_threshold'):
+        if ctx and hasattr(ctx, "knock_threshold"):
             knock_threshold = ctx.knock_threshold
 
         # For rollout discard pile, we only need the top (for drawing).
@@ -776,7 +798,10 @@ class MonteCarloAI(ContextAwareAI):
         # Build samples and tasks
         if self._sample_strategy == "paired":
             samples = self._generate_samples(
-                self.draw_simulations, unknown, opponent_known, weights,
+                self.draw_simulations,
+                unknown,
+                opponent_known,
+                weights,
             )
             ind_unknown = None
             ind_opp_known = None
@@ -787,18 +812,42 @@ class MonteCarloAI(ContextAwareAI):
 
         tasks: list[tuple[Any, ...]] = [
             (
-                _draw_sim_batch, "discard", my_hand_list, discard_top,
-                sim_discard_base, self._rollout_ai, self.max_rollout_turns,
-                knock_threshold, self._gin_bonus, self._undercut_bonus,
-                self.draw_simulations, samples, ind_unknown, ind_opp_known,
-                self._min_deck_cards, weights, self._defensive_rollout,
+                _draw_sim_batch,
+                "discard",
+                my_hand_list,
+                discard_top,
+                sim_discard_base,
+                self._rollout_ai,
+                self.max_rollout_turns,
+                knock_threshold,
+                self._gin_bonus,
+                self._undercut_bonus,
+                self.draw_simulations,
+                samples,
+                ind_unknown,
+                ind_opp_known,
+                self._min_deck_cards,
+                weights,
+                self._defensive_rollout,
             ),
             (
-                _draw_sim_batch, "deck", my_hand_list, discard_top,
-                sim_discard_base, self._rollout_ai, self.max_rollout_turns,
-                knock_threshold, self._gin_bonus, self._undercut_bonus,
-                self.draw_simulations, samples, ind_unknown, ind_opp_known,
-                self._min_deck_cards, weights, self._defensive_rollout,
+                _draw_sim_batch,
+                "deck",
+                my_hand_list,
+                discard_top,
+                sim_discard_base,
+                self._rollout_ai,
+                self.max_rollout_turns,
+                knock_threshold,
+                self._gin_bonus,
+                self._undercut_bonus,
+                self.draw_simulations,
+                samples,
+                ind_unknown,
+                ind_opp_known,
+                self._min_deck_cards,
+                weights,
+                self._defensive_rollout,
             ),
         ]
 
@@ -822,23 +871,27 @@ class MonteCarloAI(ContextAwareAI):
 
         # Store thinking data
         draw_thinking = {
-            'deck_avg_points': round(deck_avg, 1),
-            'deck_sims': self.draw_simulations,
-            'discard_avg_points': round(discard_avg, 1),
-            'discard_sims': self.draw_simulations,
-            'discard_card': str(discard_top),
-            'choice': choice.name.lower(),
-            'advantage': round(advantage, 1),
-            'fallback': fallback,
+            "deck_avg_points": round(deck_avg, 1),
+            "deck_sims": self.draw_simulations,
+            "discard_avg_points": round(discard_avg, 1),
+            "discard_sims": self.draw_simulations,
+            "discard_card": str(discard_top),
+            "choice": choice.name.lower(),
+            "advantage": round(advantage, 1),
+            "fallback": fallback,
         }
 
         # Initialize thinking dict for this turn
-        self.last_mc_thinking = {'draw': draw_thinking, 'discard': None, 'knock': None}
+        self.last_mc_thinking = {"draw": draw_thinking, "discard": None, "knock": None}
 
         logger.info(
             "MC Draw: DECK avg=%.1f, DISCARD(%s) avg=%.1f, adv=%.1f%s -> %s",
-            deck_avg, discard_top, discard_avg, advantage,
-            " (fallback)" if fallback else "", choice.name,
+            deck_avg,
+            discard_top,
+            discard_avg,
+            advantage,
+            " (fallback)" if fallback else "",
+            choice.name,
         )
 
         return choice
@@ -853,7 +906,7 @@ class MonteCarloAI(ContextAwareAI):
         known, unknown = self._get_known_and_unknown(hand, ctx)
 
         if len(unknown) < self.min_unknown_for_simulation:
-            self._clear_thinking('discard')
+            self._clear_thinking("discard")
             return super().decide_discard(hand)
 
         cards = list(hand)
@@ -883,9 +936,8 @@ class MonteCarloAI(ContextAwareAI):
         if ctx and ctx.known_cards:
             opponent_known = set(ctx.known_cards.opponent_hand_known)
 
-
         knock_threshold = self._knock_threshold
-        if ctx and hasattr(ctx, 'knock_threshold'):
+        if ctx and hasattr(ctx, "knock_threshold"):
             knock_threshold = ctx.knock_threshold
 
         opp_known_list = list(opponent_known)
@@ -894,7 +946,10 @@ class MonteCarloAI(ContextAwareAI):
         # Build samples and tasks
         if self._sample_strategy == "paired":
             samples = self._generate_samples(
-                self.discard_simulations, unknown, opponent_known, weights,
+                self.discard_simulations,
+                unknown,
+                opponent_known,
+                weights,
             )
             ind_unknown = None
             ind_opp_known = None
@@ -908,28 +963,37 @@ class MonteCarloAI(ContextAwareAI):
         # so the (discard, knock) pair is chosen together rather than the
         # discard being picked blind to the knock option.
         joint = self._joint_turn_evaluation and not self._in_hypothetical
-        knock_eligible = {
-            card: (immediate_dw <= knock_threshold)
-            for card, immediate_dw in top_candidates
-        }
+        knock_eligible = {card: (immediate_dw <= knock_threshold) for card, immediate_dw in top_candidates}
 
         tasks: list[tuple[Any, ...]] = []
         for card, immediate_dw in top_candidates:
-            tasks.append((
-                _discard_sim_batch, cards, card, self._rollout_ai,
-                self.max_rollout_turns, knock_threshold,
-                self._gin_bonus, self._undercut_bonus,
-                self.discard_simulations, samples, ind_unknown, ind_opp_known,
-                self._min_deck_cards, weights,
-                joint and knock_eligible[card], self._defensive_rollout,
-            ))
+            tasks.append(
+                (
+                    _discard_sim_batch,
+                    cards,
+                    card,
+                    self._rollout_ai,
+                    self.max_rollout_turns,
+                    knock_threshold,
+                    self._gin_bonus,
+                    self._undercut_bonus,
+                    self.discard_simulations,
+                    samples,
+                    ind_unknown,
+                    ind_opp_known,
+                    self._min_deck_cards,
+                    weights,
+                    joint and knock_eligible[card],
+                    self._defensive_rollout,
+                )
+            )
 
         totals = self._run_parallel(tasks)
 
         # Process results
         candidate_results: list[dict[str, Any]] = []
         best_card = top_candidates[0][0]
-        best_avg = float('-inf')
+        best_avg = float("-inf")
         best_dw = top_candidates[0][1]
         n_sims = max(1, self.discard_simulations)
         stats_by_card: dict[Card, dict[str, float | None]] = {}
@@ -937,31 +1001,23 @@ class MonteCarloAI(ContextAwareAI):
         for idx, (card, immediate_dw) in enumerate(top_candidates):
             continue_total, knock_total = totals[idx]
             continue_avg = continue_total / n_sims
-            knock_avg = (
-                knock_total / n_sims
-                if joint and knock_eligible[card]
-                else None
-            )
+            knock_avg = knock_total / n_sims if joint and knock_eligible[card] else None
             # Candidate value: best of its two branches
-            avg_points = (
-                max(continue_avg, knock_avg)
-                if knock_avg is not None
-                else continue_avg
-            )
+            avg_points = max(continue_avg, knock_avg) if knock_avg is not None else continue_avg
             stats_by_card[card] = {
-                'continue_avg': continue_avg,
-                'knock_avg': knock_avg,
+                "continue_avg": continue_avg,
+                "knock_avg": knock_avg,
             }
 
             entry = {
-                'card': str(card),
-                'avg_points': round(avg_points, 1),
-                'sims': self.discard_simulations,
-                'deadwood_after': immediate_dw,
+                "card": str(card),
+                "avg_points": round(avg_points, 1),
+                "sims": self.discard_simulations,
+                "deadwood_after": immediate_dw,
             }
             if knock_avg is not None:
-                entry['knock_avg_points'] = round(knock_avg, 1)
-                entry['continue_avg_points'] = round(continue_avg, 1)
+                entry["knock_avg_points"] = round(knock_avg, 1)
+                entry["continue_avg_points"] = round(continue_avg, 1)
             candidate_results.append(entry)
 
             # Tie-break equal averages toward the lower resulting deadwood
@@ -971,49 +1027,51 @@ class MonteCarloAI(ContextAwareAI):
                 best_dw = immediate_dw
 
         # Sort results by avg_points descending for display
-        candidate_results.sort(key=lambda x: x['avg_points'], reverse=True)
+        candidate_results.sort(key=lambda x: x["avg_points"], reverse=True)
 
         # Confidence threshold: if MC's best-to-second-best gap is small
         # AND MC disagrees with heuristic, defer to heuristic
         fallback = False
         if len(candidate_results) >= 2:
-            best_to_second = candidate_results[0]['avg_points'] - candidate_results[1]['avg_points']
+            best_to_second = candidate_results[0]["avg_points"] - candidate_results[1]["avg_points"]
             heuristic_choice = super().decide_discard(hand)
             if best_to_second < self.discard_min_advantage and best_card != heuristic_choice:
                 fallback = True
                 best_card = heuristic_choice
         else:
-            best_to_second = float('inf')
+            best_to_second = float("inf")
 
         # Cache the jointly-planned knock decision for should_knock
         if joint:
             stats = stats_by_card.get(best_card)
-            if stats is not None and stats['knock_avg'] is not None:
+            if stats is not None and stats["knock_avg"] is not None:
                 self._turn_plan = {
-                    'discard': best_card,
-                    'knock_avg': stats['knock_avg'],
-                    'continue_avg': stats['continue_avg'],
+                    "discard": best_card,
+                    "knock_avg": stats["knock_avg"],
+                    "continue_avg": stats["continue_avg"],
                 }
             else:
                 self._turn_plan = None
 
         discard_thinking = {
-            'candidates': candidate_results,
-            'chosen': str(best_card),
-            'hand_size': len(cards),
-            'deadwood_count': len(deadwood_cards),
-            'fallback': fallback,
-            'min_advantage': self.discard_min_advantage,
-            'joint_evaluation': joint,
+            "candidates": candidate_results,
+            "chosen": str(best_card),
+            "hand_size": len(cards),
+            "deadwood_count": len(deadwood_cards),
+            "fallback": fallback,
+            "min_advantage": self.discard_min_advantage,
+            "joint_evaluation": joint,
         }
 
         if self.last_mc_thinking is None:
-            self.last_mc_thinking = {'draw': None, 'discard': None, 'knock': None}
-        self.last_mc_thinking['discard'] = discard_thinking
+            self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
+        self.last_mc_thinking["discard"] = discard_thinking
 
         logger.info(
             "MC Discard: chose %s (avg=%.1f) from %d candidates%s",
-            best_card, best_avg, len(top_candidates),
+            best_card,
+            best_avg,
+            len(top_candidates),
             " (fallback)" if fallback else "",
         )
 
@@ -1040,16 +1098,16 @@ class MonteCarloAI(ContextAwareAI):
         # Always knock with gin
         if deadwood == 0:
             knock_thinking = {
-                'knock_avg_points': None,
-                'continue_avg_points': None,
-                'chose_knock': True,
-                'deadwood': 0,
-                'reason': 'gin',
+                "knock_avg_points": None,
+                "continue_avg_points": None,
+                "chose_knock": True,
+                "deadwood": 0,
+                "reason": "gin",
             }
             if self.last_mc_thinking is None:
-                self.last_mc_thinking = {'draw': None, 'discard': None, 'knock': None}
-            self.last_mc_thinking['knock'] = knock_thinking
-            self._clear_thinking('knock')
+                self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
+            self.last_mc_thinking["knock"] = knock_thinking
+            self._clear_thinking("knock")
             return True
 
         ctx = context or self._current_context
@@ -1057,7 +1115,7 @@ class MonteCarloAI(ContextAwareAI):
         # Eligibility uses the live threshold (dynamic under Oklahoma)
         eligibility_threshold = ctx.knock_threshold if ctx else self._knock_threshold
         if deadwood > eligibility_threshold:
-            self._clear_thinking('knock')
+            self._clear_thinking("knock")
             return False
 
         # Edge case from parent: deck nearly empty (avoid a draw). The old
@@ -1066,30 +1124,26 @@ class MonteCarloAI(ContextAwareAI):
         # negative points; the simulations below price that in correctly.
         if ctx and ctx.deck_remaining <= 4:
             knock_thinking = {
-                'knock_avg_points': None,
-                'continue_avg_points': None,
-                'chose_knock': True,
-                'deadwood': deadwood,
-                'reason': 'deck_nearly_empty',
+                "knock_avg_points": None,
+                "continue_avg_points": None,
+                "chose_knock": True,
+                "deadwood": deadwood,
+                "reason": "deck_nearly_empty",
             }
             if self.last_mc_thinking is None:
-                self.last_mc_thinking = {'draw': None, 'discard': None, 'knock': None}
-            self.last_mc_thinking['knock'] = knock_thinking
-            self._clear_thinking('knock')
+                self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
+            self.last_mc_thinking["knock"] = knock_thinking
+            self._clear_thinking("knock")
             return True
 
         # Consume the jointly-planned decision from decide_discard: both
         # branches were already simulated with shared samples, so re-running
         # them here would only add variance (and compute)
         plan = self._turn_plan
-        if (
-            plan is not None
-            and pending_discard is not None
-            and plan['discard'] == pending_discard
-        ):
+        if plan is not None and pending_discard is not None and plan["discard"] == pending_discard:
             self._turn_plan = None
-            knock_avg = plan['knock_avg']
-            continue_avg = plan['continue_avg']
+            knock_avg = plan["knock_avg"]
+            continue_avg = plan["continue_avg"]
             advantage = abs(knock_avg - continue_avg)
 
             if advantage < self.knock_min_advantage:
@@ -1100,21 +1154,22 @@ class MonteCarloAI(ContextAwareAI):
                 fallback = False
 
             knock_thinking = {
-                'knock_avg_points': round(knock_avg, 1),
-                'continue_avg_points': round(continue_avg, 1),
-                'chose_knock': chose_knock,
-                'deadwood': deadwood,
-                'advantage': round(advantage, 1),
-                'fallback': fallback,
-                'reason': 'joint_plan',
+                "knock_avg_points": round(knock_avg, 1),
+                "continue_avg_points": round(continue_avg, 1),
+                "chose_knock": chose_knock,
+                "deadwood": deadwood,
+                "advantage": round(advantage, 1),
+                "fallback": fallback,
+                "reason": "joint_plan",
             }
             if self.last_mc_thinking is None:
-                self.last_mc_thinking = {'draw': None, 'discard': None, 'knock': None}
-            self.last_mc_thinking['knock'] = knock_thinking
+                self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
+            self.last_mc_thinking["knock"] = knock_thinking
 
             logger.info(
                 "MC Knock (joint plan): knock_avg=%.1f, continue_avg=%.1f%s -> %s",
-                knock_avg, continue_avg,
+                knock_avg,
+                continue_avg,
                 " (fallback)" if fallback else "",
                 "KNOCK" if chose_knock else "CONTINUE",
             )
@@ -1130,16 +1185,15 @@ class MonteCarloAI(ContextAwareAI):
             unknown = [c for c in unknown if c != pending_discard]
 
         if len(unknown) < self.min_unknown_for_simulation:
-            self._clear_thinking('knock')
+            self._clear_thinking("knock")
             return super().should_knock(hand, context)
 
         opponent_known = set()
         if ctx and ctx.known_cards:
             opponent_known = set(ctx.known_cards.opponent_hand_known)
 
-
         knock_threshold = self._knock_threshold
-        if ctx and hasattr(ctx, 'knock_threshold'):
+        if ctx and hasattr(ctx, "knock_threshold"):
             knock_threshold = ctx.knock_threshold
 
         my_hand_list = list(hand)
@@ -1149,7 +1203,10 @@ class MonteCarloAI(ContextAwareAI):
         # Build samples and tasks
         if self._sample_strategy == "paired":
             samples = self._generate_samples(
-                self.knock_simulations, unknown, opponent_known, weights,
+                self.knock_simulations,
+                unknown,
+                opponent_known,
+                weights,
             )
             ind_unknown = None
             ind_opp_known = None
@@ -1160,19 +1217,39 @@ class MonteCarloAI(ContextAwareAI):
 
         tasks: list[tuple[Any, ...]] = [
             (
-                _knock_sim_batch, "knock", my_hand_list, self._rollout_ai,
-                self.max_rollout_turns, knock_threshold,
-                self._gin_bonus, self._undercut_bonus,
-                self.knock_simulations, samples, ind_unknown, ind_opp_known,
-                pending_discard, self._min_deck_cards, weights,
+                _knock_sim_batch,
+                "knock",
+                my_hand_list,
+                self._rollout_ai,
+                self.max_rollout_turns,
+                knock_threshold,
+                self._gin_bonus,
+                self._undercut_bonus,
+                self.knock_simulations,
+                samples,
+                ind_unknown,
+                ind_opp_known,
+                pending_discard,
+                self._min_deck_cards,
+                weights,
                 self._defensive_rollout,
             ),
             (
-                _knock_sim_batch, "continue", my_hand_list, self._rollout_ai,
-                self.max_rollout_turns, knock_threshold,
-                self._gin_bonus, self._undercut_bonus,
-                self.knock_simulations, samples, ind_unknown, ind_opp_known,
-                pending_discard, self._min_deck_cards, weights,
+                _knock_sim_batch,
+                "continue",
+                my_hand_list,
+                self._rollout_ai,
+                self.max_rollout_turns,
+                knock_threshold,
+                self._gin_bonus,
+                self._undercut_bonus,
+                self.knock_simulations,
+                samples,
+                ind_unknown,
+                ind_opp_known,
+                pending_discard,
+                self._min_deck_cards,
+                weights,
                 self._defensive_rollout,
             ),
         ]
@@ -1194,23 +1271,26 @@ class MonteCarloAI(ContextAwareAI):
             chose_knock = knock_avg > continue_avg
 
         knock_thinking = {
-            'knock_avg_points': round(knock_avg, 1),
-            'continue_avg_points': round(continue_avg, 1),
-            'chose_knock': chose_knock,
-            'deadwood': deadwood,
-            'advantage': round(advantage, 1),
-            'fallback': fallback,
+            "knock_avg_points": round(knock_avg, 1),
+            "continue_avg_points": round(continue_avg, 1),
+            "chose_knock": chose_knock,
+            "deadwood": deadwood,
+            "advantage": round(advantage, 1),
+            "fallback": fallback,
         }
 
         if self.last_mc_thinking is None:
-            self.last_mc_thinking = {'draw': None, 'discard': None, 'knock': None}
-        self.last_mc_thinking['knock'] = knock_thinking
+            self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
+        self.last_mc_thinking["knock"] = knock_thinking
 
         logger.info(
             "MC Knock: knock_avg=%.1f, continue_avg=%.1f, adv=%.1f%s -> %s (deadwood=%d)",
-            knock_avg, continue_avg, advantage,
+            knock_avg,
+            continue_avg,
+            advantage,
             " (fallback)" if fallback else "",
-            "KNOCK" if chose_knock else "CONTINUE", deadwood,
+            "KNOCK" if chose_knock else "CONTINUE",
+            deadwood,
         )
 
         return chose_knock
@@ -1229,12 +1309,12 @@ class MonteCarloAI(ContextAwareAI):
         factors = []
         reasoning_str = ""
 
-        if self.last_mc_thinking and self.last_mc_thinking.get('draw'):
-            dt = self.last_mc_thinking['draw']
+        if self.last_mc_thinking and self.last_mc_thinking.get("draw"):
+            dt = self.last_mc_thinking["draw"]
             factors.append(f"MC draw sims: {dt['deck_sims']}")
             factors.append(f"DECK avg: {dt['deck_avg_points']}")
             factors.append(f"DISCARD avg: {dt['discard_avg_points']}")
-            if dt.get('discard_card'):
+            if dt.get("discard_card"):
                 factors.append(f"Discard card: {dt['discard_card']}")
             reasoning_str = (
                 f"MC: DECK avg={dt['deck_avg_points']}, "
@@ -1258,18 +1338,14 @@ class MonteCarloAI(ContextAwareAI):
         options_str: list[tuple[str, int]] = []
         reasoning_str = ""
 
-        if self.last_mc_thinking and self.last_mc_thinking.get('discard'):
-            dd = self.last_mc_thinking['discard']
+        if self.last_mc_thinking and self.last_mc_thinking.get("discard"):
+            dd = self.last_mc_thinking["discard"]
             factors.append(f"MC discard candidates: {len(dd['candidates'])}")
             factors.append(f"Deadwood cards: {dd.get('deadwood_count', len(dd['candidates']))}")
-            for cand in dd['candidates']:
-                options_str.append((cand['card'], cand['deadwood_after']))
-                factors.append(
-                    f"{cand['card']}: avg={cand['avg_points']}, dw={cand['deadwood_after']}"
-                )
-            reasoning_str = (
-                f"MC: chose {dd['chosen']} from {len(dd['candidates'])} candidates"
-            )
+            for cand in dd["candidates"]:
+                options_str.append((cand["card"], cand["deadwood_after"]))
+                factors.append(f"{cand['card']}: avg={cand['avg_points']}, dw={cand['deadwood_after']}")
+            reasoning_str = f"MC: chose {dd['chosen']} from {len(dd['candidates'])} candidates"
         else:
             reasoning_str = f"Discarded {card} (fallback)"
 
@@ -1293,17 +1369,17 @@ class MonteCarloAI(ContextAwareAI):
         score_val = None
         reasoning_str = ""
 
-        if self.last_mc_thinking and self.last_mc_thinking.get('knock'):
-            kt = self.last_mc_thinking['knock']
+        if self.last_mc_thinking and self.last_mc_thinking.get("knock"):
+            kt = self.last_mc_thinking["knock"]
             factors.append(f"Deadwood: {kt['deadwood']}")
 
-            if kt.get('reason'):
+            if kt.get("reason"):
                 factors.append(f"Reason: {kt['reason']}")
                 reasoning_str = f"Knock ({kt['reason']}): deadwood={kt['deadwood']}"
-            elif kt.get('knock_avg_points') is not None:
+            elif kt.get("knock_avg_points") is not None:
                 factors.append(f"MC knock avg: {kt['knock_avg_points']}")
                 factors.append(f"MC continue avg: {kt['continue_avg_points']}")
-                score_val = kt['knock_avg_points']
+                score_val = kt["knock_avg_points"]
                 reasoning_str = (
                     f"MC: knock avg={kt['knock_avg_points']}, "
                     f"continue avg={kt['continue_avg_points']} "

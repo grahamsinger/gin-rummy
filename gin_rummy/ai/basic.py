@@ -121,15 +121,10 @@ class BasicAI:
         # Take the card if it reduces deadwood by enough
         improvement = current_deadwood - new_deadwood
         if improvement >= self.min_deadwood_improvement:
-            reason = (
-                f"reduces deadwood from {current_deadwood} to {new_deadwood} "
-                f"by discarding {would_discard}"
-            )
+            reason = f"reduces deadwood from {current_deadwood} to {new_deadwood} by discarding {would_discard}"
             return True, reason
         else:
-            reason = (
-                f"improvement {improvement} < required {self.min_deadwood_improvement}"
-            )
+            reason = f"improvement {improvement} < required {self.min_deadwood_improvement}"
             return False, reason
 
     def decide_discard(self, hand: Hand) -> Card:
@@ -143,12 +138,12 @@ class BasicAI:
         """
         cards = list(hand)
         best_discard = None
-        best_deadwood = float('inf')
+        best_deadwood = float("inf")
         discard_options: list[tuple[Card, int]] = []
 
         # Try discarding each card and see which leaves lowest deadwood
         for i, card in enumerate(cards):
-            remaining = cards[:i] + cards[i+1:]
+            remaining = cards[:i] + cards[i + 1 :]
             analysis = analyze_hand(remaining)
             discard_options.append((card, analysis.deadwood_value))
             if analysis.deadwood_value < best_deadwood:
@@ -231,9 +226,7 @@ class BasicAI:
             )
             return True
 
-    def decide_draw_with_reasoning(
-        self, hand: Hand, discard_top: Card | None
-    ) -> DrawReasoning:
+    def decide_draw_with_reasoning(self, hand: Hand, discard_top: Card | None) -> DrawReasoning:
         """Decide where to draw with detailed reasoning.
 
         Args:
@@ -285,12 +278,12 @@ class BasicAI:
         """
         cards = list(hand)
         best_discard = None
-        best_deadwood = float('inf')
+        best_deadwood = float("inf")
         discard_options: list[tuple[Card, int]] = []
 
         # Try discarding each card and see which leaves lowest deadwood
         for i, card in enumerate(cards):
-            remaining = cards[:i] + cards[i+1:]
+            remaining = cards[:i] + cards[i + 1 :]
             analysis = analyze_hand(remaining)
             discard_options.append((card, analysis.deadwood_value))
             if analysis.deadwood_value < best_deadwood:
@@ -373,8 +366,7 @@ class BasicAI:
                 return KnockReasoning(
                     should_knock=True,
                     reasoning=(
-                        f"Knocked: deadwood={deadwood} <= {self.conservative_knock_threshold} "
-                        "(strategy=conservative)"
+                        f"Knocked: deadwood={deadwood} <= {self.conservative_knock_threshold} (strategy=conservative)"
                     ),
                     score=None,
                     factors=factors,
@@ -384,8 +376,7 @@ class BasicAI:
                 return KnockReasoning(
                     should_knock=False,
                     reasoning=(
-                        f"No knock: deadwood={deadwood} > {self.conservative_knock_threshold} "
-                        "(strategy=conservative)"
+                        f"No knock: deadwood={deadwood} > {self.conservative_knock_threshold} (strategy=conservative)"
                     ),
                     score=None,
                     factors=factors,

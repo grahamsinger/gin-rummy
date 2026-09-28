@@ -423,12 +423,8 @@ class Config:
             display=merge_dataclass(base.display, overrides.get("display", {})),
             database=merge_dataclass(base.database, overrides.get("database", {})),
             assist=merge_dataclass(base.assist, overrides.get("assist", {})),
-            context_aware_ai=merge_dataclass(
-                base.context_aware_ai, overrides.get("context_aware_ai", {})
-            ),
-            monte_carlo_ai=merge_dataclass(
-                base.monte_carlo_ai, overrides.get("monte_carlo_ai", {})
-            ),
+            context_aware_ai=merge_dataclass(base.context_aware_ai, overrides.get("context_aware_ai", {})),
+            monte_carlo_ai=merge_dataclass(base.monte_carlo_ai, overrides.get("monte_carlo_ai", {})),
         )
 
 

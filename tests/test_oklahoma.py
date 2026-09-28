@@ -1,7 +1,6 @@
 """Tests for Oklahoma Gin mode."""
 
-import pytest
-from gin_rummy.game import Game, GamePhase, InvalidActionError
+from gin_rummy.game import Game, GamePhase
 from gin_rummy.models import Card, Suit, Rank
 
 
@@ -131,30 +130,34 @@ class TestSpadeDoubling:
         alice = game.players[0]
         bob = game.players[1]
 
-        alice.hand = Hand([
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.DIAMONDS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.HEARTS),
-            Card(Rank.THREE, Suit.HEARTS),
-            Card(Rank.FOUR, Suit.HEARTS),
-            Card(Rank.SIX, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.DIAMONDS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-        ])
-        bob.hand = Hand([
-            Card(Rank.KING, Suit.HEARTS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.HEARTS),
-            Card(Rank.TWO, Suit.CLUBS),
-            Card(Rank.THREE, Suit.CLUBS),
-            Card(Rank.FOUR, Suit.CLUBS),
-            Card(Rank.FIVE, Suit.HEARTS),
-            Card(Rank.SIX, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.HEARTS),
-            Card(Rank.TEN, Suit.CLUBS),
-        ])
+        alice.hand = Hand(
+            [
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.DIAMONDS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.HEARTS),
+                Card(Rank.THREE, Suit.HEARTS),
+                Card(Rank.FOUR, Suit.HEARTS),
+                Card(Rank.SIX, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.DIAMONDS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+            ]
+        )
+        bob.hand = Hand(
+            [
+                Card(Rank.KING, Suit.HEARTS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.HEARTS),
+                Card(Rank.TWO, Suit.CLUBS),
+                Card(Rank.THREE, Suit.CLUBS),
+                Card(Rank.FOUR, Suit.CLUBS),
+                Card(Rank.FIVE, Suit.HEARTS),
+                Card(Rank.SIX, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.HEARTS),
+                Card(Rank.TEN, Suit.CLUBS),
+            ]
+        )
 
         game.current_player_idx = 0
         game.phase = GamePhase.DISCARDING

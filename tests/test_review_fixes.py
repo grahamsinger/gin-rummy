@@ -101,8 +101,7 @@ class TestE2OptimalLayoff:
         for melds in ([set5, run678], [run678, set5]):
             laid_off = find_layoff_cards(defender, melds)
             assert set(laid_off) == set(defender), (
-                f"expected both cards laid off with meld order "
-                f"{[str(m) for m in melds]}, got {laid_off}"
+                f"expected both cards laid off with meld order {[str(m) for m in melds]}, got {laid_off}"
             )
 
     def test_layoff_maximizes_value(self):
@@ -144,8 +143,8 @@ class TestE3RoundResultDeadwood:
         ]
         knocker.hand._invalidate_cache()
         defender.hand._cards = [
-            Card(Rank.NINE, Suit.SPADES),   # lays off on 6-7-8 run
-            Card(Rank.TEN, Suit.SPADES),    # chain layoff
+            Card(Rank.NINE, Suit.SPADES),  # lays off on 6-7-8 run
+            Card(Rank.TEN, Suit.SPADES),  # chain layoff
             Card(Rank.KING, Suit.CLUBS),
             Card(Rank.KING, Suit.DIAMONDS),
             Card(Rank.QUEEN, Suit.CLUBS),
@@ -231,18 +230,20 @@ class TestA2StatisticalPhantomDiscards:
         ai = StatisticalAI()
         ai._round_discards.clear()
 
-        hand = Hand([
-            Card(Rank.TWO, Suit.HEARTS),
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.DIAMONDS),
-            Card(Rank.NINE, Suit.SPADES),
-            Card(Rank.JACK, Suit.HEARTS),
-            Card(Rank.KING, Suit.CLUBS),
-            Card(Rank.ACE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.SPADES),
-            Card(Rank.SIX, Suit.HEARTS),
-            Card(Rank.EIGHT, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.TWO, Suit.HEARTS),
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.DIAMONDS),
+                Card(Rank.NINE, Suit.SPADES),
+                Card(Rank.JACK, Suit.HEARTS),
+                Card(Rank.KING, Suit.CLUBS),
+                Card(Rank.ACE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.SPADES),
+                Card(Rank.SIX, Suit.HEARTS),
+                Card(Rank.EIGHT, Suit.CLUBS),
+            ]
+        )
         # Draw decision internally simulates a discard via _card_helps_hand;
         # that hypothetical must not be recorded as a real discard
         ai.decide_draw(hand, Card(Rank.TEN, Suit.DIAMONDS))
@@ -290,10 +291,7 @@ class TestA8OpponentModelRediscard:
         model.record_discard(eight_h)
         assert not model.is_rank_dangerous(Rank.EIGHT)
         assert model.total_pickups == 0
-        assert all(
-            eight_d not in m.cards and eight_h not in m.cards
-            for m in model.inferred_melds
-        )
+        assert all(eight_d not in m.cards and eight_h not in m.cards for m in model.inferred_melds)
 
 
 class TestBuriedDiscardsExcludeOwnPickups:

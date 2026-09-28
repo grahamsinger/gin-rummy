@@ -54,11 +54,7 @@ class SessionStore:
         now = time.monotonic()
         removed = 0
         with self._lock:
-            expired_ids = [
-                sid
-                for sid, entry in self._sessions.items()
-                if now - entry.last_accessed > self.ttl_seconds
-            ]
+            expired_ids = [sid for sid, entry in self._sessions.items() if now - entry.last_accessed > self.ttl_seconds]
             for sid in expired_ids:
                 del self._sessions[sid]
                 removed += 1

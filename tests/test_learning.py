@@ -14,7 +14,7 @@ from gin_rummy.models import Card, Rank, Suit, Hand
 from gin_rummy.learning.state import StateEncoder, card_to_index, NUM_CARDS
 from gin_rummy.learning.models import DrawNet, DiscardNet, KnockNet, ModelPersistence
 from gin_rummy.learning.replay import Experience, ReplayBuffer, batch_to_tensors
-from gin_rummy.learning.rewards import RewardCalculator, RewardConfig
+from gin_rummy.learning.rewards import RewardCalculator
 
 
 class TestStateEncoder:
@@ -150,9 +150,7 @@ class TestNetworks:
 
         assert save_path.exists()
 
-        loaded_draw, loaded_discard, loaded_knock, loaded_meta = ModelPersistence.load(
-            save_path
-        )
+        loaded_draw, loaded_discard, loaded_knock, loaded_meta = ModelPersistence.load(save_path)
 
         assert loaded_meta["episode"] == 100
         assert loaded_meta["win_rate"] == 0.55
@@ -231,9 +229,7 @@ class TestReplayBuffer:
             ),
         ]
 
-        states, actions, rewards, next_states, dones = batch_to_tensors(
-            batch, torch.device("cpu")
-        )
+        states, actions, rewards, next_states, dones = batch_to_tensors(batch, torch.device("cpu"))
 
         assert states.shape == (2, 198)
         assert actions.shape == (2,)
@@ -320,9 +316,7 @@ class TestTrainerResume:
         # Same network objects -> optimizers still train the loaded weights.
         assert target.learning_ai.draw_net is draw_net_before
         assert self._param_ids(target.draw_optimizer) == {id(p) for p in target.learning_ai.draw_net.parameters()}
-        assert self._param_ids(target.discard_optimizer) == {
-            id(p) for p in target.learning_ai.discard_net.parameters()
-        }
+        assert self._param_ids(target.discard_optimizer) == {id(p) for p in target.learning_ai.discard_net.parameters()}
         assert self._param_ids(target.knock_optimizer) == {id(p) for p in target.learning_ai.knock_net.parameters()}
 
         # Weights actually loaded.

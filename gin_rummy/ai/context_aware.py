@@ -136,7 +136,7 @@ class ContextAwareAI(BasicAI):
         """
         cards = list(hand)
         best_discard = None
-        best_score = float('inf')  # Lower is better
+        best_score = float("inf")  # Lower is better
         discard_options: list[tuple[Card, float, int, str]] = []
 
         # Get context for unavailable cards calculation (buried discards
@@ -167,16 +167,11 @@ class ContextAwareAI(BasicAI):
             # Prefer discards that leave more live outs (cards with meld potential)
             if self.context_config.live_outs_discard_weight > 0:
                 remaining_hand = Hand(remaining)
-                outs_analysis = self.outs_calculator.calculate_outs(
-                    remaining_hand, dead_cards, deck_position
-                )
+                outs_analysis = self.outs_calculator.calculate_outs(remaining_hand, dead_cards, deck_position)
                 # Lower score is better, so subtract based on weighted out value
                 # More/better outs = lower score = better to keep that hand
                 # Use weighted_value to account for strategic importance of different out types
-                live_outs_bonus = (
-                    outs_analysis.weighted_value
-                    * self.context_config.live_outs_discard_weight
-                )
+                live_outs_bonus = outs_analysis.weighted_value * self.context_config.live_outs_discard_weight
                 score -= live_outs_bonus
                 if outs_analysis.live_out_count > 0:
                     flags.append(f"outs={outs_analysis.live_out_count},wv={outs_analysis.weighted_value:.1f}")
@@ -230,9 +225,7 @@ class ContextAwareAI(BasicAI):
             )
         else:
             # Find the chosen option's details
-            chosen = next(
-                (opt for opt in discard_options if opt[0] == best_discard), None
-            )
+            chosen = next((opt for opt in discard_options if opt[0] == best_discard), None)
             if chosen:
                 _, score, deadwood, flags = chosen
                 flag_str = f" [{flags}]" if flags else ""
@@ -389,9 +382,7 @@ class ContextAwareAI(BasicAI):
         # Undercut risk modifier: opponent looks strong?
         threat_level = self.opponent_model.estimate_threat_level(context)
         if threat_level >= self.context_config.undercut_risk_threshold:
-            undercut_modifier = (
-                -self.context_config.undercut_risk_weight * threat_level
-            )
+            undercut_modifier = -self.context_config.undercut_risk_weight * threat_level
             score += undercut_modifier
             factors.append(f"undercut_risk={undercut_modifier:.2f}(threat={threat_level:.2f})")
 
@@ -399,9 +390,7 @@ class ContextAwareAI(BasicAI):
         deck_remaining_pct = 1.0 - context.deck_position_pct
         if deck_remaining_pct < self.context_config.late_game_knock_threshold:
             # Urgency increases as deck empties
-            urgency = 1.0 - (
-                deck_remaining_pct / self.context_config.late_game_knock_threshold
-            )
+            urgency = 1.0 - (deck_remaining_pct / self.context_config.late_game_knock_threshold)
             urgency_modifier = self.context_config.deck_urgency_weight * urgency
             score += urgency_modifier
             factors.append(f"urgency={urgency_modifier:.2f}(deck={deck_remaining_pct:.0%})")
@@ -445,9 +434,7 @@ class ContextAwareAI(BasicAI):
 
         return score
 
-    def _should_pursue_gin(
-        self, hand: Hand, context: GameContext
-    ) -> tuple[bool, float]:
+    def _should_pursue_gin(self, hand: Hand, context: GameContext) -> tuple[bool, float]:
         """Determine if we should wait for gin instead of knocking.
 
         Args:
@@ -487,10 +474,7 @@ class ContextAwareAI(BasicAI):
         ev_knock = 10 - deadwood
         ev_gin = gin_probability * 25 + (1 - gin_probability) * ev_knock
 
-        should_pursue = (
-            gin_probability >= self.context_config.min_gin_probability
-            and ev_gin > ev_knock
-        )
+        should_pursue = gin_probability >= self.context_config.min_gin_probability and ev_gin > ev_knock
 
         logger.debug(
             "Gin pursuit: prob=%.2f, EV(knock)=%d, EV(gin)=%.1f, pursue=%s",
@@ -538,9 +522,7 @@ class ContextAwareAI(BasicAI):
         can_knock = test_analysis.deadwood_value <= threshold
 
         # Use context-aware knock decision
-        should_knock = can_knock and self.should_knock(
-            test_hand, ctx, pending_discard=discard
-        )
+        should_knock = can_knock and self.should_knock(test_hand, ctx, pending_discard=discard)
 
         logger.debug(
             "--- ContextAwareAI Turn End --- (discard=%s, knock=%s)",
@@ -584,7 +566,7 @@ class ContextAwareAI(BasicAI):
         """
         cards = list(hand)
         best_discard = None
-        best_score = float('inf')  # Lower is better
+        best_score = float("inf")  # Lower is better
         discard_options: list[tuple[Card, float, int, str]] = []
 
         # Get context for unavailable cards calculation (buried discards
@@ -601,7 +583,7 @@ class ContextAwareAI(BasicAI):
                 cards_in_3card_melds.update(meld.cards)
 
         for i, card in enumerate(cards):
-            remaining = cards[:i] + cards[i + 1:]
+            remaining = cards[:i] + cards[i + 1 :]
             analysis = analyze_hand(remaining)
 
             # Base score is resulting deadwood (lower = better)
@@ -612,13 +594,8 @@ class ContextAwareAI(BasicAI):
             # Calculate live outs for the remaining hand
             if self.context_config.live_outs_discard_weight > 0:
                 remaining_hand = Hand(remaining)
-                outs_analysis = self.outs_calculator.calculate_outs(
-                    remaining_hand, dead_cards, deck_position
-                )
-                live_outs_bonus = (
-                    outs_analysis.weighted_value
-                    * self.context_config.live_outs_discard_weight
-                )
+                outs_analysis = self.outs_calculator.calculate_outs(remaining_hand, dead_cards, deck_position)
+                live_outs_bonus = outs_analysis.weighted_value * self.context_config.live_outs_discard_weight
                 score -= live_outs_bonus
                 if outs_analysis.live_out_count > 0:
                     flags.append(f"outs={outs_analysis.live_out_count}")
@@ -781,9 +758,7 @@ class ContextAwareAI(BasicAI):
                 factors=factors,
             )
 
-    def _calculate_knock_score_with_factors(
-        self, hand: Hand, context: GameContext
-    ) -> tuple[float, list[str]]:
+    def _calculate_knock_score_with_factors(self, hand: Hand, context: GameContext) -> tuple[float, list[str]]:
         """Calculate knock score and return detailed factors.
 
         Args:

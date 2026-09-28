@@ -7,9 +7,17 @@ from gin_rummy.models.melds import Meld, MeldType, HandAnalysis, analyze_hand, f
 from gin_rummy.models.player import Player
 
 __all__ = [
-    "Card", "Suit", "Rank",
-    "Deck", "DeckEmptyError",
-    "Hand", "CardNotInHandError",
-    "Meld", "MeldType", "HandAnalysis", "analyze_hand", "find_all_melds",
+    "Card",
+    "Suit",
+    "Rank",
+    "Deck",
+    "DeckEmptyError",
+    "Hand",
+    "CardNotInHandError",
+    "Meld",
+    "MeldType",
+    "HandAnalysis",
+    "analyze_hand",
+    "find_all_melds",
     "Player",
 ]

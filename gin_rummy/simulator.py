@@ -14,7 +14,6 @@ from gin_rummy.game import Game, GamePhase, RoundResult
 from gin_rummy.game_runner import (
     TurnResult,
     TurnActions,
-    TurnCallbacks,
     execute_ai_turn,
 )
 
@@ -27,6 +26,7 @@ def _get_learning_ai():
     global _LearningAI
     if _LearningAI is None:
         from gin_rummy.learning import LearningAI
+
         _LearningAI = LearningAI
     return _LearningAI
 
@@ -524,25 +524,29 @@ def main() -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "-n", "--num-games",
+        "-n",
+        "--num-games",
         type=int,
         default=100,
         help="Number of games to simulate",
     )
     parser.add_argument(
-        "-t", "--target-score",
+        "-t",
+        "--target-score",
         type=int,
         default=100,
         help="Score needed to win a game (0 for single-round mode)",
     )
     parser.add_argument(
-        "-s", "--seed",
+        "-s",
+        "--seed",
         type=int,
         default=None,
         help="Random seed for reproducibility",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="count",
         default=0,
         help="Increase verbosity (-v for INFO, -vv for DEBUG)",

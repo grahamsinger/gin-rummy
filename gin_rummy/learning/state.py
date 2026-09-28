@@ -13,7 +13,7 @@ import torch
 
 if TYPE_CHECKING:
     from gin_rummy.context import GameContext, KnownCards, OpponentModel
-    from gin_rummy.models import Card, Hand, Rank, Suit
+    from gin_rummy.models import Card, Hand
 
 
 # Card encoding: 52 cards indexed as suit * 13 + rank
@@ -130,9 +130,7 @@ class StateEncoder:
 
         return encoding
 
-    def encode_game_features(
-        self, hand: Hand, context: GameContext | None
-    ) -> np.ndarray:
+    def encode_game_features(self, hand: Hand, context: GameContext | None) -> np.ndarray:
         """Encode scalar game features as normalized values.
 
         Returns 8-dimensional vector:

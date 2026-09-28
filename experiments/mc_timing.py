@@ -22,35 +22,39 @@ from gin_rummy.models import Card, Hand, Rank, Suit
 
 def make_hand_11() -> Hand:
     """Mid-game 11-card hand: two melds forming, real discard candidates."""
-    return Hand([
-        Card(Rank.ACE, Suit.SPADES),
-        Card(Rank.ACE, Suit.HEARTS),
-        Card(Rank.ACE, Suit.DIAMONDS),
-        Card(Rank.THREE, Suit.SPADES),
-        Card(Rank.FOUR, Suit.SPADES),
-        Card(Rank.FIVE, Suit.SPADES),
-        Card(Rank.SEVEN, Suit.HEARTS),
-        Card(Rank.EIGHT, Suit.HEARTS),
-        Card(Rank.TWO, Suit.HEARTS),
-        Card(Rank.KING, Suit.DIAMONDS),
-        Card(Rank.NINE, Suit.CLUBS),
-    ])
+    return Hand(
+        [
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.SPADES),
+            Card(Rank.FOUR, Suit.SPADES),
+            Card(Rank.FIVE, Suit.SPADES),
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.EIGHT, Suit.HEARTS),
+            Card(Rank.TWO, Suit.HEARTS),
+            Card(Rank.KING, Suit.DIAMONDS),
+            Card(Rank.NINE, Suit.CLUBS),
+        ]
+    )
 
 
 def make_hand_10() -> Hand:
     """Knock-eligible 10-card hand (deadwood 2)."""
-    return Hand([
-        Card(Rank.ACE, Suit.SPADES),
-        Card(Rank.ACE, Suit.HEARTS),
-        Card(Rank.ACE, Suit.DIAMONDS),
-        Card(Rank.THREE, Suit.SPADES),
-        Card(Rank.FOUR, Suit.SPADES),
-        Card(Rank.FIVE, Suit.SPADES),
-        Card(Rank.SEVEN, Suit.HEARTS),
-        Card(Rank.EIGHT, Suit.HEARTS),
-        Card(Rank.NINE, Suit.HEARTS),
-        Card(Rank.TWO, Suit.HEARTS),
-    ])
+    return Hand(
+        [
+            Card(Rank.ACE, Suit.SPADES),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.DIAMONDS),
+            Card(Rank.THREE, Suit.SPADES),
+            Card(Rank.FOUR, Suit.SPADES),
+            Card(Rank.FIVE, Suit.SPADES),
+            Card(Rank.SEVEN, Suit.HEARTS),
+            Card(Rank.EIGHT, Suit.HEARTS),
+            Card(Rank.NINE, Suit.HEARTS),
+            Card(Rank.TWO, Suit.HEARTS),
+        ]
+    )
 
 
 def make_context(hand: Hand) -> GameContext:
@@ -58,10 +62,12 @@ def make_context(hand: Hand) -> GameContext:
         my_hand=frozenset(hand),
         opponent_hand_known=frozenset({Card(Rank.QUEEN, Suit.CLUBS)}),
         discard_top=Card(Rank.SIX, Suit.DIAMONDS),
-        discard_buried=frozenset({
-            Card(Rank.KING, Suit.CLUBS),
-            Card(Rank.TEN, Suit.DIAMONDS),
-        }),
+        discard_buried=frozenset(
+            {
+                Card(Rank.KING, Suit.CLUBS),
+                Card(Rank.TEN, Suit.DIAMONDS),
+            }
+        ),
     )
     return GameContext(
         deck_remaining=20,
@@ -121,11 +127,13 @@ def run_combo(sims: int, workers: int, reps: int) -> dict:
     def discard_fn():
         ai._turn_plan = None
         ai.decide_discard(hand11)
+
     discard_times = time_decision(discard_fn, reps)
 
     def knock_fn():
         ai._turn_plan = None  # force the full knock evaluation path
         ai.should_knock(hand10, ctx, pending_discard=Card(Rank.KING, Suit.DIAMONDS))
+
     knock_times = time_decision(knock_fn, reps)
 
     ai.shutdown()
@@ -134,37 +142,32 @@ def run_combo(sims: int, workers: int, reps: int) -> dict:
     discard = statistics.median(discard_times)
     knock = statistics.median(knock_times)
     return {
-        'sims': sims,
-        'workers': workers,
-        'draw_s': draw,
-        'discard_s': discard,
-        'knock_s': knock,
-        'turn_s': draw + discard + knock,
+        "sims": sims,
+        "workers": workers,
+        "draw_s": draw,
+        "discard_s": discard,
+        "knock_s": knock,
+        "turn_s": draw + discard + knock,
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--sims', default='100,500,1000,2000',
-                        help='Comma-separated simulation counts')
-    parser.add_argument('--workers', default='1,4,8,0',
-                        help='Comma-separated worker counts (0 = auto: cores-1)')
-    parser.add_argument('--reps', type=int, default=3,
-                        help='Timed repetitions per decision (median reported)')
+    parser.add_argument("--sims", default="100,500,1000,2000", help="Comma-separated simulation counts")
+    parser.add_argument("--workers", default="1,4,8,0", help="Comma-separated worker counts (0 = auto: cores-1)")
+    parser.add_argument("--reps", type=int, default=3, help="Timed repetitions per decision (median reported)")
     args = parser.parse_args()
 
-    sims_list = [int(s) for s in args.sims.split(',')]
-    workers_list = [int(w) for w in args.workers.split(',')]
+    sims_list = [int(s) for s in args.sims.split(",")]
+    workers_list = [int(w) for w in args.workers.split(",")]
 
     import os
+
     auto = max(1, (os.cpu_count() or 2) - 1)
     print(f"CPU cores: {os.cpu_count()} (auto workers = {auto})")
     print(f"Reps per decision: {args.reps} (median reported)\n")
 
-    header = (
-        f"{'sims':>6} {'workers':>8} {'draw':>9} {'discard':>9} "
-        f"{'knock':>9} {'turn':>9}"
-    )
+    header = f"{'sims':>6} {'workers':>8} {'draw':>9} {'discard':>9} {'knock':>9} {'turn':>9}"
     print(header)
     print("-" * len(header))
 

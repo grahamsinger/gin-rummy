@@ -14,10 +14,19 @@ from gin_rummy.config import get_config
 from gin_rummy.web.game_session import GameSession
 from gin_rummy.web.session_store import SessionStore
 from gin_rummy.database import (
-    get_game_hands, get_all_players, delete_player_stats,
-    get_hand_turns, get_connection, cleanup_empty_games,
-    get_ai_decisions_for_turn, db_list_to_cards, card_to_db_str,
-    delete_game, GameTracker, get_incomplete_games, init_db,
+    get_game_hands,
+    get_all_players,
+    delete_player_stats,
+    get_hand_turns,
+    get_connection,
+    cleanup_empty_games,
+    get_ai_decisions_for_turn,
+    db_list_to_cards,
+    card_to_db_str,
+    delete_game,
+    GameTracker,
+    get_incomplete_games,
+    init_db,
 )
 from gin_rummy.models import analyze_hand
 
@@ -172,8 +181,8 @@ async def draw(request: Request, response: Response, draw_request: DrawRequest):
     """Draw a card from deck or discard pile."""
     session = get_or_create_session(request, response)
     result = session.draw(draw_request.source)
-    if 'error' in result:
-        raise HTTPException(status_code=400, detail=result['error'])
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
@@ -182,8 +191,8 @@ async def discard(request: Request, response: Response, discard_request: Discard
     """Discard a card from hand, optionally knocking."""
     session = get_or_create_session(request, response)
     result = session.discard(discard_request.card, knock=discard_request.knock)
-    if 'error' in result:
-        raise HTTPException(status_code=400, detail=result['error'])
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
@@ -192,8 +201,8 @@ async def knock(request: Request, response: Response):
     """Knock to end the round."""
     session = get_or_create_session(request, response)
     result = session.knock()
-    if 'error' in result:
-        raise HTTPException(status_code=400, detail=result['error'])
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
@@ -202,8 +211,8 @@ async def ai_turn(request: Request, response: Response):
     """Execute AI's turn."""
     session = get_or_create_session(request, response)
     result = session.ai_turn()
-    if 'error' in result:
-        raise HTTPException(status_code=400, detail=result['error'])
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
@@ -212,8 +221,8 @@ async def new_round(request: Request, response: Response):
     """Start a new round."""
     session = get_or_create_session(request, response)
     result = session.new_round()
-    if 'error' in result:
-        raise HTTPException(status_code=400, detail=result['error'])
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
@@ -222,8 +231,8 @@ async def resume_game(request: Request, response: Response, resume_request: Resu
     """Resume an incomplete game by ID."""
     session = get_or_create_session(request, response)
     result = session.resume_game(resume_request.game_id)
-    if 'error' in result:
-        raise HTTPException(status_code=400, detail=result['error'])
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
@@ -231,7 +240,7 @@ async def resume_game(request: Request, response: Response, resume_request: Resu
 async def get_resumable_games(player_name: str | None = None):
     """Get list of in-progress games that can be resumed."""
     games = get_incomplete_games(player_name=player_name)
-    return {'games': games}
+    return {"games": games}
 
 
 @app.get("/api/stats/{player_name}")
@@ -240,11 +249,7 @@ async def get_player_stats(player_name: str):
     tracker = GameTracker()
     stats = tracker.get_player_stats(player_name)
     if stats is None:
-        return {
-            'player_name': player_name,
-            'total_hands': 0,
-            'message': 'No stats available for this player yet'
-        }
+        return {"player_name": player_name, "total_hands": 0, "message": "No stats available for this player yet"}
     return stats
 
 
@@ -270,12 +275,8 @@ async def get_score_history(request: Request, response: Response):
     session = get_or_create_session(request, response)
 
     # Check if a game is in progress
-    if not hasattr(session, 'tracker') or session.tracker.game_id is None:
-        return {
-            'player1_name': '',
-            'player2_name': '',
-            'rounds': []
-        }
+    if not hasattr(session, "tracker") or session.tracker.game_id is None:
+        return {"player1_name": "", "player2_name": "", "rounds": []}
 
     # Get player names
     player1_name = session.game.players[0].name
@@ -285,21 +286,17 @@ async def get_score_history(request: Request, response: Response):
     hands = get_game_hands(session.tracker.game_id)
 
     if not hands:
-        return {
-            'player1_name': player1_name,
-            'player2_name': player2_name,
-            'rounds': []
-        }
+        return {"player1_name": player1_name, "player2_name": player2_name, "rounds": []}
 
     # Get turn counts for each hand
     with get_connection() as conn:
-        hand_ids = [h['id'] for h in hands]
-        placeholders = ','.join('?' * len(hand_ids))
+        hand_ids = [h["id"] for h in hands]
+        placeholders = ",".join("?" * len(hand_ids))
         cursor = conn.execute(
             f"SELECT hand_id, COUNT(*) as turn_count FROM turns WHERE hand_id IN ({placeholders}) GROUP BY hand_id",
-            hand_ids
+            hand_ids,
         )
-        turn_counts = {row['hand_id']: row['turn_count'] for row in cursor.fetchall()}
+        turn_counts = {row["hand_id"]: row["turn_count"] for row in cursor.fetchall()}
 
     # Calculate cumulative scores
     cumulative_p1 = 0
@@ -308,37 +305,35 @@ async def get_score_history(request: Request, response: Response):
 
     for hand in hands:
         # Skip incomplete hands (in-progress rounds)
-        if hand['points_awarded'] is None:
+        if hand["points_awarded"] is None:
             continue
 
         # Skip hands without turn data (human never played)
-        if turn_counts.get(hand['id'], 0) == 0:
+        if turn_counts.get(hand["id"], 0) == 0:
             continue
 
         # Add points to winner
-        if hand['winner_name'] == player1_name:
-            cumulative_p1 += hand['points_awarded']
-        elif hand['winner_name'] == player2_name:
-            cumulative_p2 += hand['points_awarded']
+        if hand["winner_name"] == player1_name:
+            cumulative_p1 += hand["points_awarded"]
+        elif hand["winner_name"] == player2_name:
+            cumulative_p2 += hand["points_awarded"]
         # else: draw, no points awarded
 
-        rounds.append({
-            'hand_id': hand['id'],
-            'hand_number': hand['hand_number'],
-            'winner': hand['winner_name'],
-            'points': hand['points_awarded'],
-            'cumulative_p1': cumulative_p1,
-            'cumulative_p2': cumulative_p2,
-            'is_gin': hand['is_gin'],
-            'is_undercut': hand['is_undercut'],
-            'is_draw': hand['is_draw']
-        })
+        rounds.append(
+            {
+                "hand_id": hand["id"],
+                "hand_number": hand["hand_number"],
+                "winner": hand["winner_name"],
+                "points": hand["points_awarded"],
+                "cumulative_p1": cumulative_p1,
+                "cumulative_p2": cumulative_p2,
+                "is_gin": hand["is_gin"],
+                "is_undercut": hand["is_undercut"],
+                "is_draw": hand["is_draw"],
+            }
+        )
 
-    return {
-        'player1_name': player1_name,
-        'player2_name': player2_name,
-        'rounds': rounds
-    }
+    return {"player1_name": player1_name, "player2_name": player2_name, "rounds": rounds}
 
 
 def _analyze_cards_for_display(card_strs: list[str]) -> dict:
@@ -349,7 +344,7 @@ def _analyze_cards_for_display(card_strs: list[str]) -> dict:
         - melds: list of meld info [{cards: [...], type: 'set'|'run'}, ...]
     """
     if not card_strs:
-        return {'cards': [], 'melds': []}
+        return {"cards": [], "melds": []}
 
     # Parse cards
     cards = db_list_to_cards(card_strs)
@@ -363,10 +358,12 @@ def _analyze_cards_for_display(card_strs: list[str]) -> dict:
     for meld in analysis.melds:
         meld_cards = [card_to_db_str(c) for c in meld.cards]
         melded_cards.update(meld.cards)
-        melds_info.append({
-            'cards': meld_cards,
-            'type': meld.meld_type.name.lower()  # 'set' or 'run'
-        })
+        melds_info.append(
+            {
+                "cards": meld_cards,
+                "type": meld.meld_type.name.lower(),  # 'set' or 'run'
+            }
+        )
 
     # Build display order: melds first (sorted within), then deadwood sorted by rank
     display_cards = []
@@ -381,8 +378,8 @@ def _analyze_cards_for_display(card_strs: list[str]) -> dict:
     display_cards.extend([card_to_db_str(c) for c in sorted_deadwood])
 
     return {
-        'cards': display_cards,
-        'melds': melds_info,
+        "cards": display_cards,
+        "melds": melds_info,
     }
 
 
@@ -390,6 +387,7 @@ def _analyze_cards_for_display(card_strs: list[str]) -> dict:
 async def get_turns_for_hand(hand_id: int):
     """Get all turns for a specific hand, including AI decision reasoning."""
     import json
+
     turns = get_hand_turns(hand_id)
 
     if not turns:
@@ -400,40 +398,36 @@ async def get_turns_for_hand(hand_id: int):
     for turn in turns:
         turn_dict = dict(turn)
         # Parse JSON fields and add meld analysis
-        if turn_dict.get('cards_before'):
-            cards_before = json.loads(turn_dict['cards_before'])
+        if turn_dict.get("cards_before"):
+            cards_before = json.loads(turn_dict["cards_before"])
             analysis_before = _analyze_cards_for_display(cards_before)
-            turn_dict['cards_before'] = analysis_before['cards']
-            turn_dict['melds_before'] = analysis_before['melds']
-        if turn_dict.get('cards_after'):
-            cards_after = json.loads(turn_dict['cards_after'])
+            turn_dict["cards_before"] = analysis_before["cards"]
+            turn_dict["melds_before"] = analysis_before["melds"]
+        if turn_dict.get("cards_after"):
+            cards_after = json.loads(turn_dict["cards_after"])
             analysis_after = _analyze_cards_for_display(cards_after)
-            turn_dict['cards_after'] = analysis_after['cards']
-            turn_dict['melds_after'] = analysis_after['melds']
+            turn_dict["cards_after"] = analysis_after["cards"]
+            turn_dict["melds_after"] = analysis_after["melds"]
 
         # Get AI decisions for this turn
-        ai_decisions = get_ai_decisions_for_turn(turn_dict['id'])
-        turn_dict['ai_decisions'] = [
+        ai_decisions = get_ai_decisions_for_turn(turn_dict["id"])
+        turn_dict["ai_decisions"] = [
             {
-                'decision_type': d['decision_type'],
-                'choice': d['choice'],
-                'reasoning': d['reasoning'],
-                'factors': json.loads(d['options_considered']) if d['options_considered'] else [],
+                "decision_type": d["decision_type"],
+                "choice": d["choice"],
+                "reasoning": d["reasoning"],
+                "factors": json.loads(d["options_considered"]) if d["options_considered"] else [],
             }
             for d in ai_decisions
         ]
 
         result.append(turn_dict)
 
-    return {'hand_id': hand_id, 'turns': result}
+    return {"hand_id": hand_id, "turns": result}
 
 
 @app.get("/api/history")
-async def get_history(
-    player_name: str | None = None,
-    limit: int = 50,
-    offset: int = 0
-):
+async def get_history(player_name: str | None = None, limit: int = 50, offset: int = 0):
     """Get game and hand history with optional filtering.
 
     Args:
@@ -441,7 +435,6 @@ async def get_history(
         limit: Maximum number of games to return (default 50)
         offset: Number of games to skip for pagination (default 0)
     """
-    import json
 
     with get_connection() as conn:
         # Build query with optional player filter
@@ -492,14 +485,14 @@ async def get_history(
                    WHERE h.game_id = ?
                      AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = h.id)
                    ORDER BY h.hand_number""",
-                (game['game_id'],)
+                (game["game_id"],),
             )
-            game['hands'] = [dict(h) for h in hands_cursor.fetchall()]
+            game["hands"] = [dict(h) for h in hands_cursor.fetchall()]
 
     # Filter out games with no hands (all hands had no turn data)
-    games = [g for g in games if g['hands']]
+    games = [g for g in games if g["hands"]]
 
-    return {'games': games, 'limit': limit, 'offset': offset}
+    return {"games": games, "limit": limit, "offset": offset}
 
 
 @app.delete("/api/games/{game_id}")
@@ -527,6 +520,7 @@ async def memory_page():
 # Scenario quiz
 # ---------------------------------------------------------------------------
 
+
 class NewScenarioRequest(BaseModel):
     seed: int | None = None
 
@@ -553,8 +547,8 @@ def _get_scenario_session(request: Request, response: Response):
 
 
 def _scenario_result(result: dict) -> dict:
-    if 'error' in result:
-        raise HTTPException(status_code=400, detail=result['error'])
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
@@ -603,7 +597,4 @@ async def scenario_knock(req: ScenarioKnockRequest, request: Request, response: 
 async def run_cleanup():
     """Clean up games and hands with no turn data."""
     result = cleanup_empty_games()
-    return {
-        "message": f"Cleaned up {result['games']} games and {result['hands']} hands",
-        **result
-    }
+    return {"message": f"Cleaned up {result['games']} games and {result['hands']} hands", **result}

@@ -135,7 +135,9 @@ def generate_scenario(
         other = seat_ais[1 - actor_idx]
 
         result, actions, round_result = execute_ai_turn(
-            game, actor, other_ai=other,
+            game,
+            actor,
+            other_ai=other,
             callbacks=callbacks if actor_idx != HUMAN_SEAT else None,
         )
         if result.name != "CONTINUE":
@@ -225,16 +227,16 @@ def panel_draw_choices(panel: list[PanelMember], game: Game) -> list[dict]:
     for member in panel:
         if member.is_context_aware:
             member.ai.update_context(ctx)
-            reasoning = member.ai.decide_draw_with_reasoning(
-                hand, game.top_of_discard, ctx
-            )
+            reasoning = member.ai.decide_draw_with_reasoning(hand, game.top_of_discard, ctx)
         else:
             reasoning = member.ai.decide_draw_with_reasoning(hand, game.top_of_discard)
-        choices.append({
-            "name": member.name,
-            "choice": reasoning.choice,
-            "reasoning": reasoning.reasoning,
-        })
+        choices.append(
+            {
+                "name": member.name,
+                "choice": reasoning.choice,
+                "reasoning": reasoning.reasoning,
+            }
+        )
     return choices
 
 
@@ -256,18 +258,18 @@ def panel_discard_choices(panel: list[PanelMember], game: Game) -> list[dict]:
             thinking = member.ai.last_mc_thinking.get("discard")
             if thinking:
                 mc_candidates = thinking["candidates"]
-        choices.append({
-            "name": member.name,
-            "card": reasoning.card,
-            "reasoning": reasoning.reasoning,
-            "mc_candidates": mc_candidates,
-        })
+        choices.append(
+            {
+                "name": member.name,
+                "card": reasoning.card,
+                "reasoning": reasoning.reasoning,
+                "mc_candidates": mc_candidates,
+            }
+        )
     return choices
 
 
-def panel_knock_choices(
-    panel: list[PanelMember], game: Game, post_hand: Hand, pending: Card
-) -> list[dict]:
+def panel_knock_choices(panel: list[PanelMember], game: Game, post_hand: Hand, pending: Card) -> list[dict]:
     """Ask each panel AI whether it would knock with the post-discard hand.
 
     Returns one dict per AI: {name, knocks (bool), reasoning}.
@@ -277,22 +279,20 @@ def panel_knock_choices(
     for member in panel:
         if member.is_context_aware:
             member.ai.update_context(ctx)
-            reasoning = member.ai.should_knock_with_reasoning(
-                post_hand, ctx, pending_discard=pending
-            )
+            reasoning = member.ai.should_knock_with_reasoning(post_hand, ctx, pending_discard=pending)
         else:
             reasoning = member.ai.should_knock_with_reasoning(post_hand)
-        choices.append({
-            "name": member.name,
-            "knocks": reasoning.should_knock,
-            "reasoning": reasoning.reasoning,
-        })
+        choices.append(
+            {
+                "name": member.name,
+                "knocks": reasoning.should_knock,
+                "reasoning": reasoning.reasoning,
+            }
+        )
     return choices
 
 
-def reveal_draw_choices(
-    panel: list[PanelMember], game: Game, user_choice: DrawChoice
-) -> None:
+def reveal_draw_choices(panel: list[PanelMember], game: Game, user_choice: DrawChoice) -> None:
     took = f"take {game.top_of_discard}" if user_choice == DrawChoice.DISCARD else "draw from deck"
     print(f"\nYou chose: {took}")
     print("-" * 62)
@@ -303,9 +303,7 @@ def reveal_draw_choices(
         print(f"  [{marker}] {member.name:<16} {entry['reasoning']}")
 
 
-def reveal_discard_choices(
-    panel: list[PanelMember], game: Game, user_card: Card
-) -> None:
+def reveal_discard_choices(panel: list[PanelMember], game: Game, user_card: Card) -> None:
     print(f"\nYou discarded: {user_card}")
     print("-" * 62)
     for member, entry in zip(panel, panel_discard_choices(panel, game)):
@@ -391,22 +389,21 @@ def print_summary(panel: list[PanelMember], scenarios: int) -> None:
     print(f"{'AI':<18} {'draw':>6} {'discard':>9} {'knock':>7}")
     for member in panel:
         print(
-            f"{member.name:<18} {member.draw_agreements:>6} "
-            f"{member.discard_agreements:>9} {member.knock_agreements:>7}"
+            f"{member.name:<18} {member.draw_agreements:>6} {member.discard_agreements:>9} {member.knock_agreements:>7}"
         )
     print("\n(counts = times the AI agreed with your choice)")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Quiz yourself against the AIs on random gin rummy scenarios"
-    )
+    parser = argparse.ArgumentParser(description="Quiz yourself against the AIs on random gin rummy scenarios")
     parser.add_argument("--count", type=int, default=3, help="Number of scenarios")
     parser.add_argument("--seed", type=int, default=None, help="Base RNG seed")
-    parser.add_argument("--mc-sims", type=int, default=500,
-                        help="MC simulations per decision (default 500: ~2-4s per answer)")
-    parser.add_argument("--mc-workers", type=int, default=8,
-                        help="MC worker processes (8 saturates the useful parallelism)")
+    parser.add_argument(
+        "--mc-sims", type=int, default=500, help="MC simulations per decision (default 500: ~2-4s per answer)"
+    )
+    parser.add_argument(
+        "--mc-workers", type=int, default=8, help="MC worker processes (8 saturates the useful parallelism)"
+    )
     args = parser.parse_args()
 
     base_seed = args.seed if args.seed is not None else random.randrange(1_000_000)

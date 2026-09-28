@@ -32,14 +32,10 @@ def test_4card_run():
     # The remaining hand must still contain a meld
     remaining = [c for c in cards if c != discard]
     remaining_analysis = Hand(remaining).analyze()
-    assert len(remaining_analysis.melds) > 0, (
-        f"discarding {discard} left no melds in hand"
-    )
+    assert len(remaining_analysis.melds) > 0, f"discarding {discard} left no melds in hand"
 
     # Optimal play: discard a king (deadwood 10 -> 10 vs breaking run -> 20+)
-    assert discard.rank == Rank.KING, (
-        f"expected a king discard (pure deadwood), got {discard}"
-    )
+    assert discard.rank == Rank.KING, f"expected a king discard (pure deadwood), got {discard}"
 
 
 def test_run_with_low_deadwood():
@@ -69,6 +65,4 @@ def test_run_with_low_deadwood():
 
     remaining = [c for c in cards if c != discard]
     remaining_analysis = Hand(remaining).analyze()
-    assert len(remaining_analysis.melds) > 0, (
-        f"discarding {discard} broke the run"
-    )
+    assert len(remaining_analysis.melds) > 0, f"discarding {discard} broke the run"

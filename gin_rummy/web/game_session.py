@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, MonteCarloAI, StatisticalAI, DrawChoice
+from gin_rummy.ai import BasicAI, ContextAwareAI, MonteCarloAI, DrawChoice
 from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list, get_connection, get_resumable_game
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
@@ -16,26 +15,49 @@ from gin_rummy.models.hand import CardNotInHandError
 
 # Map for converting card IDs to Card objects
 RANK_MAP = {
-    'A': Rank.ACE, '2': Rank.TWO, '3': Rank.THREE, '4': Rank.FOUR,
-    '5': Rank.FIVE, '6': Rank.SIX, '7': Rank.SEVEN, '8': Rank.EIGHT,
-    '9': Rank.NINE, '10': Rank.TEN, 'J': Rank.JACK, 'Q': Rank.QUEEN, 'K': Rank.KING,
+    "A": Rank.ACE,
+    "2": Rank.TWO,
+    "3": Rank.THREE,
+    "4": Rank.FOUR,
+    "5": Rank.FIVE,
+    "6": Rank.SIX,
+    "7": Rank.SEVEN,
+    "8": Rank.EIGHT,
+    "9": Rank.NINE,
+    "10": Rank.TEN,
+    "J": Rank.JACK,
+    "Q": Rank.QUEEN,
+    "K": Rank.KING,
 }
 
 SUIT_MAP = {
-    'S': Suit.SPADES, 'H': Suit.HEARTS, 'D': Suit.DIAMONDS, 'C': Suit.CLUBS,
+    "S": Suit.SPADES,
+    "H": Suit.HEARTS,
+    "D": Suit.DIAMONDS,
+    "C": Suit.CLUBS,
 }
 
 SUIT_NAMES = {
-    Suit.SPADES: 'spades',
-    Suit.HEARTS: 'hearts',
-    Suit.DIAMONDS: 'diamonds',
-    Suit.CLUBS: 'clubs',
+    Suit.SPADES: "spades",
+    Suit.HEARTS: "hearts",
+    Suit.DIAMONDS: "diamonds",
+    Suit.CLUBS: "clubs",
 }
 
 RANK_NAMES = {
-    Rank.ACE: 'A', Rank.TWO: '2', Rank.THREE: '3', Rank.FOUR: '4',
-    Rank.FIVE: '5', Rank.SIX: '6', Rank.SEVEN: '7', Rank.EIGHT: '8',
-    Rank.NINE: '9', Rank.TEN: '10', Rank.JACK: 'J', Rank.QUEEN: 'Q', Rank.KING: 'K',
+    Rank.ACE: "A",
+    Rank.TWO: "2",
+    Rank.THREE: "3",
+    Rank.FOUR: "4",
+    Rank.FIVE: "5",
+    Rank.SIX: "6",
+    Rank.SEVEN: "7",
+    Rank.EIGHT: "8",
+    Rank.NINE: "9",
+    Rank.TEN: "10",
+    Rank.JACK: "J",
+    Rank.QUEEN: "Q",
+    Rank.KING: "K",
 }
 
 
@@ -61,9 +83,9 @@ def id_to_card(card_id: str) -> Card:
 def card_to_dict(card: Card) -> dict[str, str]:
     """Convert a Card to a JSON-serializable dict."""
     return {
-        'id': card_to_id(card),
-        'rank': RANK_NAMES[card.rank],
-        'suit': SUIT_NAMES[card.suit],
+        "id": card_to_id(card),
+        "rank": RANK_NAMES[card.rank],
+        "suit": SUIT_NAMES[card.suit],
     }
 
 
@@ -134,39 +156,39 @@ def calculate_card_helpfulness(hand: list[Card], dead_cards: frozenset[Card]) ->
                     if card in meld.cards:
                         # Check if this meld is new (wasn't possible without this card)
                         meld_cards_set = set(meld.cards)
-                        is_new_meld = not any(
-                            set(m.cards) == meld_cards_set
-                            for m in current_analysis.melds
-                        )
+                        is_new_meld = not any(set(m.cards) == meld_cards_set for m in current_analysis.melds)
                         if is_new_meld:
                             completes_meld = True
                             break
 
-                helpful_cards.append({
-                    'card': str(card),  # Format with suit symbols
-                    'card_id': card_to_id(card),  # ASCII format for frontend
-                    'reduction': reduction,
-                    'is_dead': is_dead,
-                    'completes_meld': completes_meld,
-                })
+                helpful_cards.append(
+                    {
+                        "card": str(card),  # Format with suit symbols
+                        "card_id": card_to_id(card),  # ASCII format for frontend
+                        "reduction": reduction,
+                        "is_dead": is_dead,
+                        "completes_meld": completes_meld,
+                    }
+                )
 
     # Sort by reduction (most helpful first)
-    helpful_cards.sort(key=lambda x: x['reduction'], reverse=True)
+    helpful_cards.sort(key=lambda x: x["reduction"], reverse=True)
 
     # Count totals
     total_helpful = len(helpful_cards)
-    live_helpful = sum(1 for c in helpful_cards if not c['is_dead'])
+    live_helpful = sum(1 for c in helpful_cards if not c["is_dead"])
 
     return {
-        'helpful_cards': helpful_cards,
-        'total_helpful': total_helpful,
-        'live_helpful': live_helpful,
+        "helpful_cards": helpful_cards,
+        "total_helpful": total_helpful,
+        "live_helpful": live_helpful,
     }
 
 
 @dataclass
 class HandResultData:
     """Hand data for round result display."""
+
     cards: list[dict]
     melds: list[dict]
     deadwood: int
@@ -176,6 +198,7 @@ class HandResultData:
 @dataclass
 class RoundResultData:
     """Round result data for JSON serialization."""
+
     winner: str | None
     points: int
     is_gin: bool
@@ -251,6 +274,7 @@ class GameSession:
         elif not self.player_name:
             # Fallback: generate on server side (shouldn't happen normally)
             import secrets
+
             self.player_name = f"Guest_{secrets.token_hex(2)}"
         if ai_difficulty:
             self.ai_difficulty = ai_difficulty
@@ -333,22 +357,22 @@ class GameSession:
         """
         data = get_resumable_game(game_id)
         if data is None:
-            return {'error': 'Game not found or already complete'}
+            return {"error": "Game not found or already complete"}
 
         # Restore session settings
-        self.player_name = data['player1_name']
-        self.ai_difficulty = data['ai_difficulty'] or 'medium'
-        self.game_mode = data['game_mode'] or 'practice'
-        self.target_score = data['target_score']
-        self.oklahoma_gin = data['oklahoma_gin']
-        self.spade_doubling = data['spade_doubling']
-        self.match_mode = data['match_mode']
-        self.match_id = data['match_id']
+        self.player_name = data["player1_name"]
+        self.ai_difficulty = data["ai_difficulty"] or "medium"
+        self.game_mode = data["game_mode"] or "practice"
+        self.target_score = data["target_score"]
+        self.oklahoma_gin = data["oklahoma_gin"]
+        self.spade_doubling = data["spade_doubling"]
+        self.match_mode = data["match_mode"]
+        self.match_id = data["match_id"]
         self.games_won = {}
         if self.match_mode:
             self.games_won = {
-                data['player1_name']: data['games_won'].get(data['player1_name'], 0),
-                data['player2_name']: data['games_won'].get(data['player2_name'], 0),
+                data["player1_name"]: data["games_won"].get(data["player1_name"], 0),
+                data["player2_name"]: data["games_won"].get(data["player2_name"], 0),
             }
         self.match_winner = None
         self.game_over = False
@@ -365,20 +389,20 @@ class GameSession:
 
         # Create Game object
         self.game = Game(
-            data['player1_name'],
-            data['player2_name'],
+            data["player1_name"],
+            data["player2_name"],
             is_oklahoma_gin=self.oklahoma_gin,
             spade_doubling_enabled=self.spade_doubling,
         )
         self.human_idx = 0
 
         # Restore cumulative scores
-        self.game.players[0].score = data['p1_score']
-        self.game.players[1].score = data['p2_score']
+        self.game.players[0].score = data["p1_score"]
+        self.game.players[1].score = data["p2_score"]
 
         # Set dealer: alternate from last completed hand's dealer
-        last_dealer = data['last_dealer_name']
-        if last_dealer == data['player1_name']:
+        last_dealer = data["last_dealer_name"]
+        if last_dealer == data["player1_name"]:
             self.game.dealer_idx = 1  # Next dealer is player2
         else:
             self.game.dealer_idx = 0  # Next dealer is player1
@@ -399,7 +423,7 @@ class GameSession:
         # Wire up tracker to existing game
         self.tracker = GameTracker()
         self.tracker._game_id = game_id
-        self.tracker._hand_number = data['last_hand_number']
+        self.tracker._hand_number = data["last_hand_number"]
         self.db_game_started = True
         self.buffered_ai_turns = []
 
@@ -424,8 +448,8 @@ class GameSession:
         discard = self.ai.decide_discard(self.game.current_player.hand)
         self.game.discard_to_start(discard)
         self.last_ai_action = {
-            'type': 'first_discard',
-            'discarded': card_to_id(discard),
+            "type": "first_discard",
+            "discarded": card_to_id(discard),
         }
 
     def _ensure_db_started(self) -> None:
@@ -450,7 +474,7 @@ class GameSession:
         # Flush any buffered AI turns (including reasoning if captured)
         for turn_data in self.buffered_ai_turns:
             # Pop reasoning before recording turn (not a DB field)
-            reasoning = turn_data.pop('_reasoning', None)
+            reasoning = turn_data.pop("_reasoning", None)
             turn_id = self.tracker.record_turn(**turn_data)
             # Record AI decisions if reasoning was captured
             if reasoning:
@@ -475,7 +499,7 @@ class GameSession:
         if reasoning.draw:
             self.tracker.record_ai_decision(
                 turn_id=turn_id,
-                decision_type='draw',
+                decision_type="draw",
                 choice=reasoning.draw.choice.name,
                 reasoning=reasoning.draw.reasoning,
                 options_considered=reasoning.draw.factors,
@@ -489,7 +513,7 @@ class GameSession:
                 options.append(f"{card_str} → dw={dw}")
             self.tracker.record_ai_decision(
                 turn_id=turn_id,
-                decision_type='discard',
+                decision_type="discard",
                 choice=str(reasoning.discard.card),
                 reasoning=reasoning.discard.reasoning,
                 options_considered=options,
@@ -499,8 +523,8 @@ class GameSession:
         if reasoning.knock:
             self.tracker.record_ai_decision(
                 turn_id=turn_id,
-                decision_type='knock',
-                choice='knock' if reasoning.knock.should_knock else 'no_knock',
+                decision_type="knock",
+                choice="knock" if reasoning.knock.should_knock else "no_knock",
                 reasoning=reasoning.knock.reasoning,
                 options_considered=reasoning.knock.factors,
             )
@@ -508,7 +532,7 @@ class GameSession:
     def get_state(self) -> dict[str, Any]:
         """Get current game state as JSON-serializable dict."""
         if self.game is None:
-            return {'error': 'No game in progress'}
+            return {"error": "No game in progress"}
 
         human = self.game.players[self.human_idx]
         opponent = self.game.players[1 - self.human_idx]
@@ -519,28 +543,30 @@ class GameSession:
         # Build melds list
         melds = []
         for meld in analysis.melds:
-            melds.append({
-                'type': 'set' if meld.meld_type.name == 'SET' else 'run',
-                'cards': [card_to_id(c) for c in meld.cards],
-            })
+            melds.append(
+                {
+                    "type": "set" if meld.meld_type.name == "SET" else "run",
+                    "cards": [card_to_id(c) for c in meld.cards],
+                }
+            )
 
         # Determine phase string
         phase_map = {
-            GamePhase.DEALING: 'dealing',
-            GamePhase.FIRST_DISCARD: 'first_discard',
-            GamePhase.DRAWING: 'drawing',
-            GamePhase.DISCARDING: 'discarding',
-            GamePhase.KNOCKED: 'knocked',
-            GamePhase.ROUND_OVER: 'round_over',
+            GamePhase.DEALING: "dealing",
+            GamePhase.FIRST_DISCARD: "first_discard",
+            GamePhase.DRAWING: "drawing",
+            GamePhase.DISCARDING: "discarding",
+            GamePhase.KNOCKED: "knocked",
+            GamePhase.ROUND_OVER: "round_over",
         }
-        phase = phase_map.get(self.game.phase, 'unknown')
+        phase = phase_map.get(self.game.phase, "unknown")
 
         # Is it human's turn?
         your_turn = self.game.current_player_idx == self.human_idx
 
         # Handle first discard phase
         if self.game.phase == GamePhase.FIRST_DISCARD and your_turn:
-            phase = 'discarding'  # Treat as discarding for UI
+            phase = "discarding"  # Treat as discarding for UI
 
         # Build message (basic fallback - frontend will handle AI action display)
         if self.game.phase == GamePhase.ROUND_OVER:
@@ -551,7 +577,7 @@ class GameSession:
             else:
                 message = "Computer is starting..."
         elif your_turn:
-            if phase == 'drawing':
+            if phase == "drawing":
                 message = "Your turn - click deck or discard pile to draw"
             else:
                 message = "Choose a card to discard"
@@ -563,53 +589,52 @@ class GameSession:
         dead_cards = sorted(context.dead_cards, key=lambda c: (c.suit.value, c.rank.value))
         opponent_known = sorted(
             context.known_cards.opponent_hand_known if context.known_cards else [],
-            key=lambda c: (c.suit.value, c.rank.value)
+            key=lambda c: (c.suit.value, c.rank.value),
         )
 
         # Calculate card helpfulness
         helpfulness = calculate_card_helpfulness(
-            list(human.hand),
-            context.known_cards.dead_cards if context.known_cards else frozenset()
+            list(human.hand), context.known_cards.dead_cards if context.known_cards else frozenset()
         )
 
         state = {
-            'phase': phase,
-            'your_turn': your_turn,
-            'hand': [card_to_dict(c) for c in human.hand],
-            'melds': melds,
-            'deadwood': analysis.deadwood_value,
-            'deadwood_cards': [card_to_id(c) for c in analysis.deadwood_cards],
-            'discard_top': card_to_dict(self.game.top_of_discard) if self.game.top_of_discard else None,
-            'deck_remaining': len(self.game.deck),
-            'opponent_card_count': len(opponent.hand),
-            'scores': {
+            "phase": phase,
+            "your_turn": your_turn,
+            "hand": [card_to_dict(c) for c in human.hand],
+            "melds": melds,
+            "deadwood": analysis.deadwood_value,
+            "deadwood_cards": [card_to_id(c) for c in analysis.deadwood_cards],
+            "discard_top": card_to_dict(self.game.top_of_discard) if self.game.top_of_discard else None,
+            "deck_remaining": len(self.game.deck),
+            "opponent_card_count": len(opponent.hand),
+            "scores": {
                 human.name: human.score,
                 opponent.name: opponent.score,
             },
-            'can_knock': self.game.can_knock and your_turn and phase == 'discarding',
-            'message': message,
-            'round_over': self.game.phase == GamePhase.ROUND_OVER,
-            'round_result': self._round_result_to_dict() if self.last_round_result else None,
-            'ai_action': self.last_ai_action,  # Structured AI action data for frontend
-            'assist': {
-                'dead_cards': [str(c) for c in dead_cards],  # Use suit symbols
-                'opponent_known': [str(c) for c in opponent_known],  # Use suit symbols
-                'helpfulness': helpfulness,  # Card helpfulness ranking
+            "can_knock": self.game.can_knock and your_turn and phase == "discarding",
+            "message": message,
+            "round_over": self.game.phase == GamePhase.ROUND_OVER,
+            "round_result": self._round_result_to_dict() if self.last_round_result else None,
+            "ai_action": self.last_ai_action,  # Structured AI action data for frontend
+            "assist": {
+                "dead_cards": [str(c) for c in dead_cards],  # Use suit symbols
+                "opponent_known": [str(c) for c in opponent_known],  # Use suit symbols
+                "helpfulness": helpfulness,  # Card helpfulness ranking
             },
-            'game_mode': self.game_mode,
-            'target_score': self.target_score,
-            'game_over': self.game_over,
-            'game_winner': self.winner,
-            'oklahoma_gin': self.oklahoma_gin,
-            'spade_doubling': self.spade_doubling,
-            'knock_threshold': self.game.knock_threshold,
-            'upcard': card_to_dict(self.game.upcard) if self.game.upcard else None,
-            'match_mode': self.match_mode,
-            'games_won': self.games_won if self.match_mode else None,
-            'match_winner': self.match_winner if self.match_mode else None,
-            'player_name': self.player_name,
-            'ai_difficulty': self.ai_difficulty,
-            'game_id': self.tracker.game_id,
+            "game_mode": self.game_mode,
+            "target_score": self.target_score,
+            "game_over": self.game_over,
+            "game_winner": self.winner,
+            "oklahoma_gin": self.oklahoma_gin,
+            "spade_doubling": self.spade_doubling,
+            "knock_threshold": self.game.knock_threshold,
+            "upcard": card_to_dict(self.game.upcard) if self.game.upcard else None,
+            "match_mode": self.match_mode,
+            "games_won": self.games_won if self.match_mode else None,
+            "match_winner": self.match_winner if self.match_mode else None,
+            "player_name": self.player_name,
+            "ai_difficulty": self.ai_difficulty,
+            "game_id": self.tracker.game_id,
         }
 
         return state
@@ -621,41 +646,41 @@ class GameSession:
 
         def hand_data_to_dict(hd: HandResultData) -> dict:
             return {
-                'cards': hd.cards,
-                'melds': hd.melds,
-                'deadwood': hd.deadwood,
-                'deadwood_cards': hd.deadwood_cards,
+                "cards": hd.cards,
+                "melds": hd.melds,
+                "deadwood": hd.deadwood,
+                "deadwood_cards": hd.deadwood_cards,
             }
 
         return {
-            'winner': self.last_round_result.winner,
-            'points': self.last_round_result.points,
-            'is_gin': self.last_round_result.is_gin,
-            'is_undercut': self.last_round_result.is_undercut,
-            'is_draw': self.last_round_result.is_draw,
-            'player_hand': hand_data_to_dict(self.last_round_result.player_hand),
-            'opponent_hand': hand_data_to_dict(self.last_round_result.opponent_hand),
-            'layoff_cards': self.last_round_result.layoff_cards,
-            'defender_deadwood_before': self.last_round_result.defender_deadwood_before,
+            "winner": self.last_round_result.winner,
+            "points": self.last_round_result.points,
+            "is_gin": self.last_round_result.is_gin,
+            "is_undercut": self.last_round_result.is_undercut,
+            "is_draw": self.last_round_result.is_draw,
+            "player_hand": hand_data_to_dict(self.last_round_result.player_hand),
+            "opponent_hand": hand_data_to_dict(self.last_round_result.opponent_hand),
+            "layoff_cards": self.last_round_result.layoff_cards,
+            "defender_deadwood_before": self.last_round_result.defender_deadwood_before,
         }
 
     def draw(self, source: str) -> dict[str, Any]:
         """Draw a card from deck or discard."""
         if self.game is None:
-            return {'error': 'No game in progress'}
+            return {"error": "No game in progress"}
 
         if self.game.current_player_idx != self.human_idx:
-            return {'error': "Not your turn"}
+            return {"error": "Not your turn"}
 
         if self.game.phase != GamePhase.DRAWING:
-            return {'error': f"Cannot draw in {self.game.phase.name} phase"}
+            return {"error": f"Cannot draw in {self.game.phase.name} phase"}
 
         try:
             human = self.game.players[self.human_idx]
 
             # Stock exhausted: a deck draw at the minimum ends the round in a draw
             # (mirrors the AI-turn handling; previously this soft-locked the round)
-            if source != 'discard' and len(self.game.deck) <= self.game.min_deck_cards:
+            if source != "discard" and len(self.game.deck) <= self.game.min_deck_cards:
                 self._end_round_as_draw()
                 return self.get_state()
 
@@ -665,21 +690,21 @@ class GameSession:
             self.turn_deadwood_before = analysis_before.deadwood_value
 
             # Draw the card
-            if source == 'discard':
+            if source == "discard":
                 if not self.game.top_of_discard:
-                    return {'error': 'Discard pile is empty'}
+                    return {"error": "Discard pile is empty"}
                 card = self.game.draw_from_discard()
-                self.turn_drew_from = 'discard'
+                self.turn_drew_from = "discard"
             else:
                 card = self.game.draw_from_deck()
-                self.turn_drew_from = 'deck'
+                self.turn_drew_from = "deck"
 
             self.turn_card_drawn = card
 
             return self.get_state()
 
         except InvalidActionError as e:
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def _end_round_as_draw(self) -> None:
         """End the current round as a draw (stock exhausted)."""
@@ -712,10 +737,10 @@ class GameSession:
             returns 'needs_knock_decision', 'post_discard_deadwood', 'discard_card'.
         """
         if self.game is None:
-            return {'error': 'No game in progress'}
+            return {"error": "No game in progress"}
 
         if self.game.current_player_idx != self.human_idx:
-            return {'error': "Not your turn"}
+            return {"error": "Not your turn"}
 
         try:
             card = id_to_card(card_id)
@@ -727,18 +752,16 @@ class GameSession:
                 return self.get_state()
 
             if self.game.phase != GamePhase.DISCARDING:
-                return {'error': f"Cannot discard in {self.game.phase.name} phase"}
+                return {"error": f"Cannot discard in {self.game.phase.name} phase"}
 
             # Rule: cannot discard the card just taken from the discard pile
             if card == self.game.discard_blocked_card:
-                return {
-                    'error': f"Cannot discard {card} - it was just taken "
-                             f"from the discard pile"
-                }
+                return {"error": f"Cannot discard {card} - it was just taken from the discard pile"}
 
             # Calculate post-discard deadwood
             remaining_cards = [c for c in human.hand if c != card]
             from gin_rummy.models import analyze_hand
+
             post_analysis = analyze_hand(remaining_cards)
             post_discard_deadwood = post_analysis.deadwood_value
             can_knock_after = post_discard_deadwood <= self.game.knock_threshold
@@ -750,17 +773,17 @@ class GameSession:
             # If knock decision not yet made and can knock, ask user
             if knock is None and can_knock_after:
                 state = self.get_state()
-                state['needs_knock_decision'] = True
-                state['post_discard_deadwood'] = post_discard_deadwood
-                state['discard_card'] = card_id
+                state["needs_knock_decision"] = True
+                state["post_discard_deadwood"] = post_discard_deadwood
+                state["discard_card"] = card_id
                 return state
 
             # An explicit knock request that isn't legal must fail loudly,
             # not silently downgrade to a plain discard
             if knock and not can_knock_after:
                 return {
-                    'error': f"Cannot knock: {post_discard_deadwood} deadwood "
-                             f"exceeds threshold of {self.game.knock_threshold}"
+                    "error": f"Cannot knock: {post_discard_deadwood} deadwood "
+                    f"exceeds threshold of {self.game.knock_threshold}"
                 }
 
             if knock and can_knock_after:
@@ -770,10 +793,12 @@ class GameSession:
                 result = self.game.knock_with_discard(card)
 
                 # Record turn with knock
-                if (self.turn_cards_before is not None and
-                    self.turn_deadwood_before is not None and
-                    self.turn_drew_from and
-                    self.turn_card_drawn):
+                if (
+                    self.turn_cards_before is not None
+                    and self.turn_deadwood_before is not None
+                    and self.turn_drew_from
+                    and self.turn_card_drawn
+                ):
                     cards_after = cards_to_db_list(remaining_cards)
                     self.tracker.record_turn(
                         player_name=human.name,
@@ -784,7 +809,7 @@ class GameSession:
                         cards_before=self.turn_cards_before,
                         cards_after=cards_after,
                         deadwood_before=self.turn_deadwood_before,
-                        deadwood_after=post_discard_deadwood
+                        deadwood_after=post_discard_deadwood,
                     )
 
                 self._save_round_result(result)
@@ -797,10 +822,12 @@ class GameSession:
             self._ensure_db_started()
 
             # Record turn without knock
-            if (self.turn_cards_before is not None and
-                self.turn_deadwood_before is not None and
-                self.turn_drew_from and
-                self.turn_card_drawn):
+            if (
+                self.turn_cards_before is not None
+                and self.turn_deadwood_before is not None
+                and self.turn_drew_from
+                and self.turn_card_drawn
+            ):
                 cards_after = cards_to_db_list(list(human.hand))
                 deadwood_after = human.hand.analyze().deadwood_value
                 self.tracker.record_turn(
@@ -812,24 +839,24 @@ class GameSession:
                     cards_before=self.turn_cards_before,
                     cards_after=cards_after,
                     deadwood_before=self.turn_deadwood_before,
-                    deadwood_after=deadwood_after
+                    deadwood_after=deadwood_after,
                 )
 
             return self.get_state()
 
         except (InvalidActionError, CardNotInHandError, KeyError, ValueError) as e:
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def knock(self) -> dict[str, Any]:
         """Knock to end the round."""
         if self.game is None:
-            return {'error': 'No game in progress'}
+            return {"error": "No game in progress"}
 
         if self.game.current_player_idx != self.human_idx:
-            return {'error': "Not your turn"}
+            return {"error": "Not your turn"}
 
         if self.game.phase != GamePhase.DISCARDING:
-            return {'error': 'Can only knock during discard phase'}
+            return {"error": "Can only knock during discard phase"}
 
         try:
             result = self.game.knock()
@@ -837,15 +864,15 @@ class GameSession:
             return self.get_state()
 
         except InvalidActionError as e:
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def ai_turn(self) -> dict[str, Any]:
         """Execute AI's turn."""
         if self.game is None or self.ai is None:
-            return {'error': 'No game in progress'}
+            return {"error": "No game in progress"}
 
         if self.game.current_player_idx == self.human_idx:
-            return {'error': "It's your turn, not AI's"}
+            return {"error": "It's your turn, not AI's"}
 
         # Handle first discard if needed
         if self.game.phase == GamePhase.FIRST_DISCARD:
@@ -853,7 +880,7 @@ class GameSession:
             return self.get_state()
 
         if self.game.phase not in (GamePhase.DRAWING, GamePhase.DISCARDING):
-            return {'error': f"Cannot play in {self.game.phase.name} phase"}
+            return {"error": f"Cannot play in {self.game.phase.name} phase"}
 
         # Save AI player state before turn (for tracking)
         ai_player = self.game.players[1 - self.human_idx]
@@ -861,28 +888,27 @@ class GameSession:
         deadwood_before = ai_player.hand.analyze().deadwood_value
 
         # Execute AI turn with reasoning capture
-        turn_result, actions, round_result = execute_ai_turn(
-            self.game, self.ai, capture_reasoning=True
-        )
+        turn_result, actions, round_result = execute_ai_turn(self.game, self.ai, capture_reasoning=True)
 
         # Build AI action first (before checking result type) so it's available for round result modal
         if actions:
             self.last_ai_action = {
-                'type': 'turn',
-                'draw_from': 'discard' if actions.draw_source == DrawChoice.DISCARD else 'deck',
-                'drew_card': card_to_id(actions.drawn_card) if actions.draw_source == DrawChoice.DISCARD else None,
-                'discarded': card_to_id(actions.discarded_card),
+                "type": "turn",
+                "draw_from": "discard" if actions.draw_source == DrawChoice.DISCARD else "deck",
+                "drew_card": card_to_id(actions.drawn_card) if actions.draw_source == DrawChoice.DISCARD else None,
+                "discarded": card_to_id(actions.discarded_card),
             }
 
             # Attach Monte Carlo thinking data if available and enabled
             if isinstance(self.ai, MonteCarloAI) and self.ai.last_mc_thinking:
                 from gin_rummy.config import get_config
+
                 if get_config().monte_carlo_ai.show_web_thinking:
-                    self.last_ai_action['mc_thinking'] = self.ai.last_mc_thinking
+                    self.last_ai_action["mc_thinking"] = self.ai.last_mc_thinking
                 self.ai.last_mc_thinking = None  # Reset for next turn
 
             # Prepare turn data for recording
-            drew_from = 'discard' if actions.draw_source == DrawChoice.DISCARD else 'deck'
+            drew_from = "discard" if actions.draw_source == DrawChoice.DISCARD else "deck"
             if actions.did_knock:
                 # Cards after knock (discarded card removed)
                 cards_after = cards_to_db_list([c for c in ai_player.hand if c != actions.discarded_card])
@@ -890,15 +916,15 @@ class GameSession:
                 cards_after = cards_to_db_list(list(ai_player.hand))
 
             turn_data = {
-                'player_name': ai_player.name,
-                'drew_from': drew_from,
-                'card_drawn': card_to_db_str(actions.drawn_card),
-                'card_discarded': card_to_db_str(actions.discarded_card),
-                'did_knock': actions.did_knock,
-                'cards_before': cards_before,
-                'cards_after': cards_after,
-                'deadwood_before': deadwood_before,
-                'deadwood_after': actions.deadwood_after,
+                "player_name": ai_player.name,
+                "drew_from": drew_from,
+                "card_drawn": card_to_db_str(actions.drawn_card),
+                "card_discarded": card_to_db_str(actions.discarded_card),
+                "did_knock": actions.did_knock,
+                "cards_before": cards_before,
+                "cards_after": cards_after,
+                "deadwood_before": deadwood_before,
+                "deadwood_after": actions.deadwood_after,
             }
 
             # Buffer AI turn if DB not started, otherwise record directly
@@ -909,7 +935,7 @@ class GameSession:
                     self._record_ai_decisions(turn_id, actions.reasoning)
             else:
                 # Buffer turn data along with reasoning for later recording
-                turn_data['_reasoning'] = actions.reasoning
+                turn_data["_reasoning"] = actions.reasoning
                 self.buffered_ai_turns.append(turn_data)
 
         if turn_result == TurnResult.DRAW:
@@ -930,10 +956,12 @@ class GameSession:
 
         melds = []
         for meld in analysis.melds:
-            melds.append({
-                'type': 'set' if meld.meld_type.name == 'SET' else 'run',
-                'cards': [card_to_id(c) for c in meld.cards],
-            })
+            melds.append(
+                {
+                    "type": "set" if meld.meld_type.name == "SET" else "run",
+                    "cards": [card_to_id(c) for c in meld.cards],
+                }
+            )
 
         return HandResultData(
             cards=[card_to_dict(c) for c in hand],
@@ -1008,7 +1036,7 @@ class GameSession:
     def new_round(self) -> dict[str, Any]:
         """Start a new round."""
         if self.game is None:
-            return {'error': 'No game in progress'}
+            return {"error": "No game in progress"}
 
         # Don't start a new round if the game is over
         if self.game_over:
@@ -1017,7 +1045,7 @@ class GameSession:
         # Only valid once the current round has actually ended - otherwise a
         # mid-hand request abandons the hand and corrupts DB tracking
         if self.game.phase != GamePhase.ROUND_OVER:
-            return {'error': 'Cannot start a new round while a round is in progress'}
+            return {"error": "Cannot start a new round while a round is in progress"}
 
         self.game.new_round()
         self.game.deal()

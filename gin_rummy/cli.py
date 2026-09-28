@@ -5,25 +5,23 @@ from __future__ import annotations
 import os
 import sys
 import time
-from enum import Enum, auto
 from pathlib import Path
 
 from gin_rummy.ai import BasicAI, DrawChoice, ContextAwareAI
-from gin_rummy.models import Card, Suit, Rank, Hand, MeldType, HandAnalysis, Player, analyze_hand
+from gin_rummy.models import Card, Suit, Hand, MeldType, Player, analyze_hand
 from gin_rummy.config import get_config, load_config
 from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import (
     TurnResult,
     TurnActions,
-    TurnCallbacks,
     execute_ai_turn,
 )
 
 
 # ANSI color codes for terminal output
-RED = "\033[91m"      # Bright red for hearts/diamonds
-RESET = "\033[0m"     # Reset to default
+RED = "\033[91m"  # Bright red for hearts/diamonds
+RESET = "\033[0m"  # Reset to default
 
 # Unicode superscript digits for card selection numbers
 SUPERSCRIPTS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
@@ -278,10 +276,7 @@ def display_hand_by_suit(hand: Hand, show_numbers: bool = True) -> list[Card]:
 
 
 def display_game_state(
-    game: Game,
-    human_player_idx: int,
-    show_opponent: bool = False,
-    turn_player_name: str | None = None
+    game: Game, human_player_idx: int, show_opponent: bool = False, turn_player_name: str | None = None
 ) -> None:
     """Display the current game state from human player's perspective.
 
@@ -303,8 +298,7 @@ def display_game_state(
         print(f"\n>>> {turn_player_name}'s turn <<<")
 
     # Scores
-    print(f"\nScores: {human.name}: {human.score}  |  "
-          f"{opponent.name}: {opponent.score}")
+    print(f"\nScores: {human.name}: {human.score}  |  {opponent.name}: {opponent.score}")
 
     # Opponent info
     print(f"\n{opponent.name} has {len(opponent.hand)} cards")
@@ -359,9 +353,9 @@ def play_human_first_discard(game: Game, human_player_idx: int) -> None:
     """Handle human player's opening discard."""
     current = game.current_player
     display_game_state(game, human_player_idx, turn_player_name=current.name)
-    print(f"Discard one card to start the game.")
+    print("Discard one card to start the game.")
     # Show hand with numbers for selection
-    print(f"\nSelect a card to discard:")
+    print("\nSelect a card to discard:")
     display_cards = display_hand_by_suit(current.hand, show_numbers=True)
     idx = get_card_choice(game.current_player.hand, "\nCard to discard: ")
     card = display_cards[idx]
@@ -383,9 +377,7 @@ def play_ai_first_discard(game: Game, ai: BasicAI) -> None:
 
 
 def play_human_turn(
-    game: Game,
-    human_player_idx: int,
-    tracker: GameTracker | None = None
+    game: Game, human_player_idx: int, tracker: GameTracker | None = None
 ) -> tuple[TurnResult, RoundResult | None]:
     """Play a human player's turn.
 
@@ -445,12 +437,12 @@ def play_human_turn(
             print("Invalid choice")
 
     # Update display after drawing - show cards for discard selection
-    print(f"\nYour hand:")
+    print("\nYour hand:")
     display_cards = display_hand_by_suit(current.hand, show_numbers=True)
 
     # Discard phase - select card first, then optionally knock
     while True:
-        choice = input(f"\nCard # to discard: ").strip().lower()
+        choice = input("\nCard # to discard: ").strip().lower()
 
         if choice == "q":
             print("Thanks for playing!")
@@ -513,7 +505,7 @@ def play_human_turn(
                                 cards_before=cards_before,
                                 cards_after=cards_after,
                                 deadwood_before=deadwood_before,
-                                deadwood_after=post_discard_deadwood
+                                deadwood_after=post_discard_deadwood,
                             )
 
                         display_round_result(game, result)
@@ -536,7 +528,7 @@ def play_human_turn(
                         cards_before=cards_before,
                         cards_after=cards_after,
                         deadwood_before=deadwood_before,
-                        deadwood_after=deadwood_after
+                        deadwood_after=deadwood_after,
                     )
 
                 return TurnResult.CONTINUE, None
@@ -689,8 +681,10 @@ def display_round_result(game: Game, result: RoundResult | None = None) -> None:
         defender = result.loser if result.winner == result.knocker else result.winner
         layoff_str = " ".join(str(c) for c in result.layoff_cards)
         print(f"\n{defender.name} laid off: {layoff_str}")
-        print(f"  (Deadwood: {result.defender_deadwood_before_layoff} → "
-              f"{result.defender_deadwood_before_layoff - sum(c.deadwood_value for c in result.layoff_cards)})")
+        print(
+            f"  (Deadwood: {result.defender_deadwood_before_layoff} → "
+            f"{result.defender_deadwood_before_layoff - sum(c.deadwood_value for c in result.layoff_cards)})"
+        )
 
     # Show result summary
     if result:
@@ -704,8 +698,9 @@ def display_round_result(game: Game, result: RoundResult | None = None) -> None:
         if result.winner:
             print(f"{result.winner.name} wins {result.points} points!")
 
-    print(f"\nScores: {game.players[0].name}: {game.players[0].score}  |  "
-          f"{game.players[1].name}: {game.players[1].score}")
+    print(
+        f"\nScores: {game.players[0].name}: {game.players[0].score}  |  {game.players[1].name}: {game.players[1].score}"
+    )
 
 
 def finish_round(
@@ -724,12 +719,7 @@ def finish_round(
     input("\nPress Enter to continue...")
 
 
-def play_round_vs_ai(
-    game: Game,
-    ai: BasicAI,
-    human_player_idx: int,
-    tracker: GameTracker | None = None
-) -> None:
+def play_round_vs_ai(game: Game, ai: BasicAI, human_player_idx: int, tracker: GameTracker | None = None) -> None:
     """Play a complete round against AI."""
     game.deal()
 
@@ -868,11 +858,7 @@ def main() -> None:
     if tracker:
         winner = max(game.players, key=lambda p: p.score)
         winner_name = winner.name if game.players[0].score != game.players[1].score else None
-        tracker.end_game(
-            winner_name=winner_name,
-            score_p1=game.players[0].score,
-            score_p2=game.players[1].score
-        )
+        tracker.end_game(winner_name=winner_name, score_p1=game.players[0].score, score_p2=game.players[1].score)
 
     print("\n" + "=" * 50)
     print("           FINAL SCORES")

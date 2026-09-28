@@ -20,18 +20,31 @@ if TYPE_CHECKING:
 # Uses ASCII format: "AS" = Ace of Spades, "10H" = Ten of Hearts
 # This avoids Unicode escape issues in JSON and is more portable
 
+
 def card_to_db_str(card: Card) -> str:
     """Serialize a Card to database format (ASCII, e.g., 'AS', '10H')."""
     from gin_rummy.models.card import Rank, Suit
 
     rank_map = {
-        Rank.ACE: "A", Rank.TWO: "2", Rank.THREE: "3", Rank.FOUR: "4",
-        Rank.FIVE: "5", Rank.SIX: "6", Rank.SEVEN: "7", Rank.EIGHT: "8",
-        Rank.NINE: "9", Rank.TEN: "10", Rank.JACK: "J", Rank.QUEEN: "Q",
+        Rank.ACE: "A",
+        Rank.TWO: "2",
+        Rank.THREE: "3",
+        Rank.FOUR: "4",
+        Rank.FIVE: "5",
+        Rank.SIX: "6",
+        Rank.SEVEN: "7",
+        Rank.EIGHT: "8",
+        Rank.NINE: "9",
+        Rank.TEN: "10",
+        Rank.JACK: "J",
+        Rank.QUEEN: "Q",
         Rank.KING: "K",
     }
     suit_map = {
-        Suit.SPADES: "S", Suit.HEARTS: "H", Suit.DIAMONDS: "D", Suit.CLUBS: "C",
+        Suit.SPADES: "S",
+        Suit.HEARTS: "H",
+        Suit.DIAMONDS: "D",
+        Suit.CLUBS: "C",
     }
     return f"{rank_map[card.rank]}{suit_map[card.suit]}"
 
@@ -53,13 +66,25 @@ def db_str_to_card(s: str) -> Card:
     from gin_rummy.models.card import Card, Rank, Suit
 
     rank_map = {
-        "A": Rank.ACE, "2": Rank.TWO, "3": Rank.THREE, "4": Rank.FOUR,
-        "5": Rank.FIVE, "6": Rank.SIX, "7": Rank.SEVEN, "8": Rank.EIGHT,
-        "9": Rank.NINE, "10": Rank.TEN, "J": Rank.JACK, "Q": Rank.QUEEN,
+        "A": Rank.ACE,
+        "2": Rank.TWO,
+        "3": Rank.THREE,
+        "4": Rank.FOUR,
+        "5": Rank.FIVE,
+        "6": Rank.SIX,
+        "7": Rank.SEVEN,
+        "8": Rank.EIGHT,
+        "9": Rank.NINE,
+        "10": Rank.TEN,
+        "J": Rank.JACK,
+        "Q": Rank.QUEEN,
         "K": Rank.KING,
     }
     suit_map = {
-        "S": Suit.SPADES, "H": Suit.HEARTS, "D": Suit.DIAMONDS, "C": Suit.CLUBS,
+        "S": Suit.SPADES,
+        "H": Suit.HEARTS,
+        "D": Suit.DIAMONDS,
+        "C": Suit.CLUBS,
     }
 
     # Handle "10" specially (two-character rank)
@@ -192,7 +217,7 @@ CREATE INDEX IF NOT EXISTS idx_games_started_at ON games(started_at);
 def get_db_path() -> Path:
     """Get the database file path from config or default."""
     config = get_config()
-    if hasattr(config, 'database') and hasattr(config.database, 'path'):
+    if hasattr(config, "database") and hasattr(config.database, "path"):
         return Path(config.database.path)
     # Default to game_history.db in current directory
     return Path("game_history.db")
@@ -288,10 +313,17 @@ class GameTracker:
                        target_score, ai_difficulty, match_mode, match_id)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    datetime.now().isoformat(), player1_name, player2_name,
-                    int(oklahoma_gin), int(spade_doubling), game_mode,
-                    target_score, ai_difficulty, int(match_mode), match_id,
-                )
+                    datetime.now().isoformat(),
+                    player1_name,
+                    player2_name,
+                    int(oklahoma_gin),
+                    int(spade_doubling),
+                    game_mode,
+                    target_score,
+                    ai_difficulty,
+                    int(match_mode),
+                    match_id,
+                ),
             )
             conn.commit()
             assert cursor.lastrowid is not None
@@ -309,7 +341,7 @@ class GameTracker:
                    SET ended_at = ?, winner_name = ?, final_score_p1 = ?,
                        final_score_p2 = ?, is_complete = 1
                    WHERE id = ?""",
-                (datetime.now().isoformat(), winner_name, score_p1, score_p2, self._game_id)
+                (datetime.now().isoformat(), winner_name, score_p1, score_p2, self._game_id),
             )
             conn.commit()
 
@@ -322,7 +354,7 @@ class GameTracker:
             cursor = conn.execute(
                 """INSERT INTO hands (game_id, hand_number, dealer_name, started_at)
                    VALUES (?, ?, ?, ?)""",
-                (self._game_id, next_hand_number, dealer_name, datetime.now().isoformat())
+                (self._game_id, next_hand_number, dealer_name, datetime.now().isoformat()),
             )
             conn.commit()
             assert cursor.lastrowid is not None
@@ -353,16 +385,20 @@ class GameTracker:
                        is_gin = ?, is_undercut = ?, is_draw = ?
                    WHERE id = ?""",
                 (
-                    datetime.now().isoformat(), winner_name, points,
-                    int(is_gin), int(is_undercut), int(is_draw), self._hand_id
-                )
+                    datetime.now().isoformat(),
+                    winner_name,
+                    points,
+                    int(is_gin),
+                    int(is_undercut),
+                    int(is_draw),
+                    self._hand_id,
+                ),
             )
             conn.commit()
 
         # Update player stats
         self.update_player_stats(
-            winner_name, loser_name, points, is_gin, is_undercut,
-            is_draw, knocker_name, winner_deadwood, loser_deadwood
+            winner_name, loser_name, points, is_gin, is_undercut, is_draw, knocker_name, winner_deadwood, loser_deadwood
         )
 
     def end_hand_from_result(self, result: RoundResult) -> None:
@@ -394,7 +430,7 @@ class GameTracker:
         cards_before: list[str],
         cards_after: list[str],
         deadwood_before: int,
-        deadwood_after: int
+        deadwood_after: int,
     ) -> int:
         """Record a turn. Returns turn_id."""
         if self._hand_id is None:
@@ -408,11 +444,18 @@ class GameTracker:
                     deadwood_before, deadwood_after)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    self._hand_id, next_turn_number, player_name, drew_from,
-                    card_drawn, card_discarded, int(did_knock),
-                    json.dumps(cards_before), json.dumps(cards_after),
-                    deadwood_before, deadwood_after
-                )
+                    self._hand_id,
+                    next_turn_number,
+                    player_name,
+                    drew_from,
+                    card_drawn,
+                    card_discarded,
+                    int(did_knock),
+                    json.dumps(cards_before),
+                    json.dumps(cards_after),
+                    deadwood_before,
+                    deadwood_after,
+                ),
             )
             conn.commit()
             assert cursor.lastrowid is not None
@@ -425,7 +468,7 @@ class GameTracker:
         decision_type: str,
         choice: str,
         reasoning: str | None = None,
-        options_considered: list[str] | None = None
+        options_considered: list[str] | None = None,
     ) -> int:
         """Record an AI decision. Returns decision_id."""
         with get_connection(self.db_path) as conn:
@@ -434,9 +477,12 @@ class GameTracker:
                    (turn_id, decision_type, choice, reasoning, options_considered)
                    VALUES (?, ?, ?, ?, ?)""",
                 (
-                    turn_id, decision_type, choice, reasoning,
-                    json.dumps(options_considered) if options_considered else None
-                )
+                    turn_id,
+                    decision_type,
+                    choice,
+                    reasoning,
+                    json.dumps(options_considered) if options_considered else None,
+                ),
             )
             conn.commit()
             assert cursor.lastrowid is not None
@@ -467,15 +513,11 @@ class GameTracker:
                    FROM turns
                    WHERE hand_id = ?
                    GROUP BY player_name""",
-                (self._hand_id,)
+                (self._hand_id,),
             ).fetchall()
 
             draw_stats_map = {
-                row['player_name']: {
-                    'deck': row['deck_draws'],
-                    'discard': row['discard_draws']
-                }
-                for row in draw_stats
+                row["player_name"]: {"deck": row["deck_draws"], "discard": row["discard_draws"]} for row in draw_stats
             }
 
             # Get knock deadwood if someone knocked
@@ -485,10 +527,10 @@ class GameTracker:
                     """SELECT deadwood_after FROM turns
                        WHERE hand_id = ? AND player_name = ? AND did_knock = 1
                        ORDER BY turn_number DESC LIMIT 1""",
-                    (self._hand_id, knocker_name)
+                    (self._hand_id, knocker_name),
                 ).fetchone()
                 if knock_turn:
-                    knock_deadwood = knock_turn['deadwood_after']
+                    knock_deadwood = knock_turn["deadwood_after"]
 
             # Update stats for both players
             players = []
@@ -513,51 +555,51 @@ class GameTracker:
                 conn.execute(
                     """INSERT OR IGNORE INTO player_stats (player_name, last_updated)
                        VALUES (?, ?)""",
-                    (player_name, datetime.now().isoformat())
+                    (player_name, datetime.now().isoformat()),
                 )
 
                 # Build update query
                 updates = {
-                    'total_hands': 1,
-                    'hands_won': 1 if is_winner and not is_draw else 0,
-                    'hands_lost': 1 if not is_winner and not is_draw else 0,
-                    'hands_drawn': 1 if is_draw else 0,
-                    'gins': 1 if is_winner and is_gin else 0,
-                    'undercuts_made': 1 if is_winner and is_undercut else 0,
-                    'undercuts_suffered': 1 if not is_winner and is_undercut else 0,
-                    'times_knocked': 1 if is_knocker else 0,
-                    'times_opponent_knocked': 1 if knocker_name and not is_knocker else 0,
-                    'total_points_scored': points if is_winner else 0,
+                    "total_hands": 1,
+                    "hands_won": 1 if is_winner and not is_draw else 0,
+                    "hands_lost": 1 if not is_winner and not is_draw else 0,
+                    "hands_drawn": 1 if is_draw else 0,
+                    "gins": 1 if is_winner and is_gin else 0,
+                    "undercuts_made": 1 if is_winner and is_undercut else 0,
+                    "undercuts_suffered": 1 if not is_winner and is_undercut else 0,
+                    "times_knocked": 1 if is_knocker else 0,
+                    "times_opponent_knocked": 1 if knocker_name and not is_knocker else 0,
+                    "total_points_scored": points if is_winner else 0,
                 }
 
                 # Add deadwood stats
                 if is_winner and not is_draw:
-                    updates['total_deadwood'] = winner_deadwood
-                    updates['deadwood_count'] = 1
+                    updates["total_deadwood"] = winner_deadwood
+                    updates["deadwood_count"] = 1
                 elif not is_winner and not is_draw:
-                    updates['total_deadwood'] = loser_deadwood
-                    updates['deadwood_count'] = 1
+                    updates["total_deadwood"] = loser_deadwood
+                    updates["deadwood_count"] = 1
 
                 # Add draw stats
                 if player_name in draw_stats_map:
-                    updates['draws_from_deck'] = draw_stats_map[player_name]['deck']
-                    updates['draws_from_discard'] = draw_stats_map[player_name]['discard']
+                    updates["draws_from_deck"] = draw_stats_map[player_name]["deck"]
+                    updates["draws_from_discard"] = draw_stats_map[player_name]["discard"]
 
                 # Add knock deadwood if this player knocked
                 if is_knocker and knock_deadwood is not None:
-                    updates['total_knock_deadwood'] = knock_deadwood
-                    updates['knock_count'] = 1
+                    updates["total_knock_deadwood"] = knock_deadwood
+                    updates["knock_count"] = 1
 
                 # Execute update
-                update_clauses = ', '.join(f"{k} = {k} + ?" for k in updates.keys())
-                update_clauses += ', last_updated = ?'
+                update_clauses = ", ".join(f"{k} = {k} + ?" for k in updates.keys())
+                update_clauses += ", last_updated = ?"
                 values = list(updates.values()) + [datetime.now().isoformat(), player_name]
 
                 conn.execute(
                     f"""UPDATE player_stats
                         SET {update_clauses}
                         WHERE player_name = ?""",
-                    values
+                    values,
                 )
 
             conn.commit()
@@ -565,10 +607,7 @@ class GameTracker:
     def get_player_stats(self, player_name: str) -> dict | None:
         """Get lifetime statistics for a player."""
         with get_connection(self.db_path) as conn:
-            row = conn.execute(
-                "SELECT * FROM player_stats WHERE player_name = ?",
-                (player_name,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM player_stats WHERE player_name = ?", (player_name,)).fetchone()
 
             if not row:
                 return None
@@ -576,91 +615,80 @@ class GameTracker:
             stats = dict(row)
 
             # Calculate derived stats
-            if stats['total_hands'] > 0:
-                stats['win_rate'] = stats['hands_won'] / stats['total_hands']
+            if stats["total_hands"] > 0:
+                stats["win_rate"] = stats["hands_won"] / stats["total_hands"]
             else:
-                stats['win_rate'] = 0.0
+                stats["win_rate"] = 0.0
 
-            if stats['deadwood_count'] > 0:
-                stats['avg_deadwood'] = stats['total_deadwood'] / stats['deadwood_count']
+            if stats["deadwood_count"] > 0:
+                stats["avg_deadwood"] = stats["total_deadwood"] / stats["deadwood_count"]
             else:
-                stats['avg_deadwood'] = 0.0
+                stats["avg_deadwood"] = 0.0
 
-            if stats['total_hands'] > 0:
-                stats['avg_points_per_hand'] = stats['total_points_scored'] / stats['total_hands']
+            if stats["total_hands"] > 0:
+                stats["avg_points_per_hand"] = stats["total_points_scored"] / stats["total_hands"]
             else:
-                stats['avg_points_per_hand'] = 0.0
+                stats["avg_points_per_hand"] = 0.0
 
-            if stats['hands_won'] > 0:
-                stats['gin_rate'] = stats['gins'] / stats['hands_won']
+            if stats["hands_won"] > 0:
+                stats["gin_rate"] = stats["gins"] / stats["hands_won"]
             else:
-                stats['gin_rate'] = 0.0
+                stats["gin_rate"] = 0.0
 
-            if stats['times_opponent_knocked'] > 0:
-                stats['undercut_rate'] = stats['undercuts_made'] / stats['times_opponent_knocked']
+            if stats["times_opponent_knocked"] > 0:
+                stats["undercut_rate"] = stats["undercuts_made"] / stats["times_opponent_knocked"]
             else:
-                stats['undercut_rate'] = 0.0
+                stats["undercut_rate"] = 0.0
 
-            if stats['total_hands'] > 0:
-                stats['knock_aggression'] = stats['times_knocked'] / stats['total_hands']
+            if stats["total_hands"] > 0:
+                stats["knock_aggression"] = stats["times_knocked"] / stats["total_hands"]
             else:
-                stats['knock_aggression'] = 0.0
+                stats["knock_aggression"] = 0.0
 
-            total_draws = stats['draws_from_deck'] + stats['draws_from_discard']
+            total_draws = stats["draws_from_deck"] + stats["draws_from_discard"]
             if total_draws > 0:
-                stats['deck_draw_rate'] = stats['draws_from_deck'] / total_draws
-                stats['discard_draw_rate'] = stats['draws_from_discard'] / total_draws
+                stats["deck_draw_rate"] = stats["draws_from_deck"] / total_draws
+                stats["discard_draw_rate"] = stats["draws_from_discard"] / total_draws
             else:
-                stats['deck_draw_rate'] = 0.0
-                stats['discard_draw_rate'] = 0.0
+                stats["deck_draw_rate"] = 0.0
+                stats["discard_draw_rate"] = 0.0
 
-            if stats['knock_count'] > 0:
-                stats['avg_knock_deadwood'] = stats['total_knock_deadwood'] / stats['knock_count']
+            if stats["knock_count"] > 0:
+                stats["avg_knock_deadwood"] = stats["total_knock_deadwood"] / stats["knock_count"]
             else:
-                stats['avg_knock_deadwood'] = 0.0
+                stats["avg_knock_deadwood"] = 0.0
 
             return stats
 
 
 # Query helpers for analysis
 
+
 def get_recent_games(limit: int = 10, db_path: Path | None = None) -> list[sqlite3.Row]:
     """Get recent games."""
     with get_connection(db_path) as conn:
-        cursor = conn.execute(
-            """SELECT * FROM games ORDER BY started_at DESC LIMIT ?""",
-            (limit,)
-        )
+        cursor = conn.execute("""SELECT * FROM games ORDER BY started_at DESC LIMIT ?""", (limit,))
         return cursor.fetchall()
 
 
 def get_game_hands(game_id: int, db_path: Path | None = None) -> list[sqlite3.Row]:
     """Get all hands for a game."""
     with get_connection(db_path) as conn:
-        cursor = conn.execute(
-            """SELECT * FROM hands WHERE game_id = ? ORDER BY hand_number""",
-            (game_id,)
-        )
+        cursor = conn.execute("""SELECT * FROM hands WHERE game_id = ? ORDER BY hand_number""", (game_id,))
         return cursor.fetchall()
 
 
 def get_hand_turns(hand_id: int, db_path: Path | None = None) -> list[sqlite3.Row]:
     """Get all turns for a hand."""
     with get_connection(db_path) as conn:
-        cursor = conn.execute(
-            """SELECT * FROM turns WHERE hand_id = ? ORDER BY turn_number""",
-            (hand_id,)
-        )
+        cursor = conn.execute("""SELECT * FROM turns WHERE hand_id = ? ORDER BY turn_number""", (hand_id,))
         return cursor.fetchall()
 
 
 def get_ai_decisions_for_turn(turn_id: int, db_path: Path | None = None) -> list[sqlite3.Row]:
     """Get AI decisions for a turn."""
     with get_connection(db_path) as conn:
-        cursor = conn.execute(
-            """SELECT * FROM ai_decisions WHERE turn_id = ? ORDER BY id""",
-            (turn_id,)
-        )
+        cursor = conn.execute("""SELECT * FROM ai_decisions WHERE turn_id = ? ORDER BY id""", (turn_id,))
         return cursor.fetchall()
 
 
@@ -679,12 +707,12 @@ def get_ai_stats(db_path: Path | None = None) -> dict:
                FROM hands WHERE is_draw = 0"""
         )
         row = cursor.fetchone()
-        if row and row['total_hands'] > 0:
-            stats['total_hands'] = row['total_hands']
-            stats['ai_wins'] = row['ai_wins']
-            stats['ai_win_rate'] = row['ai_wins'] / row['total_hands']
-            stats['ai_gins'] = row['ai_gins']
-            stats['ai_undercuts'] = row['ai_undercuts']
+        if row and row["total_hands"] > 0:
+            stats["total_hands"] = row["total_hands"]
+            stats["ai_wins"] = row["ai_wins"]
+            stats["ai_win_rate"] = row["ai_wins"] / row["total_hands"]
+            stats["ai_gins"] = row["ai_gins"]
+            stats["ai_undercuts"] = row["ai_undercuts"]
 
         # Average deadwood when knocking
         cursor = conn.execute(
@@ -693,8 +721,8 @@ def get_ai_stats(db_path: Path | None = None) -> dict:
                WHERE did_knock = 1 AND player_name = 'Computer'"""
         )
         row = cursor.fetchone()
-        if row and row['avg_knock_deadwood']:
-            stats['avg_knock_deadwood'] = row['avg_knock_deadwood']
+        if row and row["avg_knock_deadwood"]:
+            stats["avg_knock_deadwood"] = row["avg_knock_deadwood"]
 
         return stats
 
@@ -713,11 +741,7 @@ def get_all_players(db_path: Path | None = None) -> list[dict]:
         )
         rows = cursor.fetchall()
         return [
-            {
-                'name': row['player_name'],
-                'total_hands': row['total_hands'],
-                'win_rate': row['win_rate'] or 0.0
-            }
+            {"name": row["player_name"], "total_hands": row["total_hands"], "win_rate": row["win_rate"] or 0.0}
             for row in rows
         ]
 
@@ -725,10 +749,7 @@ def get_all_players(db_path: Path | None = None) -> list[dict]:
 def delete_player_stats(player_name: str, db_path: Path | None = None) -> bool:
     """Delete all stats for a player. Returns True if deleted, False if player not found."""
     with get_connection(db_path) as conn:
-        cursor = conn.execute(
-            "DELETE FROM player_stats WHERE player_name = ?",
-            (player_name,)
-        )
+        cursor = conn.execute("DELETE FROM player_stats WHERE player_name = ?", (player_name,))
         conn.commit()
         return cursor.rowcount > 0
 
@@ -745,24 +766,19 @@ def delete_game(game_id: int, db_path: Path | None = None) -> bool:
             return False
 
         # Get hand IDs for this game
-        hand_ids = [
-            r['id'] for r in conn.execute(
-                "SELECT id FROM hands WHERE game_id = ?", (game_id,)
-            ).fetchall()
-        ]
+        hand_ids = [r["id"] for r in conn.execute("SELECT id FROM hands WHERE game_id = ?", (game_id,)).fetchall()]
 
         if hand_ids:
-            placeholders = ','.join('?' * len(hand_ids))
+            placeholders = ",".join("?" * len(hand_ids))
 
             # Get turn IDs for these hands
             turn_ids = [
-                r['id'] for r in conn.execute(
-                    f"SELECT id FROM turns WHERE hand_id IN ({placeholders})", hand_ids
-                ).fetchall()
+                r["id"]
+                for r in conn.execute(f"SELECT id FROM turns WHERE hand_id IN ({placeholders})", hand_ids).fetchall()
             ]
 
             if turn_ids:
-                turn_placeholders = ','.join('?' * len(turn_ids))
+                turn_placeholders = ",".join("?" * len(turn_ids))
                 # Delete ai_decisions for these turns
                 conn.execute(
                     f"DELETE FROM ai_decisions WHERE turn_id IN ({turn_placeholders})",
@@ -770,9 +786,7 @@ def delete_game(game_id: int, db_path: Path | None = None) -> bool:
                 )
 
             # Delete turns for these hands
-            conn.execute(
-                f"DELETE FROM turns WHERE hand_id IN ({placeholders})", hand_ids
-            )
+            conn.execute(f"DELETE FROM turns WHERE hand_id IN ({placeholders})", hand_ids)
 
         # Delete hands for this game
         conn.execute("DELETE FROM hands WHERE game_id = ?", (game_id,))
@@ -809,8 +823,8 @@ def get_resumable_game(game_id: int, db_path: Path | None = None) -> dict | None
             return None
 
         # Compute cumulative scores from completed hands (those with turn data)
-        p1 = game['player1_name']
-        p2 = game['player2_name']
+        p1 = game["player1_name"]
+        p2 = game["player2_name"]
         scores = conn.execute(
             """SELECT
                    COALESCE(SUM(CASE WHEN h.winner_name = ?
@@ -837,33 +851,33 @@ def get_resumable_game(game_id: int, db_path: Path | None = None) -> dict | None
 
         # Match wins if applicable
         games_won = {}
-        if game['match_mode'] and game['match_id']:
+        if game["match_mode"] and game["match_id"]:
             match_games = conn.execute(
                 """SELECT winner_name, COUNT(*) as wins
                    FROM games
                    WHERE match_id = ? AND is_complete = 1 AND winner_name IS NOT NULL
                    GROUP BY winner_name""",
-                (game['match_id'],),
+                (game["match_id"],),
             ).fetchall()
-            games_won = {row['winner_name']: row['wins'] for row in match_games}
+            games_won = {row["winner_name"]: row["wins"] for row in match_games}
 
         return {
-            'game_id': game['id'],
-            'player1_name': game['player1_name'],
-            'player2_name': game['player2_name'],
-            'oklahoma_gin': bool(game['oklahoma_gin']),
-            'spade_doubling': bool(game['spade_doubling']),
-            'game_mode': game['game_mode'],
-            'target_score': game['target_score'],
-            'ai_difficulty': game['ai_difficulty'],
-            'match_mode': bool(game['match_mode']),
-            'match_id': game['match_id'],
-            'started_at': game['started_at'],
-            'p1_score': scores['p1_score'],
-            'p2_score': scores['p2_score'],
-            'last_hand_number': last_hand['hand_number'] if last_hand else 0,
-            'last_dealer_name': last_hand['dealer_name'] if last_hand else game['player1_name'],
-            'games_won': games_won,
+            "game_id": game["id"],
+            "player1_name": game["player1_name"],
+            "player2_name": game["player2_name"],
+            "oklahoma_gin": bool(game["oklahoma_gin"]),
+            "spade_doubling": bool(game["spade_doubling"]),
+            "game_mode": game["game_mode"],
+            "target_score": game["target_score"],
+            "ai_difficulty": game["ai_difficulty"],
+            "match_mode": bool(game["match_mode"]),
+            "match_id": game["match_id"],
+            "started_at": game["started_at"],
+            "p1_score": scores["p1_score"],
+            "p2_score": scores["p2_score"],
+            "last_hand_number": last_hand["hand_number"] if last_hand else 0,
+            "last_dealer_name": last_hand["dealer_name"] if last_hand else game["player1_name"],
+            "games_won": games_won,
         }
 
 
@@ -913,7 +927,7 @@ def get_incomplete_games(player_name: str | None = None, db_path: Path | None = 
                    WHERE h.game_id = ?
                      AND h.ended_at IS NOT NULL
                      AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = h.id)""",
-                (game['player1_name'], game['player2_name'], game['id']),
+                (game["player1_name"], game["player2_name"], game["id"]),
             ).fetchone()
 
             # Count completed hands with turn data
@@ -922,23 +936,25 @@ def get_incomplete_games(player_name: str | None = None, db_path: Path | None = 
                    WHERE h.game_id = ?
                      AND h.ended_at IS NOT NULL
                      AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = h.id)""",
-                (game['id'],),
-            ).fetchone()['cnt']
+                (game["id"],),
+            ).fetchone()["cnt"]
 
-            results.append({
-                'game_id': game['id'],
-                'player1_name': game['player1_name'],
-                'player2_name': game['player2_name'],
-                'started_at': game['started_at'],
-                'p1_score': scores['p1_score'],
-                'p2_score': scores['p2_score'],
-                'hand_count': hand_count,
-                'game_mode': game['game_mode'],
-                'target_score': game['target_score'],
-                'ai_difficulty': game['ai_difficulty'],
-                'oklahoma_gin': bool(game['oklahoma_gin']),
-                'match_mode': bool(game['match_mode']),
-            })
+            results.append(
+                {
+                    "game_id": game["id"],
+                    "player1_name": game["player1_name"],
+                    "player2_name": game["player2_name"],
+                    "started_at": game["started_at"],
+                    "p1_score": scores["p1_score"],
+                    "p2_score": scores["p2_score"],
+                    "hand_count": hand_count,
+                    "game_mode": game["game_mode"],
+                    "target_score": game["target_score"],
+                    "ai_difficulty": game["ai_difficulty"],
+                    "oklahoma_gin": bool(game["oklahoma_gin"]),
+                    "match_mode": bool(game["match_mode"]),
+                }
+            )
 
         return results
 
@@ -968,4 +984,4 @@ def cleanup_empty_games(db_path: Path | None = None) -> dict[str, int]:
 
         conn.commit()
 
-        return {'hands': deleted_hands, 'games': deleted_games}
+        return {"hands": deleted_hands, "games": deleted_games}

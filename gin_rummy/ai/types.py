@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 class DrawChoice(Enum):
     """AI's choice of where to draw from."""
+
     DECK = auto()
     DISCARD = auto()
 
@@ -19,6 +20,7 @@ class DrawChoice(Enum):
 @dataclass
 class AIDecision:
     """Container for AI's turn decisions."""
+
     draw_from: DrawChoice
     discard: Card
     should_knock: bool
@@ -27,6 +29,7 @@ class AIDecision:
 @dataclass
 class DrawReasoning:
     """Reasoning for a draw decision."""
+
     choice: DrawChoice
     reasoning: str  # e.g., "Took Q♠ from discard: reduces deadwood by 8"
     factors: list[str]
@@ -35,6 +38,7 @@ class DrawReasoning:
 @dataclass
 class DiscardReasoning:
     """Reasoning for a discard decision."""
+
     card: Card
     reasoning: str  # e.g., "Discarded 7♥: highest deadwood, no meld potential"
     factors: list[str]
@@ -44,6 +48,7 @@ class DiscardReasoning:
 @dataclass
 class KnockReasoning:
     """Reasoning for a knock decision."""
+
     should_knock: bool
     reasoning: str  # e.g., "Knocked with score 0.65"
     score: float | None  # knock score (for context-aware AI)
@@ -53,6 +58,7 @@ class KnockReasoning:
 @dataclass
 class TurnReasoning:
     """Complete reasoning for an AI turn."""
+
     draw: DrawReasoning
     discard: DiscardReasoning
     knock: KnockReasoning | None = None

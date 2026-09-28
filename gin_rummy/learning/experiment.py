@@ -107,14 +107,16 @@ Examples:
 
     # Training duration
     parser.add_argument(
-        "--episodes", "-n",
+        "--episodes",
+        "-n",
         type=int,
         help="Number of training episodes (default: 10000)",
     )
 
     # Network training params
     parser.add_argument(
-        "--lr", "--learning-rate",
+        "--lr",
+        "--learning-rate",
         type=float,
         dest="learning_rate",
         help="Learning rate (default: 0.001)",
@@ -202,7 +204,8 @@ Examples:
 
     # Output
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         type=str,
         help="Output model path (default: auto-generated)",
     )
@@ -219,7 +222,8 @@ Examples:
 
     # Verbosity
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose logging",
     )
@@ -349,17 +353,17 @@ def main() -> None:
         logging.getLogger("gin_rummy.learning.trainer").setLevel(logging.INFO)
 
     # Print experiment info
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Experiment: {exp_name}")
-    print(f"{'='*60}")
-    print(f"\nTraining Config:")
+    print(f"{'=' * 60}")
+    print("\nTraining Config:")
     print(f"  episodes:          {config.num_episodes}")
     print(f"  learning_rate:     {config.learning_rate}")
     print(f"  batch_size:        {config.batch_size}")
     print(f"  gamma:             {config.gamma}")
     print(f"  exploration_decay: {config.exploration_decay}")
     print(f"  target_update:     {config.target_update_freq}")
-    print(f"\nReward Config:")
+    print("\nReward Config:")
     print(f"  win_by_gin:        {config.reward_config.win_by_gin}")
     print(f"  win_by_knock:      {config.reward_config.win_by_knock}")
     print(f"  deadwood_bonus:    {config.reward_config.deadwood_reduction_bonus}")
@@ -367,7 +371,7 @@ def main() -> None:
     print(f"\nOutput: {save_path}")
     if tensorboard_path:
         print(f"TensorBoard: {tensorboard_path}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Save config for reproducibility
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -380,10 +384,7 @@ def main() -> None:
             "timestamp": datetime.now().isoformat(),
         }
         # Handle non-serializable curriculum
-        config_dict["training"]["curriculum"] = [
-            {"opponent": opp, "episodes": eps}
-            for opp, eps in config.curriculum
-        ]
+        config_dict["training"]["curriculum"] = [{"opponent": opp, "episodes": eps} for opp, eps in config.curriculum]
         json.dump(config_dict, f, indent=2)
     print(f"Config saved to {config_path}\n")
 
@@ -441,14 +442,14 @@ def main() -> None:
 
     # Final summary
     elapsed = time.time() - start_time
-    print(f"\n\n{'='*60}")
-    print(f"Training Complete!")
-    print(f"{'='*60}")
+    print(f"\n\n{'=' * 60}")
+    print("Training Complete!")
+    print(f"{'=' * 60}")
     print(f"  Duration:       {format_time(elapsed)}")
     print(f"  Model saved:    {save_path}")
     print(f"  Config saved:   {config_path}")
     print(f"  Best avg_pts:   {best_avg_points:.1f}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

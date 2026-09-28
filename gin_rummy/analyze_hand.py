@@ -17,18 +17,31 @@ import argparse
 import sys
 
 from gin_rummy.models import Card, Suit, Rank, Hand, analyze_hand
-from gin_rummy.context import OutsCalculator, OutType, KnownCards, CardLocation
+from gin_rummy.context import OutsCalculator, KnownCards
 
 
 RANK_MAP = {
-    'A': Rank.ACE, '2': Rank.TWO, '3': Rank.THREE, '4': Rank.FOUR,
-    '5': Rank.FIVE, '6': Rank.SIX, '7': Rank.SEVEN, '8': Rank.EIGHT,
-    '9': Rank.NINE, 'T': Rank.TEN, '10': Rank.TEN,
-    'J': Rank.JACK, 'Q': Rank.QUEEN, 'K': Rank.KING,
+    "A": Rank.ACE,
+    "2": Rank.TWO,
+    "3": Rank.THREE,
+    "4": Rank.FOUR,
+    "5": Rank.FIVE,
+    "6": Rank.SIX,
+    "7": Rank.SEVEN,
+    "8": Rank.EIGHT,
+    "9": Rank.NINE,
+    "T": Rank.TEN,
+    "10": Rank.TEN,
+    "J": Rank.JACK,
+    "Q": Rank.QUEEN,
+    "K": Rank.KING,
 }
 
 SUIT_MAP = {
-    'S': Suit.SPADES, 'H': Suit.HEARTS, 'D': Suit.DIAMONDS, 'C': Suit.CLUBS,
+    "S": Suit.SPADES,
+    "H": Suit.HEARTS,
+    "D": Suit.DIAMONDS,
+    "C": Suit.CLUBS,
 }
 
 
@@ -39,8 +52,8 @@ def parse_card(card_str: str) -> Card:
         raise ValueError(f"Invalid card: {card_str}")
 
     # Handle 10 specially
-    if card_str.startswith('10'):
-        rank_str = '10'
+    if card_str.startswith("10"):
+        rank_str = "10"
         suit_str = card_str[2:]
     else:
         rank_str = card_str[:-1]
@@ -169,8 +182,7 @@ def analyze_outs(
     print("-" * 60)
 
     if analysis.meld_completing_outs:
-        for out in sorted(analysis.meld_completing_outs,
-                         key=lambda o: (o.card.rank.value, o.card.suit.value)):
+        for out in sorted(analysis.meld_completing_outs, key=lambda o: (o.card.rank.value, o.card.suit.value)):
             dead_marker = " [DEAD]" if out.is_dead else ""
             print(f"  {out.card}: {out.description}{dead_marker}")
     else:
@@ -181,8 +193,7 @@ def analyze_outs(
     print("-" * 60)
 
     if analysis.partial_outs:
-        for out in sorted(analysis.partial_outs,
-                         key=lambda o: (o.card.rank.value, o.card.suit.value)):
+        for out in sorted(analysis.partial_outs, key=lambda o: (o.card.rank.value, o.card.suit.value)):
             dead_marker = " [DEAD]" if out.is_dead else ""
             print(f"  {out.card} ({out.out_type.name}): {out.description}{dead_marker}")
     else:
@@ -203,27 +214,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Analyze a gin rummy hand and show outs.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
+    parser.add_argument("hand", help="Space-separated card codes (e.g., '3S 8S 2H 2D 3D 6D KD 6C 8C KC')")
+    parser.add_argument("--dead", "-d", default="", help="Buried discard pile cards as space-separated codes")
     parser.add_argument(
-        "hand",
-        help="Space-separated card codes (e.g., '3S 8S 2H 2D 3D 6D KD 6C 8C KC')"
+        "--opponent", "-o", default="", help="Cards known to be in opponent's hand (picked from discard)"
     )
-    parser.add_argument(
-        "--dead", "-d",
-        default="",
-        help="Buried discard pile cards as space-separated codes"
-    )
-    parser.add_argument(
-        "--opponent", "-o",
-        default="",
-        help="Cards known to be in opponent's hand (picked from discard)"
-    )
-    parser.add_argument(
-        "--discard-top", "-t",
-        default="",
-        help="Current top card of discard pile (available to take)"
-    )
+    parser.add_argument("--discard-top", "-t", default="", help="Current top card of discard pile (available to take)")
 
     args = parser.parse_args()
 

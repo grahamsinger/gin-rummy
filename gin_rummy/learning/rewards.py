@@ -5,7 +5,7 @@ Provides reward shaping for gin rummy outcomes and intermediate states.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

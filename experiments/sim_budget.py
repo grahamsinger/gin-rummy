@@ -6,7 +6,6 @@ against BasicAI, all on the same seed.
 
 import sys
 import time
-from dataclasses import replace
 
 from gin_rummy.ai.basic import BasicAI
 from gin_rummy.ai.monte_carlo import MonteCarloAI

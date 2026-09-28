@@ -5,11 +5,14 @@ import random
 import pytest
 from gin_rummy.ai import MonteCarloAI, BasicAI, DrawChoice
 from gin_rummy.ai.monte_carlo import (
-    rollout, score_knock, evaluate_terminal, RolloutResult, ALL_CARDS,
+    rollout,
+    score_knock,
+    evaluate_terminal,
+    RolloutResult,
+    ALL_CARDS,
 )
-from gin_rummy.models import Hand, Card, Suit, Rank, analyze_hand
-from gin_rummy.context import GameContext
-from gin_rummy.config import Config, AIConfig, MonteCarloAIConfig
+from gin_rummy.models import Hand, Card, Suit, Rank
+from gin_rummy.config import Config, MonteCarloAIConfig
 from tests.helpers import make_context, make_mc_config as make_test_config
 
 
@@ -113,8 +116,13 @@ class TestRollout:
             discard = all_cards[40:42]
 
             result = rollout(
-                list(my_hand), list(opp_hand), list(deck),
-                list(discard), True, ai, max_turns=8,
+                list(my_hand),
+                list(opp_hand),
+                list(deck),
+                list(discard),
+                True,
+                ai,
+                max_turns=8,
             )
             assert isinstance(result, RolloutResult)
 
@@ -131,8 +139,13 @@ class TestRollout:
         discard = all_cards[40:42]
 
         result = rollout(
-            list(my_hand), list(opp_hand), list(deck),
-            list(discard), True, ai, max_turns=8,
+            list(my_hand),
+            list(opp_hand),
+            list(deck),
+            list(discard),
+            True,
+            ai,
+            max_turns=8,
         )
         assert isinstance(result.my_points, int)
         assert isinstance(result.is_draw, bool)
@@ -150,8 +163,13 @@ class TestRollout:
         discard = all_cards[22:30]
 
         result = rollout(
-            list(my_hand), list(opp_hand), list(deck),
-            list(discard), True, ai, max_turns=8,
+            list(my_hand),
+            list(opp_hand),
+            list(deck),
+            list(discard),
+            True,
+            ai,
+            max_turns=8,
         )
         assert result.is_draw is True
 
@@ -162,6 +180,7 @@ class TestMonteCarloAI:
     def test_inherits_context_aware(self):
         """MonteCarloAI should be an instance of ContextAwareAI."""
         from gin_rummy.ai.context_aware import ContextAwareAI
+
         ai = MonteCarloAI(config=make_test_config())
         assert isinstance(ai, ContextAwareAI)
         assert isinstance(ai, BasicAI)
@@ -170,18 +189,20 @@ class TestMonteCarloAI:
         """Draw decision should return DECK or DISCARD."""
         random.seed(42)
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+            ]
+        )
         discard_top = Card(Rank.TWO, Suit.DIAMONDS)
         context = make_context(hand)
         choice = ai.decide_draw(hand, discard_top, context)
@@ -197,19 +218,21 @@ class TestMonteCarloAI:
         """Discard decision should return a card from the hand."""
         random.seed(42)
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-            Card(Rank.SIX, Suit.CLUBS),  # 11 cards after draw
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+                Card(Rank.SIX, Suit.CLUBS),  # 11 cards after draw
+            ]
+        )
         context = make_context(hand)
         ai.update_context(context)
         discard = ai.decide_discard(hand)
@@ -219,18 +242,20 @@ class TestMonteCarloAI:
         """Knock decision should return a boolean."""
         random.seed(42)
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
         result = ai.should_knock(hand, context)
         assert isinstance(result, bool)
@@ -238,47 +263,51 @@ class TestMonteCarloAI:
     def test_always_knocks_with_gin(self):
         """Should always knock with 0 deadwood (gin)."""
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.DIAMONDS),
-            Card(Rank.SIX, Suit.DIAMONDS),
-            Card(Rank.SEVEN, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.DIAMONDS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.DIAMONDS),
+                Card(Rank.SIX, Suit.DIAMONDS),
+                Card(Rank.SEVEN, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.DIAMONDS),
+            ]
+        )
         assert ai.should_knock(hand) is True
 
     def test_stores_mc_thinking_data(self):
         """MonteCarloAI should store thinking data for UI."""
         random.seed(42)
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+            ]
+        )
         discard_top = Card(Rank.TWO, Suit.DIAMONDS)
         context = make_context(hand)
 
         ai.decide_draw(hand, discard_top, context)
 
         assert ai.last_mc_thinking is not None
-        assert 'draw' in ai.last_mc_thinking
-        draw_data = ai.last_mc_thinking['draw']
-        assert 'deck_avg_points' in draw_data
-        assert 'discard_avg_points' in draw_data
-        assert 'choice' in draw_data
+        assert "draw" in ai.last_mc_thinking
+        draw_data = ai.last_mc_thinking["draw"]
+        assert "deck_avg_points" in draw_data
+        assert "discard_avg_points" in draw_data
+        assert "choice" in draw_data
 
     def test_reasoning_methods_return_correct_types(self):
         """Reasoning methods should return proper reasoning objects."""
@@ -286,18 +315,20 @@ class TestMonteCarloAI:
 
         random.seed(42)
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+            ]
+        )
         discard_top = Card(Rank.TWO, Suit.DIAMONDS)
         context = make_context(hand)
 
@@ -323,11 +354,13 @@ class TestInformationSetSampling:
     def test_known_unknown_partition(self):
         """Known + unknown should cover all 52 cards with no overlap."""
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.TWO, Suit.HEARTS),
-            Card(Rank.THREE, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.TWO, Suit.HEARTS),
+                Card(Rank.THREE, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
         known, unknown = ai._get_known_and_unknown(hand, context)
         assert len(known) + len(unknown) == 52
@@ -344,9 +377,7 @@ class TestInformationSetSampling:
         ]
         unknown = [c for c in ALL_CARDS if c not in my_hand]
 
-        opp_hand, deck, discard = ai._sample_game_state(
-            my_hand, unknown, set(), 20, []
-        )
+        opp_hand, deck, discard = ai._sample_game_state(my_hand, unknown, set(), 20, [])
         assert len(opp_hand) == 10
         assert len(deck) == len(unknown) - 10
 
@@ -461,83 +492,89 @@ class TestConfidenceThresholdFallback:
         """Draw thinking should include fallback and advantage data."""
         random.seed(42)
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+            ]
+        )
         discard_top = Card(Rank.TWO, Suit.DIAMONDS)
         context = make_context(hand)
 
         ai.decide_draw(hand, discard_top, context)
 
         assert ai.last_mc_thinking is not None
-        draw_data = ai.last_mc_thinking['draw']
-        assert 'fallback' in draw_data
-        assert 'advantage' in draw_data
-        assert isinstance(draw_data['fallback'], bool)
-        assert isinstance(draw_data['advantage'], float)
+        draw_data = ai.last_mc_thinking["draw"]
+        assert "fallback" in draw_data
+        assert "advantage" in draw_data
+        assert isinstance(draw_data["fallback"], bool)
+        assert isinstance(draw_data["advantage"], float)
 
     def test_knock_fallback_data_in_thinking(self):
         """Knock thinking should include fallback and advantage data."""
         random.seed(42)
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.SPADES),  # 5 deadwood
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
 
         ai.should_knock(hand, context)
 
         assert ai.last_mc_thinking is not None
-        knock_data = ai.last_mc_thinking['knock']
-        assert 'fallback' in knock_data
-        assert 'advantage' in knock_data
-        assert isinstance(knock_data['fallback'], bool)
-        assert isinstance(knock_data['advantage'], float)
+        knock_data = ai.last_mc_thinking["knock"]
+        assert "fallback" in knock_data
+        assert "advantage" in knock_data
+        assert isinstance(knock_data["fallback"], bool)
+        assert isinstance(knock_data["advantage"], float)
 
     def test_discard_fallback_data_in_thinking(self):
         """Discard thinking should include fallback data."""
         random.seed(42)
         ai = MonteCarloAI(config=make_test_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-            Card(Rank.SIX, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+                Card(Rank.SIX, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
         ai.update_context(context)
 
         ai.decide_discard(hand)
 
         assert ai.last_mc_thinking is not None
-        discard_data = ai.last_mc_thinking['discard']
-        assert 'fallback' in discard_data
-        assert isinstance(discard_data['fallback'], bool)
+        discard_data = ai.last_mc_thinking["discard"]
+        assert "fallback" in discard_data
+        assert isinstance(discard_data["fallback"], bool)
 
     def test_rollout_ai_uses_conservative_knock(self):
         """Rollout AI should use conservative knock strategy."""
@@ -552,6 +589,7 @@ class TestParallelizationConfig:
     def test_max_workers_auto(self):
         """max_workers=0 should auto-compute to cpu_count - 1."""
         import os
+
         config = Config()
         config.monte_carlo_ai = MonteCarloAIConfig(max_workers=0)
         ai = MonteCarloAI(config=config)
@@ -603,18 +641,20 @@ class TestPairedSamples:
         random.seed(42)
         config = make_test_config()
         ai = MonteCarloAI(config=config)
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+            ]
+        )
         discard_top = Card(Rank.TWO, Suit.DIAMONDS)
         context = make_context(hand)
         choice = ai.decide_draw(hand, discard_top, context)
@@ -625,19 +665,21 @@ class TestPairedSamples:
         random.seed(42)
         config = make_test_config()
         ai = MonteCarloAI(config=config)
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-            Card(Rank.SIX, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+                Card(Rank.SIX, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
         ai.update_context(context)
         discard = ai.decide_discard(hand)
@@ -648,18 +690,20 @@ class TestPairedSamples:
         random.seed(42)
         config = make_test_config()
         ai = MonteCarloAI(config=config)
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.SPADES),
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.SPADES),
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
         result = ai.should_knock(hand, context)
         assert isinstance(result, bool)
@@ -690,18 +734,20 @@ class TestIndependentSamples:
         """MC draw should work in independent sample mode."""
         random.seed(42)
         ai = MonteCarloAI(config=self._make_independent_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+            ]
+        )
         discard_top = Card(Rank.TWO, Suit.DIAMONDS)
         context = make_context(hand)
         choice = ai.decide_draw(hand, discard_top, context)
@@ -711,19 +757,21 @@ class TestIndependentSamples:
         """MC discard should work in independent sample mode."""
         random.seed(42)
         ai = MonteCarloAI(config=self._make_independent_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-            Card(Rank.SIX, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+                Card(Rank.SIX, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
         ai.update_context(context)
         discard = ai.decide_discard(hand)
@@ -733,18 +781,20 @@ class TestIndependentSamples:
         """MC knock should work in independent sample mode."""
         random.seed(42)
         ai = MonteCarloAI(config=self._make_independent_config())
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.SPADES),
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.SPADES),
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
         result = ai.should_knock(hand, context)
         assert isinstance(result, bool)
@@ -756,6 +806,7 @@ class TestParallelMode:
     def test_parallel_mode_draw(self):
         """MC draw should work with max_workers=2."""
         import os
+
         if (os.cpu_count() or 1) < 2:
             pytest.skip("Need at least 2 CPUs for parallel test")
 
@@ -771,18 +822,20 @@ class TestParallelMode:
             sample_strategy="paired",
         )
         ai = MonteCarloAI(config=config)
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+            ]
+        )
         discard_top = Card(Rank.TWO, Suit.DIAMONDS)
         context = make_context(hand)
         try:
@@ -794,6 +847,7 @@ class TestParallelMode:
     def test_parallel_mode_discard(self):
         """MC discard should work with max_workers=2."""
         import os
+
         if (os.cpu_count() or 1) < 2:
             pytest.skip("Need at least 2 CPUs for parallel test")
 
@@ -809,19 +863,21 @@ class TestParallelMode:
             sample_strategy="paired",
         )
         ai = MonteCarloAI(config=config)
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.KING, Suit.DIAMONDS),
-            Card(Rank.QUEEN, Suit.HEARTS),
-            Card(Rank.JACK, Suit.SPADES),
-            Card(Rank.TEN, Suit.CLUBS),
-            Card(Rank.NINE, Suit.DIAMONDS),
-            Card(Rank.EIGHT, Suit.HEARTS),
-            Card(Rank.SEVEN, Suit.SPADES),
-            Card(Rank.SIX, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.HEARTS),
+                Card(Rank.JACK, Suit.SPADES),
+                Card(Rank.TEN, Suit.CLUBS),
+                Card(Rank.NINE, Suit.DIAMONDS),
+                Card(Rank.EIGHT, Suit.HEARTS),
+                Card(Rank.SEVEN, Suit.SPADES),
+                Card(Rank.SIX, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
         ai.update_context(context)
         try:
@@ -833,6 +889,7 @@ class TestParallelMode:
     def test_parallel_mode_knock(self):
         """MC knock should work with max_workers=2."""
         import os
+
         if (os.cpu_count() or 1) < 2:
             pytest.skip("Need at least 2 CPUs for parallel test")
 
@@ -848,18 +905,20 @@ class TestParallelMode:
             sample_strategy="paired",
         )
         ai = MonteCarloAI(config=config)
-        hand = Hand([
-            Card(Rank.ACE, Suit.SPADES),
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.CLUBS),
-            Card(Rank.TWO, Suit.DIAMONDS),
-            Card(Rank.THREE, Suit.DIAMONDS),
-            Card(Rank.FOUR, Suit.DIAMONDS),
-            Card(Rank.FIVE, Suit.SPADES),
-            Card(Rank.FIVE, Suit.CLUBS),
-            Card(Rank.SIX, Suit.CLUBS),
-            Card(Rank.SEVEN, Suit.CLUBS),
-        ])
+        hand = Hand(
+            [
+                Card(Rank.ACE, Suit.SPADES),
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.ACE, Suit.CLUBS),
+                Card(Rank.TWO, Suit.DIAMONDS),
+                Card(Rank.THREE, Suit.DIAMONDS),
+                Card(Rank.FOUR, Suit.DIAMONDS),
+                Card(Rank.FIVE, Suit.SPADES),
+                Card(Rank.FIVE, Suit.CLUBS),
+                Card(Rank.SIX, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.CLUBS),
+            ]
+        )
         context = make_context(hand)
         try:
             result = ai.should_knock(hand, context)
@@ -880,18 +939,18 @@ class TestThinkingReset:
 
     def test_early_return_clears_stale_draw_thinking(self):
         ai = MonteCarloAI(config=make_test_config())
-        ai.last_mc_thinking = {'draw': {'deck_sims': 99}, 'discard': None, 'knock': {'x': 1}}
+        ai.last_mc_thinking = {"draw": {"deck_sims": 99}, "discard": None, "knock": {"x": 1}}
         hand = Hand([Card(Rank.ACE, Suit.SPADES), Card(Rank.TWO, Suit.HEARTS)])
 
         # No discard top -> early return before any simulation
         assert ai.decide_draw(hand, None, make_context(hand)) == DrawChoice.DECK
-        assert ai.last_mc_thinking['draw'] is None
-        assert ai.last_mc_thinking['knock'] == {'x': 1}  # untouched
+        assert ai.last_mc_thinking["draw"] is None
+        assert ai.last_mc_thinking["knock"] == {"x": 1}  # untouched
 
     def test_early_return_clears_stale_knock_thinking(self):
         ai = MonteCarloAI(config=make_test_config())
-        ai.last_mc_thinking = {'draw': None, 'discard': None, 'knock': {'knock_sims': 99}}
+        ai.last_mc_thinking = {"draw": None, "discard": None, "knock": {"knock_sims": 99}}
         high_deadwood = Hand([Card(Rank.KING, Suit.SPADES), Card(Rank.QUEEN, Suit.HEARTS)])
 
         assert ai.should_knock(high_deadwood, make_context(high_deadwood)) is False
-        assert ai.last_mc_thinking['knock'] is None
+        assert ai.last_mc_thinking["knock"] is None

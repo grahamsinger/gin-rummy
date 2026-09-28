@@ -15,9 +15,7 @@ class Deck:
 
     def __init__(self) -> None:
         """Create a new deck with all 52 cards in order."""
-        self._cards: list[Card] = [
-            Card(rank, suit) for suit in Suit for rank in Rank
-        ]
+        self._cards: list[Card] = [Card(rank, suit) for suit in Suit for rank in Rank]
 
     def shuffle(self) -> None:
         """Randomize the order of cards in the deck."""
@@ -46,9 +44,7 @@ class Deck:
             DeckEmptyError: If not enough cards remain.
         """
         if n > len(self._cards):
-            raise DeckEmptyError(
-                f"Cannot draw {n} cards, only {len(self._cards)} remaining"
-            )
+            raise DeckEmptyError(f"Cannot draw {n} cards, only {len(self._cards)} remaining")
         return [self.draw() for _ in range(n)]
 
     def __len__(self) -> int:

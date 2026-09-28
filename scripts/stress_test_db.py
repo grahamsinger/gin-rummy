@@ -10,6 +10,7 @@ from pathlib import Path
 
 # Import schema from main database module
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from gin_rummy.database import SCHEMA, SCHEMA_VERSION
 
@@ -75,13 +76,9 @@ def generate_data(conn: sqlite3.Connection, num_games: int, hands_per_game: int 
         score_p1 = random.randint(0, 150)
         score_p2 = random.randint(0, 150)
 
-        games_data.append((
-            game_id,
-            game_start.isoformat(),
-            game_end.isoformat(),
-            p1, p2, winner,
-            score_p1, score_p2, 1
-        ))
+        games_data.append(
+            (game_id, game_start.isoformat(), game_end.isoformat(), p1, p2, winner, score_p1, score_p2, 1)
+        )
 
         for h in range(hands_per_game):
             hand_id += 1
@@ -92,11 +89,21 @@ def generate_data(conn: sqlite3.Connection, num_games: int, hands_per_game: int 
             is_gin = random.random() < 0.1
             is_undercut = random.random() < 0.15
 
-            hands_data.append((
-                hand_id, game_id, h + 1, random.choice([p1, p2]),
-                hand_start.isoformat(), hand_end.isoformat(),
-                hand_winner, points, int(is_gin), int(is_undercut), 0
-            ))
+            hands_data.append(
+                (
+                    hand_id,
+                    game_id,
+                    h + 1,
+                    random.choice([p1, p2]),
+                    hand_start.isoformat(),
+                    hand_end.isoformat(),
+                    hand_winner,
+                    points,
+                    int(is_gin),
+                    int(is_undercut),
+                    0,
+                )
+            )
 
             for t in range(turns_per_hand):
                 turn_id += 1
@@ -108,26 +115,36 @@ def generate_data(conn: sqlite3.Connection, num_games: int, hands_per_game: int 
                 dw_after = random_deadwood()
                 did_knock = 1 if t == turns_per_hand - 1 and random.random() < 0.8 else 0
 
-                turns_data.append((
-                    turn_id, hand_id, t + 1, player, drew_from,
-                    random_card(), random_card(), did_knock,
-                    json.dumps(cards_before), json.dumps(cards_after),
-                    dw_before, dw_after
-                ))
+                turns_data.append(
+                    (
+                        turn_id,
+                        hand_id,
+                        t + 1,
+                        player,
+                        drew_from,
+                        random_card(),
+                        random_card(),
+                        did_knock,
+                        json.dumps(cards_before),
+                        json.dumps(cards_after),
+                        dw_before,
+                        dw_after,
+                    )
+                )
 
     # Batch insert for performance
     conn.executemany(
         """INSERT INTO games (id, started_at, ended_at, player1_name, player2_name,
            winner_name, final_score_p1, final_score_p2, is_complete)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        games_data
+        games_data,
     )
 
     conn.executemany(
         """INSERT INTO hands (id, game_id, hand_number, dealer_name, started_at, ended_at,
            winner_name, points_awarded, is_gin, is_undercut, is_draw)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        hands_data
+        hands_data,
     )
 
     conn.executemany(
@@ -135,7 +152,7 @@ def generate_data(conn: sqlite3.Connection, num_games: int, hands_per_game: int 
            card_drawn, card_discarded, did_knock, cards_before, cards_after,
            deadwood_before, deadwood_after)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        turns_data
+        turns_data,
     )
 
     conn.commit()
@@ -148,7 +165,7 @@ def generate_data(conn: sqlite3.Connection, num_games: int, hands_per_game: int 
         "hands": len(hands_data),
         "turns": len(turns_data),
         "total": total_rows,
-        "insert_time": elapsed
+        "insert_time": elapsed,
     }
 
 
@@ -213,10 +230,7 @@ def run_benchmark_queries(conn: sqlite3.Connection) -> dict:
         cursor = conn.execute(query)
         rows = cursor.fetchall()
         elapsed = time.time() - start
-        results[name] = {
-            "time_ms": elapsed * 1000,
-            "rows_returned": len(rows)
-        }
+        results[name] = {"time_ms": elapsed * 1000, "rows_returned": len(rows)}
 
     return results
 
@@ -278,10 +292,10 @@ if __name__ == "__main__":
     # Test volumes: (games, hands_per_game, turns_per_hand)
     # Approximate total rows = games + (games * hands) + (games * hands * turns)
     test_volumes = [
-        (100, 5, 15),        # ~8,100 rows
-        (1000, 5, 15),       # ~81,000 rows
-        (10000, 5, 15),      # ~810,000 rows
-        (20000, 5, 15),      # ~1,620,000 rows
+        (100, 5, 15),  # ~8,100 rows
+        (1000, 5, 15),  # ~81,000 rows
+        (10000, 5, 15),  # ~810,000 rows
+        (20000, 5, 15),  # ~1,620,000 rows
     ]
 
     print("SQLite Stress Test for Gin Rummy Database")

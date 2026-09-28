@@ -71,10 +71,7 @@ class TestScenarioFlow:
 
         # Card not in hand
         current = s.get_state()
-        not_held = next(
-            cid for cid in ("AS", "KH", "7D", "2C", "9S")
-            if cid not in [c["id"] for c in current["hand"]]
-        )
+        not_held = next(cid for cid in ("AS", "KH", "7D", "2C", "9S") if cid not in [c["id"] for c in current["hand"]])
         assert "error" in s.answer_discard(not_held)
 
         # Junk id

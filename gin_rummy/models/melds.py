@@ -9,13 +9,15 @@ from gin_rummy.models.card import Card, Suit, Rank
 
 class MeldType(Enum):
     """Type of meld."""
-    SET = auto()   # 3-4 cards of same rank
-    RUN = auto()   # 3+ consecutive cards of same suit
+
+    SET = auto()  # 3-4 cards of same rank
+    RUN = auto()  # 3+ consecutive cards of same suit
 
 
 @dataclass(frozen=True)
 class Meld:
     """A valid meld (set or run)."""
+
     cards: tuple[Card, ...]
     meld_type: MeldType
 
@@ -182,6 +184,7 @@ def find_optimal_melds(cards: list[Card]) -> tuple[list[Meld], int]:
 @dataclass
 class HandAnalysis:
     """Complete analysis of a hand's melds and deadwood."""
+
     melds: list[Meld]
     deadwood_cards: list[Card]
     deadwood_value: int
@@ -265,9 +268,7 @@ def can_lay_off_on_meld(card: Card, meld: Meld) -> bool:
     return False
 
 
-def find_layoff_cards(
-    defender_cards: list[Card], knocker_melds: list[Meld]
-) -> list[Card]:
+def find_layoff_cards(defender_cards: list[Card], knocker_melds: list[Meld]) -> list[Card]:
     """Find all cards from defender's hand that can be laid off on knocker's melds.
 
     This handles chain layoffs where one card extends a run, enabling another
@@ -335,14 +336,13 @@ def find_layoff_cards(
 @dataclass
 class LayoffResult:
     """Result of laying off cards on knocker's melds."""
+
     layoff_cards: list[Card]
     deadwood_before: int
     deadwood_after: int
 
 
-def calculate_layoff(
-    defender_cards: list[Card], knocker_melds: list[Meld]
-) -> LayoffResult:
+def calculate_layoff(defender_cards: list[Card], knocker_melds: list[Meld]) -> LayoffResult:
     """Calculate defender's layoff and deadwood after laying off on knocker's melds.
 
     First analyzes defender's hand for their own melds, then allows layoff
@@ -374,9 +374,7 @@ def calculate_layoff(
     )
 
 
-def calculate_deadwood_after_layoff(
-    defender_cards: list[Card], knocker_melds: list[Meld]
-) -> int:
+def calculate_deadwood_after_layoff(defender_cards: list[Card], knocker_melds: list[Meld]) -> int:
     """Calculate defender's deadwood after laying off cards on knocker's melds.
 
     First analyzes defender's hand for their own melds, then allows layoff

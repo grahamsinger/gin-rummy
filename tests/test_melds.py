@@ -1,9 +1,13 @@
 """Tests for meld detection module."""
 
-import pytest
 from gin_rummy.models import (
-    Meld, MeldType, HandAnalysis,
-    Card, Suit, Rank, analyze_hand, find_all_melds,
+    Meld,
+    MeldType,
+    HandAnalysis,
+    Card,
+    Suit,
+    Rank,
+    analyze_hand,
 )
 from gin_rummy.models.melds import find_all_sets, find_all_runs, find_optimal_melds
 
@@ -117,9 +121,9 @@ class TestFindOptimalMelds:
 
     def test_no_melds(self):
         cards = [
-            Card(Rank.ACE, Suit.SPADES),   # 1
-            Card(Rank.THREE, Suit.HEARTS), # 3
-            Card(Rank.FIVE, Suit.CLUBS),   # 5
+            Card(Rank.ACE, Suit.SPADES),  # 1
+            Card(Rank.THREE, Suit.HEARTS),  # 3
+            Card(Rank.FIVE, Suit.CLUBS),  # 5
         ]
         melds, deadwood = find_optimal_melds(cards)
         assert melds == []
@@ -381,7 +385,7 @@ class TestLayingOff:
         ]
         defender_cards = [
             Card(Rank.EIGHT, Suit.HEARTS),  # Can lay off
-            Card(Rank.KING, Suit.SPADES),   # Cannot lay off
+            Card(Rank.KING, Suit.SPADES),  # Cannot lay off
         ]
         layoff_cards = find_layoff_cards(defender_cards, knocker_melds)
         assert len(layoff_cards) == 1
@@ -410,9 +414,9 @@ class TestLayingOff:
             ),
         ]
         defender_cards = [
-            Card(Rank.FOUR, Suit.HEARTS),    # Can lay off on run
+            Card(Rank.FOUR, Suit.HEARTS),  # Can lay off on run
             Card(Rank.KING, Suit.DIAMONDS),  # Can lay off on set
-            Card(Rank.TWO, Suit.SPADES),     # Cannot lay off
+            Card(Rank.TWO, Suit.SPADES),  # Cannot lay off
         ]
         layoff_cards = find_layoff_cards(defender_cards, knocker_melds)
         assert len(layoff_cards) == 2
@@ -435,7 +439,7 @@ class TestLayingOff:
         ]
         defender_cards = [
             Card(Rank.EIGHT, Suit.HEARTS),  # Can lay off directly
-            Card(Rank.NINE, Suit.HEARTS),   # Can lay off after 8♥
+            Card(Rank.NINE, Suit.HEARTS),  # Can lay off after 8♥
         ]
         layoff_cards = find_layoff_cards(defender_cards, knocker_melds)
         assert len(layoff_cards) == 2
@@ -458,7 +462,7 @@ class TestLayingOff:
         ]
         defender_cards = [
             Card(Rank.EIGHT, Suit.HEARTS),  # 8 points, can lay off
-            Card(Rank.KING, Suit.SPADES),   # 10 points, cannot lay off
+            Card(Rank.KING, Suit.SPADES),  # 10 points, cannot lay off
         ]
         # Without layoff: 8 + 10 = 18
         # With layoff: 10 (only K♠ remains as deadwood)
@@ -480,8 +484,8 @@ class TestLayingOff:
             )
         ]
         defender_cards = [
-            Card(Rank.TWO, Suit.SPADES),   # 2 points
-            Card(Rank.KING, Suit.CLUBS),   # 10 points
+            Card(Rank.TWO, Suit.SPADES),  # 2 points
+            Card(Rank.KING, Suit.CLUBS),  # 10 points
         ]
         deadwood = calculate_deadwood_after_layoff(defender_cards, knocker_melds)
         assert deadwood == 12

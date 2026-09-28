@@ -2,7 +2,7 @@
 
 _Audited at commit `779a7ad` (2026-09-28). Line numbers refer to that commit and will drift._
 
-**Summary:** about 25k lines of source. There are 263 passing tests (1 skipped), 76 ruff errors, 42/57 files not ruff-formatted and 79 `ty` diagnostics. There is no CI.
+**Summary:** about 25k lines of source. There are 263 passing tests (1 skipped), 76 ruff errors, 42/57 files not ruff-formatted and 79 `ty` diagnostics. There is no CI. _As of `e196cf6`: 291 tests pass and ruff reports 70 errors._
 
 The biggest structural problem is that the **game/round loop is implemented four separate times**: CLI vs AI, CLI PvP, simulator and scenario quiz (a fifth copy, the network server, was deleted on 2026-09-28). The web session and trainer run partial copies. Result recording and card serialization are copied in the same way. Several real bugs below come directly from those copies drifting apart.
 
@@ -12,7 +12,18 @@ The biggest structural problem is that the **game/round loop is implemented four
 
 Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. The **Status** column shows what has been done since the audit.
 
-**Progress (2026-09-28):** B1–B6 were re-confirmed against the code and fixed in commits `1646e4e`–`e196cf6`, each with a regression test. Still open: B7, B8, B9, B12, B13, B14 and the schema-version half of B15.
+**Progress (2026-09-28):** B1–B6 were re-confirmed against the code and fixed in commits `1646e4e`–`e196cf6`, each with a regression test. Still open: B7, B8, B9, B12, B13, B14, the schema-version half of B15, and two small B5 follow-ups (see review below).
+
+**Review of the fix commits (`1646e4e`, `cb442ff`, `b506c21`, `e196cf6`):** all four were read in full and verified. **291 tests pass** (was 263). Ruff errors went from 76 to 70, and the touched files add no new lint. Notes and follow-ups:
+
+- **B1/B10, network removal:** clean. No references to `network`, `gin-server` or `gin-client` remain in code, config, README or docs.
+- **B2/B3/B11, CLI recording and the SQL fix:** correct. The removed CLI blocks used to derive a PvP `+25`. `end_hand_from_result()` now takes `points`, `is_gin` and `is_undercut` straight from `RoundResult`, so config bonuses and layoffs are respected, and all three recording sites share one mapping.
+- **B4, opponent tracking:** correct. The trainer's rounds go through `execute_ai_turn` (`trainer.py:455, 664`), so the fix reaches training as well as the simulator and CLI. The `getattr` duck-typing is an interim step; it should become the `AIPlayer` protocol in §2.3, as the code comment says.
+- **B5, checkpoint resume:** correct. The checkpoint loads into the existing networks, so the optimizers keep training the right parameters. Two small follow-ups remain:
+  - **Off by one:** `_save_checkpoint(episode)` runs *after* episode `e` completes and stores `episode=e`. Resume starts `range(self._start_episode, ...)` at `e`, so that episode is trained twice. Store `episode + 1`, or resume from `+1`.
+  - **`--episodes` is a total, not additional episodes.** Resuming from a final checkpoint (`episode == num_episodes`) with the same `--episodes` trains nothing and just re-saves. Either log a warning when `_start_episode >= num_episodes` or document that `--episodes` is the total.
+  - The replay buffer isn't checkpointed, so a resumed run starts with an empty buffer. That's acceptable, but worth a line in `docs/learning-ai.md`.
+- **B6, XSS:** correct and complete for player names. Names in `data-players`/`data-player1` attributes are escaped. When the page reads them back, they go into `textContent` (`history.js:493`) or into `HandReplay`, which escapes them again, so there is no second injection point. The only remaining unescaped interpolation is `scenario.js:202` (`row.name`), and that's safe for now because those names are fixed, server-side AI panel names. `HandReplay.escapeHtml` (`replay.js:527`) now delegates to `CardUtils.escapeHtml`, so there is a single implementation.
 
 | # | Bug | Location | Status |
 |---|---|---|---|

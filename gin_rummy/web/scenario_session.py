@@ -48,9 +48,7 @@ class ScenarioSession:
     def _ensure_panel(self) -> list[PanelMember]:
         if self.panel is None:
             self.panel = build_panel(self.mc_sims, self.mc_workers)
-            self.tallies = {
-                m.name: {"draw": 0, "discard": 0, "knock": 0} for m in self.panel
-            }
+            self.tallies = {m.name: {"draw": 0, "discard": 0, "knock": 0} for m in self.panel}
         return self.panel
 
     def shutdown(self) -> None:
@@ -100,12 +98,14 @@ class ScenarioSession:
         for entry in choices:
             agrees = entry["choice"] == user_choice
             self.tallies[entry["name"]]["draw"] += agrees
-            reveal.append({
-                "name": entry["name"],
-                "choice": "discard" if entry["choice"] == DrawChoice.DISCARD else "deck",
-                "reasoning": entry["reasoning"],
-                "agrees": agrees,
-            })
+            reveal.append(
+                {
+                    "name": entry["name"],
+                    "choice": "discard" if entry["choice"] == DrawChoice.DISCARD else "deck",
+                    "reasoning": entry["reasoning"],
+                    "agrees": agrees,
+                }
+            )
         self.reveals["draw"] = reveal
 
         if user_choice == DrawChoice.DISCARD:
@@ -138,18 +138,17 @@ class ScenarioSession:
             self.tallies[entry["name"]]["discard"] += agrees
             mc_evs = None
             if entry["mc_candidates"]:
-                mc_evs = [
-                    {"card": c["card"], "ev": c["avg_points"]}
-                    for c in entry["mc_candidates"][:5]
-                ]
-            reveal.append({
-                "name": entry["name"],
-                "choice": str(entry["card"]),
-                "choice_id": card_to_id(entry["card"]),
-                "reasoning": entry["reasoning"],
-                "agrees": agrees,
-                "mc_evs": mc_evs,
-            })
+                mc_evs = [{"card": c["card"], "ev": c["avg_points"]} for c in entry["mc_candidates"][:5]]
+            reveal.append(
+                {
+                    "name": entry["name"],
+                    "choice": str(entry["card"]),
+                    "choice_id": card_to_id(entry["card"]),
+                    "reasoning": entry["reasoning"],
+                    "agrees": agrees,
+                    "mc_evs": mc_evs,
+                }
+            )
         self.reveals["discard"] = reveal
 
         self.user_discard = card
@@ -166,20 +165,20 @@ class ScenarioSession:
 
         human = self.game.players[HUMAN_SEAT]
         post_hand = Hand([c for c in human.hand if c != self.user_discard])
-        choices = panel_knock_choices(
-            self._ensure_panel(), self.game, post_hand, self.user_discard
-        )
+        choices = panel_knock_choices(self._ensure_panel(), self.game, post_hand, self.user_discard)
         self.decisions["knock"] += 1
         reveal = []
         for entry in choices:
             agrees = entry["knocks"] == knock
             self.tallies[entry["name"]]["knock"] += agrees
-            reveal.append({
-                "name": entry["name"],
-                "choice": "knock" if entry["knocks"] else "continue",
-                "reasoning": entry["reasoning"],
-                "agrees": agrees,
-            })
+            reveal.append(
+                {
+                    "name": entry["name"],
+                    "choice": "knock" if entry["knocks"] else "continue",
+                    "reasoning": entry["reasoning"],
+                    "agrees": agrees,
+                }
+            )
         self.reveals["knock"] = reveal
         self.phase = "done"
         return self.get_state()

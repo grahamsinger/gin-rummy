@@ -101,8 +101,15 @@ class TestResumableGame:
         # Hand 1: has a turn, ended.
         tracker.start_hand(dealer_name="Alice")
         tracker.record_turn(
-            player_name="Bob", drew_from="deck", card_drawn="7H", card_discarded="KS",
-            did_knock=False, cards_before=[], cards_after=[], deadwood_before=50, deadwood_after=40,
+            player_name="Bob",
+            drew_from="deck",
+            card_drawn="7H",
+            card_discarded="KS",
+            did_knock=False,
+            cards_before=[],
+            cards_after=[],
+            deadwood_before=50,
+            deadwood_after=40,
         )
         tracker.end_hand(winner_name="Bob", loser_name="Alice", points=12)
 
