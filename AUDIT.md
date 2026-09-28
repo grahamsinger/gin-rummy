@@ -1,0 +1,267 @@
+# Codebase Audit
+
+_Audited at commit `779a7ad` (2026-09-28). Line numbers refer to that commit and will drift._
+
+**Summary:** about 25k lines of source. There are 263 passing tests (1 skipped), 76 ruff errors, 42/57 files not ruff-formatted and 79 `ty` diagnostics. There is no CI.
+
+The biggest structural problem is that the **game/round loop is implemented five separate times**: CLI vs AI, CLI PvP, simulator, scenario quiz and network server. The web session and trainer run partial copies. Result recording and card serialization are copied in the same way. Several real bugs below come directly from those copies drifting apart.
+
+---
+
+## 0. Bugs found during the audit (fix first)
+
+Items marked ✅ were spot-checked by hand. The rest come from reviewer reads.
+
+**Status (2026-09-28):** all of B1–B6 were re-confirmed against the code. Fixed: B2, B3, B4, B5, B6, B11, and the `\ngts` half of B15, each with a regression test (`tests/test_database.py`, `test_game_runner.py`, `test_cli.py`, `TestTrainerResume` in `test_learning.py`). B1/B10: `network/` was deleted per §1 (package, `gin-server`/`gin-client` entry points, `config/network.toml`, `docs/network-multiplayer.md`, README/TODO/READING_ORDER mentions). B7–B10, B12–B14 and the `stress_test_db.py` schema version are still open.
+
+| # | Bug | Location |
+|---|---|---|
+| B1 ✅ | **`network/` cannot be imported.** It imports `gin_rummy.card`/`gin_rummy.melds`, which moved to `gin_rummy/models/`. The `gin-server`/`gin-client` entry points crash. See §1. | `network/server.py:15`, `client.py:13`, `protocol.py:15` |
+| B2 ✅ | **CLI records wrong round results to the DB.** `p*_score_before` is read *after* scoring, so `points` is always 0. The winner comes from cumulative score, gin is "anyone has 0 deadwood", and the knocker is assumed to be `1 - current_player_idx`, but `knock()` doesn't switch players. PvP hard-codes `+25`. | `cli.py:759-790`, `cli.py:838-865` |
+| B3 ✅ | **SQL correlation bug.** In `EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = id)`, the unqualified `id` resolves to `t.id`, so resume can choose the wrong dealer. Use `hands.id`. | `database.py:813` |
+| B4 ✅ | **LearningAI never sees opponent actions.** `record_opponent_pickup/discard` only forward to `ContextAwareAI` instances, so ~34 opponent-model state features stay empty during training. | `game_runner.py:144,155` |
+| B5 ✅ | **`--resume` trains the wrong network.** It replaces `trainer.learning_ai`, but the optimizers still hold the old network's parameters. Curriculum and exploration state are not restored either. | `learning/trainer.py:737-742` vs `:152-163` |
+| B6 ✅ | **Stored XSS via player names.** Names from the DB go into `innerHTML` unescaped. `escapeHtml` exists only as a private `HandReplay` method. | `game.js:404-409, 621, 1606, 1701-1716, 1753`; `history.js:~236-265` |
+| B7 | MonteCarloAI early returns don't reset `last_mc_thinking`, so the `*_with_reasoning` wrappers report the previous turn's numbers. | `ai/monte_carlo.py:746, 846, 1049, 1120` |
+| B8 | StatisticalAI and LearningAI inherit `BasicAI.*_with_reasoning`, so the reasoning stored in the DB describes greedy-deadwood logic, not the real decision. | `ai/basic.py:234-395` |
+| B9 | The Oklahoma knock threshold is ignored outside ContextAware/MC, which hard-code `10`. | `context_aware.py:360,415,800,847`, `basic.py:192`, `statistical.py:249`, `learning_ai.py:268`, `learning/state.py:161` |
+| B10 | Network server `_handle_knock` edits hand and discard pile directly, bypassing the discard-back rule and `_discard_history`. It also catches the wrong exception type. | `network/server.py:371-386` |
+| B11 | The CLI PvP first discard prompts "1-11" but shows the hand without numbers and indexes the unsorted hand. | `cli.py:810`, `cli.py:328` |
+| B12 | The scenario quiz doesn't reset panel AI tracking between failed generation attempts. | `scenario_quiz.py:340-345` vs `409-411` |
+| B13 | Duplicate `@keyframes pulse`: the second definition silently overrides the AI-pickup animation. | `style.css:1021` and `:1552` |
+| B14 | `id_to_card("10")` raises `IndexError`, which `GameSession.discard` doesn't catch, so it returns a 500. | `web/game_session.py:829` |
+| B15 | `scripts/stress_test_db.py` inserts schema version `2`, but `SCHEMA_VERSION = 4`. The trainer progress string contains a stray `\ngts`. | `scripts/stress_test_db.py:45`, `trainer.py:782` |
+
+---
+
+## 1. Decision needed: the `network/` package
+
+`network/` hasn't kept up with the engine (B1, B10). It has its own game loop, its own card codec (`protocol.py:~90-141`) and its own state-for-player builder (`server.py:68-90`), all of which duplicate code elsewhere. Nothing tests it.
+
+**Recommendation: delete it now, and rebuild multiplayer on the web stack later if it's still wanted.**
+
+- The web app is the maintained interface. `GameSession` already has the state serialization, turn flow and DB recording that a multiplayer server needs.
+- To rebuild: add a WebSocket route (FastAPI supports it natively) that lets two human seats share one `GameSession`, reusing the shared round runner proposed in §2.1.
+- Deleting removes ~1,300 lines. It also removes `gin-server`/`gin-client` from `pyproject.toml:15-16` and the README "Network Multiplayer" section (README.md:168-178).
+- If you'd rather keep it for now, fix the three imports and route knocks through `Game.knock_with_discard` (`game.py:381`). It will still drift again without tests.
+
+---
+
+## 2. Code that should be combined
+
+### 2.1 One round runner instead of five game loops
+Game loops are implemented in `cli.py:704-795`, `cli.py:798-870`, `simulator.py:353-416`, `scenario_quiz.py:113-150` and `network/server.py:272-426`. Partial copies live in `web/game_session.py` and `learning/trainer.py:355-517`.
+
+**Target:** `gin_rummy/engine/round_runner.py` with a `Seat` interface (human prompt, AI, remote/web client) that returns a `RoundResult`. `game_runner.execute_ai_turn` is already shared by CLI and web; extend that pattern.
+
+### 2.2 One result/turn recorder
+- Turn recording is copied **five times**: `cli.py:504-516, 526-539, 585-630`; `game_session.py:787-830, 893-920`.
+- The draw-hand `end_hand(...)` block is copied at `cli.py:750-758, 829-837` and `game_session.py:701-709`.
+- The web version uses `RoundResult` correctly and the CLI doesn't (B2).
+
+**Target:** `gin_rummy/tracking.py` with a `RoundRecorder` / `TrackingCallbacks` wrapping `GameTracker`, exposing `record_turn(...)`, `record_round(result: RoundResult)` and `record_draw()`.
+
+### 2.3 A common `AIPlayer` protocol and AI factory
+There is no shared interface. Signatures differ (`context=`, `pending_discard=`), so callers use `isinstance`/`hasattr` about 15 times (`game_runner.py:92-291`, `simulator.py:359-633`, `trainer.py:346-620`, `scenario_quiz.py:226,279`). This caused B4.
+
+- Define `AIPlayer` in `ai/types.py` with uniform signatures (context always optional) and no-op defaults for `update_context`, `record_opponent_*` and `reset_for_new_hand`.
+- Move `update_context` / `record_opponent_*` / `reset_for_new_hand` (`context_aware.py:60-97` ≈ `learning_ai.py:95-136`) into the base class or an `OpponentTrackingMixin`.
+- **Factory:** string→class mapping exists in `simulator.py:502-512`, `trainer.py:216-229` and `game_session.py:296-301, 359-364, 1055-1060`. Replace it with `AI_REGISTRY` / `make_ai()` in `ai/factory.py`, with a lazy import for `learning`.
+
+### 2.4 Merge decision methods with their `_with_reasoning` twins
+`basic.py` and `context_aware.py` copy each decision body into a `_with_reasoning` twin: `context_aware.py:122-247 vs 574-694, 249-324 vs 696-782, 346-446 vs 784-870`, about 330 lines. MonteCarloAI already does it properly (`monte_carlo.py:1207-1311`): compute the reasoning once and have the plain method return `.choice`. Doing the same shrinks `context_aware.py` from ~870 to ~450 lines and fixes B8.
+
+### 2.5 Card codec and shared hand helpers
+| Duplicate | Locations | Target |
+|---|---|---|
+| Card ↔ `"7H"` string | `database.py:22-77`, `game_session.py:18-60`, `network/protocol.py:~90-141`, `analyze_hand.py:23-54`, `scripts/stress_test_db.py:19-21` | `Card.code` / `Card.parse()` in `models/card.py` |
+| Card → 0..51 index | `statistical.py:19-23`, `learning/state.py:28-32` (both O(n) `.index`) | `Card.index` |
+| "Try each discard → deadwood" loop | `basic.py:150-156, 292-298`, `statistical.py:179-182`, `context_aware.py:157-159, 603-605`, `monte_carlo.py:141-145, 854-866`, `game_runner.py:160-171`, `cli.py:488-490`, `game_session.py:750-753` | `rank_discards()` / `Hand.deadwood_without(card)` in `models/` |
+| Knock scoring | `monte_carlo.py:45-82` re-implements `game.py:454-493` | Pure `scoring.py` used by both |
+| Known/unknown cards | `monte_carlo.py:660-684` vs `KnownCards` (`context.py:90-128`) | `KnownCards.unknown_cards` |
+| Group by rank/suit | `melds.py:44-46, 73-75`, `context.py:477-505` | Helpers in `melds.py` |
+| Game-over / target check | `simulator.py:330-343`, `game_session.py:978-1014`, `server.py:463-485` (the CLI never checks) | `Game.game_winner(target)` |
+| Meld/hand JSON serialization | `game_session.py:521-526, 941-945`, `scenario_session.py:204-210`, `app.py:341-383` | `web/serializers.py` |
+| Score SQL | `database.py:794-807`, `888-897` | `_hand_scores(conn, game_id)` |
+
+### 2.6 Learning module internals
+- Three identical MLP builders (`learning/models.py:20-124`): replace with one `MLPQNet(state_size, n_out, hidden)`. Also persist `hidden_sizes` in checkpoints (`models.py:177-183`).
+- Three near-copy state encoders (`learning/state.py:170-243`): replace with one `_encode(...)`.
+- Progress bar, `format_time` and logging setup are copied between `trainer.py:704-789` and `experiment.py:342-436`: move them to `learning/cli_utils.py`.
+
+### 2.7 Frontend JS
+- **Fetch:** `apiCall` (`game.js:535-556`) and `api` (`scenario.js:20-35`) duplicate each other, and there are raw `fetch` calls with no `ok` check (`game.js:617, 1528, 1545, 1697`, `history.js:76`). Replace with one `apiFetch`.
+- **Card utilities:** `formatCardId` is redefined in `game.js:809-818`, shadowing `CardUtils`. Rank/suit lists are hard-coded again (`game.js:1011-1017`, `memory.js:3-4`). Symbol→letter conversion (`game.js:1003-1008`) is only needed because the API sends `str(c)` for `dead_cards`/`opponent_known` (`game_session.py:596-597`). Send IDs instead.
+- **Meld-grouped hand rendering** is copied four times: `game.js:260-336`, `game.js:1077-1138`, `replay.js:37-93`, `scenario.js:80-120`.
+- **Formatting:** relative time (`game.js:1586-1596`, `history.js:415-445`) and difficulty capitalization (5 places).
+- **In `game.js`:** the "current human player name" block is copied three times (`:1671, 1706, 1734`), and building settings from localStorage is copied three times (`~:1361, 1412, 1628`).
+- **Target:** grow `card-utils.js` into `shared/cards.js`, plus `shared/api.js` and `shared/format.js` (`relativeTime`, `capitalize`, `escapeHtml`, which fixes B6).
+
+### 2.8 CSS
+- About 910 lines of inline `<style>` sit in `history.html:9-394`, `memory.html:9-377` and `scenario.html:9-169`. Some of it conflicts with `style.css`: `.modal` z-index/background at `history.html:326-350` vs `style.css:679-700`. `.filter-btn`, `.thinking` and `.back-to-game` are also duplicated.
+- There are no CSS custom properties: about 160 hex literals (`#4fc3f7` ×16, `#4caf50` ×15). Add `:root` tokens.
+- There are no `@media` queries, so the pages have no mobile layout.
+
+### 2.9 FastAPI routes (`app.py`)
+- The `'error' in result → 400` block appears six times (`171-224`); `_scenario_result` (`552-555`) already does this. Use it everywhere, or raise `HTTPException` from the session.
+- Cookie setting is duplicated (`41-47` vs `52-58`).
+- Raw SQL sits in route handlers (`292-299, 443-494`), and the two history queries differ only in the WHERE clause. There are N+1 queries at `412` and `484-494`, plus `database.py:886-906`. Move it all into `database.py`.
+
+---
+
+## 3. Files that are too large
+
+| File | Lines | Proposed split |
+|---|---|---|
+| `web/static/style.css` | 2109 | `base.css` (reset + `:root` tokens), `cards.css`, `board.css`, `modals.css`, `replay.css` (`:1399-2007`), plus `history.css` / `memory.css` / `scenario.css` extracted from the inline `<style>` blocks |
+| `web/static/game.js` | 2058 | `state.js`, `api.js`, `settings.js`, `render/board.js`, `render/assist.js` (`:863-1056`), `render/modals.js`, `ai-playback.js`, `main.js`. Move to **ES modules** (`<script type="module">`, eslint `sourceType: "module"`) to drop the IIFEs; no bundler needed |
+| `ai/monte_carlo.py` | 1311 | Package `ai/mc/`: `rollout.py` (1-274), `sampling.py` (288-323, 554-629), `workers.py` (pool + `_*_sim_batch`, collapsed to one), `thinking.py` (typed dataclasses in place of `dict[str, Any]`, plus formatters), `ai.py` (~300 lines of decision logic). Replace the 16-element positional task tuples with a frozen `SimParams` dataclass |
+| `web/game_session.py` | 1072 | `web/serializers.py`, `web/assist.py` (`calculate_card_helpfulness`, `:71-165`), recording → shared recorder (§2.2), `GameSession` keeps only flow |
+| `cli.py` | 965 | `cli/render.py` (display, ANSI), `cli/prompts.py` (input loops; the `q` handling is copied at `:347, 414, 454`), `cli/app.py` (`main`); the round loop moves to `engine/round_runner.py` |
+| `database.py` | 951 | `db/schema.py` + `db/migrations.py` (numbered list), `db/tracker.py` (`GameTracker`), `db/queries.py`; serialization → `models/` |
+| `ai/context_aware.py` | 870 | ~450 after §2.4 alone |
+| `context.py` | 804 | `models/game_context.py` (`KnownCards`, `GameContext`), `ai/outs.py`, `ai/opponent_model.py`, `ai/thresholds.py`. This keeps AI heuristics out of the domain layer |
+| `learning/trainer.py` | 799 | Reuse the round runner with an experience hook; move CLI glue to `cli_utils.py` |
+| `simulator.py` | 644 | `simulator/metrics.py`, `simulator/runner.py`; the factory → `ai/factory.py` |
+| `web/app.py` | 606 | `APIRouter`s: `routes/game.py`, `history.py`, `stats.py`, `scenario.py`, `pages.py`, with session injected via `Depends(get_session)` |
+| `web/static/replay.js` | 651 | `HandReplay` is a single ~550-line class; split rendering from playback control |
+
+**Longest functions**, in approximate lines:
+- `game.js init`: 255
+- `MonteCarloAI.should_knock`: 192
+- `execute_ai_turn` (`game_runner.py:174`): 185
+- `MonteCarloAI.decide_discard`: 175
+- `renderGameState`: 165
+- `Trainer._play_round`: 163
+- `play_human_turn` (`cli.py:385`): 160
+- `experiment.create_parser`: 154
+- `trainer.main`: 140
+- `memory.js submitAnswer`: 135
+- `showRoundResult`: 128
+- `simulator.main`: 125
+- `update_player_stats`: 120
+- `_find_partial_outs`: 120
+- `GameSession.discard`: 120
+
+---
+
+## 4. Architecture and best practices
+
+### Layering and global state
+- The domain reads global config: `game.py:71-75, 178`. It also builds AI context (`game.py:167`), and `Card.colored_str` puts ANSI codes in the model (`card.py:92`). Instead, pass rules into `Game` and move presentation to the UIs.
+- `scenario_quiz.py:23` imports a UI helper from `cli`, and `game_runner.py:9-12` depends on concrete AI classes.
+- Singletons: `_config` (`config.py:436-451`), `_assist_show_values` (`cli.py:44`), `_LearningAI` (`simulator.py:13-22`). Constructors fall back to `get_config()` (`basic.py:35`, `context_aware.py:50`, `monte_carlo.py:494`), so tests depend on hidden state.
+
+### Randomness and reproducibility
+- Everything uses the global `random` module. MC sampling shares the RNG stream with the deck shuffle, so `experiments/sim_budget.py`'s "same seed" comparison doesn't produce identical deals across sim counts.
+- Workers reseed from pid+time (`monte_carlo.py:282-285`).
+- The trainer and experiment runner have no `--seed`.
+- **Fix:** inject a `random.Random` into `Deck`, `Game` and each AI, pass derived seeds to workers, and add `seed` to `TrainingConfig`.
+
+### Config
+- `config/network.toml` and `config/learning.toml` are **never loaded**: `Config._from_data` has no sections for them (`config.py:320-340`), and port 5555 is hard-coded.
+- Three sources disagree on the AI knock defaults: `config.py:36-37`, `config/ai.toml:12,17` and `config.toml.example:59,64`. The example is also missing `[monte_carlo_ai]`.
+- Unknown keys crash `_from_data` but are silently dropped by `with_overrides` (`:413-416`). `with_overrides` reloads from disk instead of the active config (`:398`).
+- Strategy strings aren't validated: an unknown `sample_strategy` silently becomes "independent" (`monte_carlo.py:767`). Use `Enum`/`Literal` types.
+- Move magic numbers into config or named constants:
+  - `context_aware.py:415-442` (0.5/0.3/0.2/15), meld-break penalty 100, gin EV 25 (should be `gin_bonus`)
+  - `statistical.py:191-199`
+  - `cli.py:854` (`25`)
+  - `scenario_quiz.py:398` (8 workers)
+
+### Web server
+- **Blocking work in `async def` routes.** MonteCarloAI turns and the 3-AI scenario panel (500 sims × 8 workers) stall the event loop for every user for 2-4 s. Use plain `def` routes or `run_in_threadpool`, and add a per-session lock.
+- **Process pools leak.** A new `MonteCarloAI` is built each hand without `shutdown()` (`game_session.py:1061`). `ScenarioSession.shutdown` is never called, and session expiry just drops references (`session_store.py:47, 63`). Add a `close()` hook on eviction and lifespan exit, and don't rely on `__del__` (`monte_carlo.py:657`).
+- There is no cap on session count; every cookieless request creates a 4-hour session (`app.py:51`).
+- **Missing API validation:**
+  - No Pydantic `response_model`s, and `/api/game/state` returns 200 with an `{'error'}` body.
+  - Input types are too loose: `source` should be `Literal["deck","discard"]`, since anything else silently means deck (`game_session.py:669-676`). `target_score`, `player_name` and `/api/history?limit=` are unbounded.
+- Destructive and debug endpoints have no auth (`DELETE /api/stats/{name}`, `DELETE /api/games/{id}`, `POST /api/admin/cleanup`, `GET /log/{level}`). That's fine for localhost; gate them behind a flag if the app is ever exposed.
+- `get_state` recomputes helpfulness (about 104 `analyze_hand` calls) on every response, even with assist off (`game_session.py:571`).
+- Static assets have unversioned URLs (`index.html:321-323`). Add `?v=<hash>` so browsers don't mix old and new JS/CSS.
+
+### Frontend state
+- `game.js` has about 12 mutable globals.
+- Draw, discard and AI-turn have no in-flight guard, so a double-click can fire duplicate POSTs. `scenario.js:37-56` already has a `busy` flag; copy that.
+- Dead knock-confirm flow: `pendingDiscardCard` is never set, so `knock()` (`game.js:707`), the modal, `style.css:764-808`, `/api/game/knock` (`app.py:187-194`) and `GameSession.knock` are all unused.
+
+### Database
+- Every write opens a new connection (`database.py:283, 383, 411`), and `end_hand` + `update_player_stats` run in separate transactions (`:348-365`).
+- `PRAGMA foreign_keys` is off, so `delete_game` cascades by hand (`:716-764`). Migrations swallow `OperationalError` (`:222-233`).
+- `'Computer'` is hard-coded in SQL (`:656-673`) and in the web layer (`game_session.py:985`).
+- The DB path is relative to the working directory, and there is already a stray `gin_rummy/game_history.db`. Resolve it against the project root or a user data directory.
+
+### Performance
+- The MC heuristic fallback calls `BasicAI._card_helps_hand`, which calls `self.decide_discard`, which is the *full MC discard* (`basic.py:107`). `decide_discard` also runs `super().decide_discard` every time just for a tie check (`monte_carlo.py:971`).
+- `BasicAI.decide_discard` (used in rollouts, millions of calls) builds debug log strings eagerly (`basic.py:57-61, 160-163`). Guard them with `logger.isEnabledFor`.
+- `find_all_melds(hand)` is recomputed inside a 52×melds loop (`context.py:274`).
+- The trainer reloads the opponent checkpoint from disk every self-play episode (`trainer.py:208, 222`). `ReplayBuffer.sample` copies the whole deque on every call (`replay.py:89`).
+
+### Logging
+- `setup_logging` adds handlers on every call (`config.py:354-367`) and uses a plain `FileHandler`. `game.log` is currently **43 MB**. Switch to `RotatingFileHandler` and make setup idempotent.
+
+### Dead code (remove)
+- `cli.py`: `display_hand_with_melds` (`:105-164`) and the unused `human_player_idx` param (`:644`)
+- `melds.py`: `_melds_overlap` (`:115`)
+- `simulator.py`: `run_simulation` (`:453`)
+- `monte_carlo.py`: `_sample_game_state` (`:686-721`)
+- `DynamicThresholdCalculator` (built at `context_aware.py:55`, never used)
+- `learning/state.py`: `index_to_card_tuple`, `get_card_indices`
+- `learning/rewards.py`: `normalize_reward`
+- Legacy `GameContext` fields (`context.py:146-149`)
+- The knock-confirm flow above
+- `network/` (§1)
+
+---
+
+## 5. Tests
+
+- **There is no `tests/conftest.py`.**
+  - `make_test_config()` is copied in `test_ai.py:10`, `test_monte_carlo.py:15` and `test_mc_upgrades.py:17`.
+  - `make_context()` is copied in `test_monte_carlo.py:35` and `test_mc_upgrades.py:42`, and `test_context.py` builds `GameContext(` by hand 11 times.
+  - `Card(Rank.X, Suit.Y)` is written out about 830 times.
+  - Add shared fixtures and a `cards("7S 8S 9S KC")` helper.
+- **Files named after events instead of modules.** Merge `test_review_fixes.py` into `test_game.py`/`test_melds.py`/`test_context.py` and a new `test_statistical.py`. Merge `test_mc_upgrades.py` into `test_monte_carlo.py` and `test_4card_run.py` into `test_ai.py`.
+- **Untested modules:** `cli.py`, `database.py`, `game_runner.py`, `simulator.py`, `analyze_hand.py`, `scenario_quiz.py`, all of `web/` except `scenario_session`, `network/`, `learning/trainer.py` and `learning/experiment.py`. `test_learning.py` is skipped entirely without torch. Highest-value additions:
+  1. FastAPI `TestClient` game-flow tests (add `httpx` to dev deps). **Do this before splitting `app.py`, `game_session.py` or `game.js`.**
+  2. `database.py` against a `tmp_path` DB. This would have caught B3.
+  3. A 3-game `Simulator` smoke test.
+  4. A round-recording test for the CLI. This would have caught B2.
+
+---
+
+## 6. Tooling and repo hygiene
+
+- **No CI.** Add `.github/workflows/ci.yml` running `uv sync --all-extras`, `ruff check`, `ruff format --check`, `pytest` (with torch, so learning tests run) and `npm run lint`. Add `.pre-commit-config.yaml` with ruff and ruff-format.
+- **Ruff:** run `ruff check --fix` and `ruff format` once, then list that commit in `.git-blame-ignore-revs`. Extend `select` beyond `F,E,W` with `I, UP, B, SIM` (101 more hits, 52 auto-fixable), and optionally `RUF, PT, PERF`.
+- **ty:** 79 diagnostics. The meaningful ones are `object` not callable from loosely typed dicts (`simulator.py:360-450`, `trainer.py:347-622`) and `BasicAI` has no `update_context` (`scenario_quiz.py:227-279`); both go away with §2.3. Add a `[tool.ty]` section.
+- **Pytest:** add `addopts = "-ra --strict-markers"` and a `learning` marker so the torch skip is visible.
+- **Dependencies:** `fastapi`/`uvicorn` are an optional `web` extra, but the web UI is the primary interface; consider making them core. Add `httpx` and `pytest-cov` to dev.
+- **pyproject metadata:** `readme`, `license` and `authors` are missing.
+- **Layout:**
+  - `scripts/stress_test_db.py` uses a `sys.path` hack and writes an un-ignored `stress_test.db` to the repo root.
+  - `experiments/` (ad-hoc benchmarks that read private attributes like `ai._turn_plan`) and `gin_rummy/learning/experiment.py` (a CLI) have confusingly similar names. Consider renaming `experiments/` to `benchmarks/` and adding a short README.
+- **Generated artifacts in git:** `docs/learning-ai.pdf` and `gin_rummy/READING_ORDER.pdf` duplicate their `.md` sources, and the second one ships inside the wheel. Remove both and generate on demand. Decide whether `models/statistical_ai_backup.json` (tracked) or `statistical_ai.json` (ignored) is the canonical one.
+- **Local clutter** (ignored, but worth cleaning): `game.log` (43 MB), `.coverage`, `gin_rummy/game_history.db`, `models/experiments/` (3.6 MB).
+
+### Docs
+- **README:**
+  - Missing `gin-scenario`, `gin-experiment` and the scenario page.
+  - The "AI Types" list omits `statistical` and `montecarlo`.
+  - The Network section documents commands that crash.
+- **`gin_rummy/READING_ORDER.md`:** it never mentions MC, the scenario quiz or `web/`. Update it and move it to `docs/`.
+- **`config/overrides/README.md`:** documents only 5 of the 10 overrides.
+- **Overlapping result docs:** `docs/context-ai-improvement-plan.md` (outdated ~53% figure), `docs/ai-tournament.md`, `SIMULATION_HISTORY.md` and the TODO roadmap all track results. Consolidate them into SIMULATION_HISTORY and archive the plan. Mark `docs/web_ui_spec.md` as historical.
+- **TODO.md** (384 lines, 101 checked vs 23 open): delete the completed sections and the changelog (git already has them). Consider moving the open items to GitHub issues.
+
+---
+
+## Suggested order of work
+
+1. **Quick fixes:** B1 decision (delete `network/`), B2, B3, B4, B5, B6. Add tests for each as you go.
+2. **Safety net:** CI + pre-commit, a one-time `ruff --fix` + `ruff format`, `conftest.py`, web `TestClient` and DB tests.
+3. **Consolidate the core:** card codec (§2.5), `AIPlayer` protocol + factory (§2.3), shared recorder (§2.2), reasoning twins (§2.4).
+4. **Round runner (§2.1):** move CLI, simulator, quiz and trainer onto it.
+5. **Split the large files (§3):** `monte_carlo.py`, `game_session.py`/`app.py`, `database.py`, `cli.py`, `context.py`.
+6. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
+7. **Docs and TODO cleanup.**
