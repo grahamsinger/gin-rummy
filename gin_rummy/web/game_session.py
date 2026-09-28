@@ -698,15 +698,7 @@ class GameSession:
         )
         self.game.phase = GamePhase.ROUND_OVER
         if self.db_game_started:
-            self.tracker.end_hand(
-                winner_name=None,
-                loser_name=None,
-                points=0,
-                is_draw=True,
-                knocker_name=None,
-                winner_deadwood=0,
-                loser_deadwood=0
-            )
+            self.tracker.end_hand_from_result(self.game.get_draw_result())
 
     def discard(self, card_id: str, knock: bool | None = None) -> dict[str, Any]:
         """Discard a card, optionally knocking.
@@ -957,8 +949,6 @@ class GameSession:
             return
 
         winner_name = result.winner.name if result.winner else None
-        loser_name = result.loser.name if result.loser else None
-        knocker_name = result.knocker.name if result.knocker else None
 
         # Convert layoff cards to string format
         layoff_cards_str = None
@@ -1014,17 +1004,7 @@ class GameSession:
 
         # Record hand result in database only if game was started (human played)
         if self.db_game_started:
-            self.tracker.end_hand(
-                winner_name=winner_name,
-                loser_name=loser_name,
-                points=result.points,
-                is_gin=result.is_gin,
-                is_undercut=result.is_undercut,
-                is_draw=result.is_draw,
-                knocker_name=knocker_name,
-                winner_deadwood=result.winner_deadwood,
-                loser_deadwood=result.loser_deadwood,
-            )
+            self.tracker.end_hand_from_result(result)
 
     def new_round(self) -> dict[str, Any]:
         """Start a new round."""

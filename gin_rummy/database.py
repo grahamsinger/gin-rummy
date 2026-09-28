@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Generator
 from gin_rummy.config import get_config
 
 if TYPE_CHECKING:
+    from gin_rummy.game import RoundResult
     from gin_rummy.models import Card
 
 
@@ -362,6 +363,25 @@ class GameTracker:
         self.update_player_stats(
             winner_name, loser_name, points, is_gin, is_undercut,
             is_draw, knocker_name, winner_deadwood, loser_deadwood
+        )
+
+    def end_hand_from_result(self, result: RoundResult) -> None:
+        """Record end of hand directly from the engine's RoundResult.
+
+        This is the single source of truth for turning a RoundResult into a
+        DB row; every UI (CLI, web, ...) should use it rather than
+        re-deriving winner/points/gin/undercut from game state.
+        """
+        self.end_hand(
+            winner_name=result.winner.name if result.winner else None,
+            loser_name=result.loser.name if result.loser else None,
+            points=result.points,
+            is_gin=result.is_gin,
+            is_undercut=result.is_undercut,
+            is_draw=result.is_draw,
+            knocker_name=result.knocker.name if result.knocker else None,
+            winner_deadwood=result.winner_deadwood,
+            loser_deadwood=result.loser_deadwood,
         )
 
     def record_turn(
@@ -810,7 +830,7 @@ def get_resumable_game(game_id: int, db_path: Path | None = None) -> dict | None
         last_hand = conn.execute(
             """SELECT hand_number, dealer_name FROM hands
                WHERE game_id = ? AND ended_at IS NOT NULL
-                 AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = id)
+                 AND EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = hands.id)
                ORDER BY hand_number DESC LIMIT 1""",
             (game_id,),
         ).fetchone()

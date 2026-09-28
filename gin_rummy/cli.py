@@ -386,11 +386,12 @@ def play_human_turn(
     game: Game,
     human_player_idx: int,
     tracker: GameTracker | None = None
-) -> TurnResult:
+) -> tuple[TurnResult, RoundResult | None]:
     """Play a human player's turn.
 
     Returns:
-        TurnResult indicating whether round continues, ended by knock, or draw.
+        (TurnResult, RoundResult) - the RoundResult is only set when the
+        round ended this turn (knock or draw).
     """
     current = game.current_player
     clear_screen()
@@ -434,7 +435,7 @@ def play_human_turn(
                 break
             except InvalidActionError as e:
                 print(f"\n{e}")
-                return TurnResult.DRAW
+                return TurnResult.DRAW, game.get_draw_result()
         elif choice == "2" and game.top_of_discard:
             card = game.draw_from_discard()
             drew_from = "discard"
@@ -516,7 +517,7 @@ def play_human_turn(
                             )
 
                         display_round_result(game, result)
-                        return TurnResult.KNOCKED
+                        return TurnResult.KNOCKED, result
 
                 # Just discard (no knock or declined knock)
                 game.discard(discard_card)
@@ -538,7 +539,7 @@ def play_human_turn(
                         deadwood_after=deadwood_after
                     )
 
-                return TurnResult.CONTINUE
+                return TurnResult.CONTINUE, None
             print(f"Please enter a number between 1 and {len(display_cards)}")
         except ValueError:
             print("Please enter a valid card number")
@@ -635,7 +636,7 @@ def play_ai_turn(
     ai: BasicAI,
     human_player_idx: int,
     tracker: GameTracker | None = None,
-) -> TurnResult:
+) -> tuple[TurnResult, RoundResult | None]:
     """Play an AI turn using shared game runner logic.
 
     Args:
@@ -645,7 +646,8 @@ def play_ai_turn(
         tracker: Optional database tracker for recording turns.
 
     Returns:
-        TurnResult indicating whether round continues, ended by knock, or draw.
+        (TurnResult, RoundResult) - the RoundResult is only set when the
+        round ended this turn (knock or draw).
     """
     config = get_config()
     delay = config.display.ai_turn_delay
@@ -661,9 +663,11 @@ def play_ai_turn(
     callbacks = CLITurnCallbacks(game, tracker, delay, cards_before)
 
     # Execute the turn using shared game logic
-    result, _, _ = execute_ai_turn(game, ai, callbacks=callbacks)
+    turn_result, _, round_result = execute_ai_turn(game, ai, callbacks=callbacks)
+    if turn_result == TurnResult.DRAW:
+        round_result = game.get_draw_result()
 
-    return result
+    return turn_result, round_result
 
 
 def display_round_result(game: Game, result: RoundResult | None = None) -> None:
@@ -701,6 +705,22 @@ def display_round_result(game: Game, result: RoundResult | None = None) -> None:
           f"{game.players[1].name}: {game.players[1].score}")
 
 
+def finish_round(
+    game: Game,
+    turn_result: TurnResult,
+    round_result: RoundResult | None,
+    tracker: GameTracker | None,
+) -> None:
+    """Record the round outcome and print the draw message, if any."""
+    if tracker and round_result is not None:
+        tracker.end_hand_from_result(round_result)
+
+    if turn_result == TurnResult.DRAW:
+        print("\nRound ended in a DRAW (deck exhausted)")
+
+    input("\nPress Enter to continue...")
+
+
 def play_round_vs_ai(
     game: Game,
     ai: BasicAI,
@@ -730,69 +750,22 @@ def play_round_vs_ai(
 
     # Main game loop
     turn_result = TurnResult.CONTINUE
+    round_result: RoundResult | None = None
     while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
         if game.current_player_idx == human_player_idx:
-            turn_result = play_human_turn(game, human_player_idx, tracker)
+            turn_result, round_result = play_human_turn(game, human_player_idx, tracker)
             if turn_result != TurnResult.CONTINUE:
                 break
         else:
             clear_screen()
             ai_name = game.current_player.name
             display_game_state(game, human_player_idx, turn_player_name=ai_name)
-            turn_result = play_ai_turn(game, ai, human_player_idx, tracker)
+            turn_result, round_result = play_ai_turn(game, ai, human_player_idx, tracker)
             if turn_result != TurnResult.CONTINUE:
                 break
             # Continue to human's turn without prompting
 
-    # End hand tracking
-    if tracker:
-        if turn_result == TurnResult.DRAW:
-            tracker.end_hand(
-                winner_name=None,
-                loser_name=None,
-                points=0,
-                is_draw=True,
-                knocker_name=None,
-                winner_deadwood=0,
-                loser_deadwood=0
-            )
-        elif turn_result == TurnResult.KNOCKED:
-            # Determine winner from scores (the one who just gained points)
-            p0_score_before = game.players[0].score
-            p1_score_before = game.players[1].score
-            # Winner is whoever has more points now (knock already applied)
-            if game.players[0].score > game.players[1].score:
-                winner = game.players[0]
-                loser = game.players[1]
-                points = game.players[0].score - p0_score_before
-            else:
-                winner = game.players[1]
-                loser = game.players[0]
-                points = game.players[1].score - p1_score_before
-            # Check for gin/undercut based on deadwood
-            p0_dw = game.players[0].hand.deadwood_total
-            p1_dw = game.players[1].hand.deadwood_total
-            is_gin = min(p0_dw, p1_dw) == 0
-            # Undercut if defender won
-            knocker_idx = 1 - game.current_player_idx  # current switched after knock
-            knocker = game.players[knocker_idx]
-            is_undercut = winner != knocker
-            tracker.end_hand(
-                winner_name=winner.name,
-                loser_name=loser.name,
-                points=points,
-                is_gin=is_gin,
-                is_undercut=is_undercut,
-                is_draw=False,
-                knocker_name=knocker.name,
-                winner_deadwood=winner.hand.deadwood_total,
-                loser_deadwood=loser.hand.deadwood_total
-            )
-
-    if turn_result == TurnResult.DRAW:
-        print("\nRound ended in a DRAW (deck exhausted)")
-
-    input("\nPress Enter to continue...")
+    finish_round(game, turn_result, round_result, tracker)
 
 
 def play_round_pvp(game: Game, tracker: GameTracker | None = None) -> None:
@@ -803,71 +776,23 @@ def play_round_pvp(game: Game, tracker: GameTracker | None = None) -> None:
     if tracker:
         tracker.start_hand(dealer_name=game.dealer.name)
 
-    # First discard
+    # First discard (non-dealer is current player after deal)
     clear_screen()
-    display_game_state(game, game.current_player_idx)
-    print(f"{game.current_player.name}, discard one card to start the game.")
-    idx = get_card_choice(game.current_player.hand, "Card to discard (1-11): ")
-    card = game.current_player.hand[idx]
-    game.discard_to_start(card)
-    print(f"\nDiscarded {card}")
+    play_human_first_discard(game, game.current_player_idx)
 
     input("\nPress Enter for next player's turn...")
 
     # Main game loop
     turn_result = TurnResult.CONTINUE
+    round_result: RoundResult | None = None
     while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
-        turn_result = play_human_turn(game, game.current_player_idx, tracker)
+        turn_result, round_result = play_human_turn(game, game.current_player_idx, tracker)
         if turn_result != TurnResult.CONTINUE:
             break
         if game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
             input("\nPress Enter for next player's turn...")
 
-    # End hand tracking
-    if tracker:
-        if turn_result == TurnResult.DRAW:
-            tracker.end_hand(
-                winner_name=None,
-                loser_name=None,
-                points=0,
-                is_draw=True,
-                knocker_name=None,
-                winner_deadwood=0,
-                loser_deadwood=0
-            )
-        elif turn_result == TurnResult.KNOCKED:
-            if game.players[0].score > game.players[1].score:
-                winner = game.players[0]
-                loser = game.players[1]
-            else:
-                winner = game.players[1]
-                loser = game.players[0]
-            p0_dw = game.players[0].hand.deadwood_total
-            p1_dw = game.players[1].hand.deadwood_total
-            is_gin = min(p0_dw, p1_dw) == 0
-            knocker_idx = 1 - game.current_player_idx
-            knocker = game.players[knocker_idx]
-            is_undercut = winner != knocker
-            # Calculate points from difference
-            points = abs(p0_dw - p1_dw)
-            if is_gin or is_undercut:
-                points += 25
-            tracker.end_hand(
-                winner_name=winner.name,
-                loser_name=loser.name,
-                points=points,
-                is_gin=is_gin,
-                is_undercut=is_undercut,
-                is_draw=False,
-                knocker_name=knocker.name,
-                winner_deadwood=winner.hand.deadwood_total,
-                loser_deadwood=loser.hand.deadwood_total
-            )
-
-    if turn_result == TurnResult.DRAW:
-        print("\nRound ended in a DRAW (deck exhausted)")
-
-    input("\nPress Enter to continue...")
+    finish_round(game, turn_result, round_result, tracker)
 
 
 def main() -> None:
