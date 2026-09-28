@@ -665,11 +665,13 @@ class TestSharedInterface:
 
     @pytest.mark.parametrize("kind", ALL_TYPES)
     def test_tracking_hooks_exist_and_are_safe(self, kind):
-        from gin_rummy.context import GameContext
+        from tests.helpers import make_context
 
         ai = self._make(kind)
         card = Card(Rank.SEVEN, Suit.HEARTS)
-        ai.update_context(GameContext(deck_remaining=20, deck_position_pct=0.3))
+        hand = Hand([Card(Rank.ACE, Suit.SPADES), Card(Rank.TWO, Suit.HEARTS)])
+        ai.update_context(make_context(hand))
+        assert ai._current_context is not None
         ai.record_opponent_pickup(card)
         ai.record_opponent_discard(card)
         ai.reset_for_new_hand()
