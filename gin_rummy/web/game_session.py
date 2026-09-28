@@ -9,7 +9,8 @@ from gin_rummy.ai import BasicAI, DIFFICULTY_TO_AI, DrawChoice, MonteCarloAI, ma
 from gin_rummy.database import GameTracker, get_connection, get_resumable_game
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
-from gin_rummy.models import Card, Suit, Rank, analyze_hand
+from gin_rummy.tracking import TurnRecord, TurnRecorder, TurnSnapshot
+from gin_rummy.models import Card, Player, Suit, Rank, analyze_hand
 from gin_rummy.models.hand import CardNotInHandError
 
 
@@ -161,16 +162,16 @@ class GameSession:
         self.game_over: bool = False
         self.winner: str | None = None
         self.tracker: GameTracker = GameTracker()
+        self.recorder = TurnRecorder(self.tracker)
 
         # Turn tracking state (for recording to database)
-        self.turn_cards_before: list[str] | None = None
-        self.turn_deadwood_before: int | None = None
+        self.turn_snapshot: TurnSnapshot | None = None
         self.turn_drew_from: str | None = None  # 'deck' or 'discard'
         self.turn_card_drawn: Card | None = None
 
         # Deferred DB tracking - don't create game/hand until human makes first move
         self.db_game_started: bool = False
-        self.buffered_ai_turns: list[dict] = []
+        self.buffered_ai_turns: list[TurnRecord] = []
         self.pending_dealer_name: str = ""
 
         # Scenario quiz state (created lazily by the /api/scenario endpoints)
@@ -350,8 +351,7 @@ class GameSession:
         # Reset UI state
         self.last_round_result = None
         self.last_ai_action = None
-        self.turn_cards_before = None
-        self.turn_deadwood_before = None
+        self.turn_snapshot = None
         self.turn_drew_from = None
         self.turn_card_drawn = None
 
@@ -389,62 +389,21 @@ class GameSession:
         self.tracker.start_hand(self.pending_dealer_name)
 
         # Flush any buffered AI turns (including reasoning if captured)
-        for turn_data in self.buffered_ai_turns:
-            # Pop reasoning before recording turn (not a DB field)
-            reasoning = turn_data.pop("_reasoning", None)
-            turn_id = self.tracker.record_turn(**turn_data)
-            # Record AI decisions if reasoning was captured
-            if reasoning:
-                self._record_ai_decisions(turn_id, reasoning)
+        for record in self.buffered_ai_turns:
+            self.recorder.write(record)
         self.buffered_ai_turns = []
 
         self.db_game_started = True
 
-    def _record_ai_decisions(self, turn_id: int, reasoning: Any) -> None:
-        """Record AI decision reasoning to the database.
-
-        Args:
-            turn_id: The turn ID to associate decisions with.
-            reasoning: TurnReasoning object with draw, discard, and knock decisions.
-        """
-        from gin_rummy.ai import TurnReasoning
-
-        if not isinstance(reasoning, TurnReasoning):
+    def _record_human_turn(self, human: Player, discarded: Card, *, did_knock: bool) -> None:
+        """Record the human's turn once the discard (or knock) has been applied."""
+        if self.turn_snapshot is None or not self.turn_drew_from or self.turn_card_drawn is None:
             return
-
-        # Record draw decision
-        if reasoning.draw:
-            self.tracker.record_ai_decision(
-                turn_id=turn_id,
-                decision_type="draw",
-                choice=reasoning.draw.choice.name,
-                reasoning=reasoning.draw.reasoning,
-                options_considered=reasoning.draw.factors,
+        self.recorder.write(
+            TurnRecord.human(
+                human, self.turn_snapshot, self.turn_drew_from, self.turn_card_drawn, discarded, did_knock=did_knock
             )
-
-        # Record discard decision
-        if reasoning.discard:
-            # Include both factors and options_considered
-            options = reasoning.discard.factors.copy()
-            for card_str, dw in reasoning.discard.options_considered:
-                options.append(f"{card_str} → dw={dw}")
-            self.tracker.record_ai_decision(
-                turn_id=turn_id,
-                decision_type="discard",
-                choice=str(reasoning.discard.card),
-                reasoning=reasoning.discard.reasoning,
-                options_considered=options,
-            )
-
-        # Record knock decision
-        if reasoning.knock:
-            self.tracker.record_ai_decision(
-                turn_id=turn_id,
-                decision_type="knock",
-                choice="knock" if reasoning.knock.should_knock else "no_knock",
-                reasoning=reasoning.knock.reasoning,
-                options_considered=reasoning.knock.factors,
-            )
+        )
 
     def get_state(self) -> dict[str, Any]:
         """Get current game state as JSON-serializable dict."""
@@ -602,9 +561,7 @@ class GameSession:
                 return self.get_state()
 
             # Save turn state BEFORE drawing
-            self.turn_cards_before = [c.code for c in human.hand]
-            analysis_before = human.hand.analyze()
-            self.turn_deadwood_before = analysis_before.deadwood_value
+            self.turn_snapshot = TurnSnapshot.of(human)
 
             # Draw the card
             if source == "discard":
@@ -708,26 +665,7 @@ class GameSession:
                 self._ensure_db_started()
 
                 result = self.game.knock_with_discard(card)
-
-                # Record turn with knock
-                if (
-                    self.turn_cards_before is not None
-                    and self.turn_deadwood_before is not None
-                    and self.turn_drew_from
-                    and self.turn_card_drawn
-                ):
-                    cards_after = [c.code for c in remaining_cards]
-                    self.tracker.record_turn(
-                        player_name=human.name,
-                        drew_from=self.turn_drew_from,
-                        card_drawn=self.turn_card_drawn.code,
-                        card_discarded=card.code,
-                        did_knock=True,
-                        cards_before=self.turn_cards_before,
-                        cards_after=cards_after,
-                        deadwood_before=self.turn_deadwood_before,
-                        deadwood_after=post_discard_deadwood,
-                    )
+                self._record_human_turn(human, card, did_knock=True)
 
                 self._save_round_result(result)
                 return self.get_state()
@@ -737,27 +675,7 @@ class GameSession:
 
             # Ensure DB started before recording turn
             self._ensure_db_started()
-
-            # Record turn without knock
-            if (
-                self.turn_cards_before is not None
-                and self.turn_deadwood_before is not None
-                and self.turn_drew_from
-                and self.turn_card_drawn
-            ):
-                cards_after = [c.code for c in human.hand]
-                deadwood_after = human.hand.analyze().deadwood_value
-                self.tracker.record_turn(
-                    player_name=human.name,
-                    drew_from=self.turn_drew_from,
-                    card_drawn=self.turn_card_drawn.code,
-                    card_discarded=card.code,
-                    did_knock=False,
-                    cards_before=self.turn_cards_before,
-                    cards_after=cards_after,
-                    deadwood_before=self.turn_deadwood_before,
-                    deadwood_after=deadwood_after,
-                )
+            self._record_human_turn(human, card, did_knock=False)
 
             return self.get_state()
 
@@ -801,8 +719,7 @@ class GameSession:
 
         # Save AI player state before turn (for tracking)
         ai_player = self.game.players[1 - self.human_idx]
-        cards_before = [c.code for c in ai_player.hand]
-        deadwood_before = ai_player.hand.analyze().deadwood_value
+        snapshot = TurnSnapshot.of(ai_player)
 
         # Execute AI turn with reasoning capture
         turn_result, actions, round_result = execute_ai_turn(self.game, self.ai, capture_reasoning=True)
@@ -824,36 +741,12 @@ class GameSession:
                     self.last_ai_action["mc_thinking"] = self.ai.last_mc_thinking
                 self.ai.last_mc_thinking = None  # Reset for next turn
 
-            # Prepare turn data for recording
-            drew_from = "discard" if actions.draw_source == DrawChoice.DISCARD else "deck"
-            if actions.did_knock:
-                # Cards after knock (discarded card removed)
-                cards_after = [c.code for c in ai_player.hand if c != actions.discarded_card]
-            else:
-                cards_after = [c.code for c in ai_player.hand]
-
-            turn_data = {
-                "player_name": ai_player.name,
-                "drew_from": drew_from,
-                "card_drawn": actions.drawn_card.code,
-                "card_discarded": actions.discarded_card.code,
-                "did_knock": actions.did_knock,
-                "cards_before": cards_before,
-                "cards_after": cards_after,
-                "deadwood_before": deadwood_before,
-                "deadwood_after": actions.deadwood_after,
-            }
-
-            # Buffer AI turn if DB not started, otherwise record directly
+            # Record the AI turn, or buffer it until the DB game has started
+            record = TurnRecord.from_actions(ai_player, snapshot, actions)
             if self.db_game_started:
-                turn_id = self.tracker.record_turn(**turn_data)
-                # Record AI decisions if reasoning was captured
-                if actions.reasoning:
-                    self._record_ai_decisions(turn_id, actions.reasoning)
+                self.recorder.write(record)
             else:
-                # Buffer turn data along with reasoning for later recording
-                turn_data["_reasoning"] = actions.reasoning
-                self.buffered_ai_turns.append(turn_data)
+                self.buffered_ai_turns.append(record)
 
         if turn_result == TurnResult.DRAW:
             # Deck exhausted
@@ -982,8 +875,7 @@ class GameSession:
         self.last_ai_action = None
 
         # Reset turn tracking state
-        self.turn_cards_before = None
-        self.turn_deadwood_before = None
+        self.turn_snapshot = None
         self.turn_drew_from = None
         self.turn_card_drawn = None
 

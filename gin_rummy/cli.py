@@ -12,6 +12,7 @@ from gin_rummy.models import Card, Suit, Hand, MeldType, Player, analyze_hand
 from gin_rummy.config import get_config, load_config
 from gin_rummy.database import GameTracker
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
+from gin_rummy.tracking import TurnRecord, TurnRecorder, TurnSnapshot
 from gin_rummy.game_runner import (
     TurnResult,
     TurnActions,
@@ -390,8 +391,8 @@ def play_human_turn(
     display_game_state(game, human_player_idx, turn_player_name=current.name)
 
     # Capture state before turn (for database tracking)
-    cards_before = [c.code for c in current.hand]
-    deadwood_before = current.hand.deadwood_total
+    snapshot = TurnSnapshot.of(current)
+    recorder = TurnRecorder(tracker)
 
     # Drawing phase
     print("\nDraw from:")
@@ -492,21 +493,9 @@ def play_human_turn(
                     if knock_choice == "y":
                         # Discard and knock (handles pile/history bookkeeping)
                         result = game.knock_with_discard(discard_card)
-
-                        # Record turn
-                        if tracker and card:
-                            cards_after = [c.code for c in current.hand]
-                            tracker.record_turn(
-                                player_name=current.name,
-                                drew_from=drew_from,
-                                card_drawn=card.code,
-                                card_discarded=discard_card.code,
-                                did_knock=True,
-                                cards_before=cards_before,
-                                cards_after=cards_after,
-                                deadwood_before=deadwood_before,
-                                deadwood_after=post_discard_deadwood,
-                            )
+                        recorder.write(
+                            TurnRecord.human(current, snapshot, drew_from, card, discard_card, did_knock=True)
+                        )
 
                         display_round_result(game, result)
                         return TurnResult.KNOCKED, result
@@ -514,22 +503,7 @@ def play_human_turn(
                 # Just discard (no knock or declined knock)
                 game.discard(discard_card)
                 print(f"\nDiscarded {discard_card}")
-
-                # Record turn
-                if tracker and card:
-                    cards_after = [c.code for c in current.hand]
-                    deadwood_after = current.hand.deadwood_total
-                    tracker.record_turn(
-                        player_name=current.name,
-                        drew_from=drew_from,
-                        card_drawn=card.code,
-                        card_discarded=discard_card.code,
-                        did_knock=False,
-                        cards_before=cards_before,
-                        cards_after=cards_after,
-                        deadwood_before=deadwood_before,
-                        deadwood_after=deadwood_after,
-                    )
+                recorder.write(TurnRecord.human(current, snapshot, drew_from, card, discard_card, did_knock=False))
 
                 return TurnResult.CONTINUE, None
             print(f"Please enter a number between 1 and {len(display_cards)}")
@@ -546,15 +520,14 @@ class CLITurnCallbacks:
     def __init__(
         self,
         game: Game,
-        tracker: GameTracker | None,
+        recorder: TurnRecorder,
         delay: float,
-        cards_before: list[str],
+        snapshot: TurnSnapshot,
     ) -> None:
         self.game = game
-        self.tracker = tracker
+        self.recorder = recorder
         self.delay = delay
-        self.cards_before = cards_before
-        self.config = get_config()
+        self.snapshot = snapshot
 
     def on_draw(self, player: Player, source: DrawChoice, card: Card) -> None:
         """Print draw message and add delay."""
@@ -576,54 +549,8 @@ class CLITurnCallbacks:
         display_round_result(self.game, result)
 
     def on_turn_complete(self, player: Player, actions: TurnActions) -> None:
-        """Record turn to database tracker if enabled."""
-        if not self.tracker:
-            return
-
-        drew_from = "discard" if actions.draw_source == DrawChoice.DISCARD else "deck"
-
-        # Get cards after turn
-        if actions.did_knock:
-            cards_after = [c.code for c in player.hand if c != actions.discarded_card]
-        else:
-            cards_after = [c.code for c in player.hand]
-
-        turn_id = self.tracker.record_turn(
-            player_name=player.name,
-            drew_from=drew_from,
-            card_drawn=actions.drawn_card.code,
-            card_discarded=actions.discarded_card.code,
-            did_knock=actions.did_knock,
-            cards_before=self.cards_before,
-            cards_after=cards_after,
-            deadwood_before=actions.deadwood_before,
-            deadwood_after=actions.deadwood_after,
-        )
-
-        if self.config.database.track_ai_decisions:
-            self.tracker.record_ai_decision(
-                turn_id=turn_id,
-                decision_type="draw",
-                choice=drew_from,
-                reasoning=f"Drew {actions.drawn_card.code} from {drew_from}",
-            )
-            if actions.did_knock:
-                self.tracker.record_ai_decision(
-                    turn_id=turn_id,
-                    decision_type="knock",
-                    choice="yes",
-                    reasoning=f"Knocked with {actions.deadwood_after} deadwood",
-                )
-            else:
-                self.tracker.record_ai_decision(
-                    turn_id=turn_id,
-                    decision_type="discard",
-                    choice=actions.discarded_card.code,
-                    reasoning=(
-                        f"Discarded {actions.discarded_card.code}, "
-                        f"deadwood {actions.deadwood_before} -> {actions.deadwood_after}"
-                    ),
-                )
+        """Record the turn (and the AI's reasoning) to the database."""
+        self.recorder.write(TurnRecord.from_actions(player, self.snapshot, actions))
 
 
 def play_ai_turn(
@@ -652,13 +579,14 @@ def play_ai_turn(
     time.sleep(delay)
 
     # Capture state before turn (needed for database tracking)
-    cards_before = [c.code for c in current.hand]
+    recorder = TurnRecorder(tracker)
+    callbacks = CLITurnCallbacks(game, recorder, delay, TurnSnapshot.of(current))
 
-    # Create callbacks for CLI-specific side effects
-    callbacks = CLITurnCallbacks(game, tracker, delay, cards_before)
-
-    # Execute the turn using shared game logic
-    turn_result, _, round_result = execute_ai_turn(game, ai, callbacks=callbacks)
+    # Execute the turn using shared game logic; capture reasoning when the
+    # DB stores AI decisions (same rows the web UI records)
+    turn_result, _, round_result = execute_ai_turn(
+        game, ai, callbacks=callbacks, capture_reasoning=recorder.track_ai_decisions
+    )
     if turn_result == TurnResult.DRAW:
         round_result = game.get_draw_result()
 
