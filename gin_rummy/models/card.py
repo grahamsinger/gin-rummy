@@ -104,6 +104,12 @@ class Card:
     def __repr__(self) -> str:
         return f"Card({self.rank.name}, {self.suit.name})"
 
+    def __hash__(self) -> int:
+        # Stable across processes: the dataclass default hashes the enum
+        # *names*, and str hashes are salted per process (PYTHONHASHSEED), so
+        # set iteration order of cards used to differ between runs.
+        return self.index
+
     def __lt__(self, other: "Card") -> bool:
         if not isinstance(other, Card):
             return NotImplemented
