@@ -1107,7 +1107,6 @@ class MonteCarloAI(ContextAwareAI):
             if self.last_mc_thinking is None:
                 self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
             self.last_mc_thinking["knock"] = knock_thinking
-            self._clear_thinking("knock")
             return True
 
         ctx = context or self._current_context
@@ -1133,7 +1132,6 @@ class MonteCarloAI(ContextAwareAI):
             if self.last_mc_thinking is None:
                 self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
             self.last_mc_thinking["knock"] = knock_thinking
-            self._clear_thinking("knock")
             return True
 
         # Consume the jointly-planned decision from decide_discard: both

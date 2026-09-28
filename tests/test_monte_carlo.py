@@ -13,7 +13,7 @@ from gin_rummy.ai.monte_carlo import (
 )
 from gin_rummy.models import Hand, Card, Suit, Rank
 from gin_rummy.config import Config, MonteCarloAIConfig
-from tests.helpers import make_context, make_mc_config as make_test_config
+from tests.helpers import cards, make_context, make_mc_config as make_test_config
 
 
 class TestScoreKnock:
@@ -946,6 +946,24 @@ class TestThinkingReset:
         assert ai.decide_draw(hand, None, make_context(hand)) == DrawChoice.DECK
         assert ai.last_mc_thinking["draw"] is None
         assert ai.last_mc_thinking["knock"] == {"x": 1}  # untouched
+
+    def test_gin_knock_keeps_its_own_reasoning(self):
+        """Regression: clearing must not run after reasoning was just stored."""
+        ai = MonteCarloAI(config=make_test_config())
+        ai.last_mc_thinking = {"draw": None, "discard": None, "knock": {"knock_sims": 99}}
+        gin = Hand(cards("AS 2S 3S 4S 5S 6S 7S 8S 9S 10S"))
+
+        assert ai.should_knock(gin, make_context(gin)) is True
+        knock = ai.last_mc_thinking["knock"]
+        assert knock is not None and knock != {"knock_sims": 99}
+
+    def test_late_deck_knock_keeps_its_own_reasoning(self):
+        ai = MonteCarloAI(config=make_test_config())
+        ai.last_mc_thinking = None
+        low = Hand(cards("AS 2S 3S 4H 5H 6H 7C 8C 9C 2D"))  # 2 deadwood
+
+        assert ai.should_knock(low, make_context(low, deck_remaining=3)) is True
+        assert ai.last_mc_thinking["knock"] is not None
 
     def test_early_return_clears_stale_knock_thinking(self):
         ai = MonteCarloAI(config=make_test_config())
