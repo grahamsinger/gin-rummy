@@ -632,13 +632,6 @@ async function loadPlayerNamesForSettings() {
     }
 }
 
-async function getState() {
-    const state = await apiCall('/state');
-    if (state) {
-        renderGameState(state);
-    }
-}
-
 async function drawCard(source) {
     // Store hand before drawing to find the new card
     const handBefore = gameState ? gameState.hand.map(c => c.id) : [];
@@ -704,13 +697,6 @@ async function discardCard(cardId, knock = null) {
         if (!state.your_turn && !state.round_over) {
             await doAiTurn();
         }
-    }
-}
-
-async function knock() {
-    const state = await apiCall('/knock', 'POST');
-    if (state) {
-        renderGameState(state);
     }
 }
 
@@ -1595,7 +1581,7 @@ function showResumePrompt(games) {
         if (diffHr < 1) timeAgo = 'just now';
         else if (diffHr < 24) timeAgo = `${diffHr} hour${diffHr > 1 ? 's' : ''} ago`;
         else timeAgo = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    } catch (e) { /* ignore */ }
+    } catch { /* ignore */ }
 
     const scoreInfo = game.target_score
         ? `${game.p1_score} / ${game.target_score} - ${game.p2_score} / ${game.target_score}`

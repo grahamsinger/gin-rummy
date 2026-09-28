@@ -9,7 +9,6 @@ const esc = window.CardUtils.escapeHtml;
 // State
 let currentPage = 0;
 const pageSize = 20;
-let totalGames = 0;
 let currentFilter = '';
 let handReplay = null;
 
@@ -407,7 +406,7 @@ function formatDate(dateStr) {
             hour: '2-digit',
             minute: '2-digit'
         });
-    } catch (e) {
+    } catch {
         return dateStr;
     }
 }
@@ -439,7 +438,7 @@ function formatRelativeTime(dateStr) {
         if (diffMonths === 1) return '1 month ago';
         if (diffMonths < 12) return `${diffMonths} months ago`;
         return formatDate(dateStr);
-    } catch (e) {
+    } catch {
         return '';
     }
 }
