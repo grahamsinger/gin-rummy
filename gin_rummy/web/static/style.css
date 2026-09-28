@@ -1546,10 +1546,10 @@ body {
     border-radius: 4px;
     font-weight: bold;
     margin-left: 0.5rem;
-    animation: pulse 1s infinite;
+    animation: pulse-soft 1s infinite;
 }
 
-@keyframes pulse {
+@keyframes pulse-soft {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.05); }
 }

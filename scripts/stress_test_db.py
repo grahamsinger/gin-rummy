@@ -11,7 +11,7 @@ from pathlib import Path
 # Import schema from main database module
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from gin_rummy.database import SCHEMA
+from gin_rummy.database import SCHEMA, SCHEMA_VERSION
 
 STRESS_DB_PATH = Path(__file__).parent.parent / "stress_test.db"
 
@@ -42,7 +42,7 @@ def init_stress_db() -> sqlite3.Connection:
 
     conn = sqlite3.connect(STRESS_DB_PATH)
     conn.executescript(SCHEMA)
-    conn.execute("INSERT INTO schema_info (version) VALUES (2)")
+    conn.execute("INSERT INTO schema_info (version) VALUES (?)", (SCHEMA_VERSION,))
     conn.commit()
     return conn
 

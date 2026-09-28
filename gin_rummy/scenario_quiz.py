@@ -335,9 +335,19 @@ def reveal_knock_choices(
         print(f"  [{marker}] {member.name:<16} {entry['reasoning']}")
 
 
+def reset_panel_tracking(panel: list[PanelMember]) -> None:
+    """Clear per-hand opponent tracking on every panel member that has it."""
+    for member in panel:
+        if member.is_context_aware:
+            member.ai.reset_for_new_hand()
+
+
 def run_scenario(seed: int, panel: list[PanelMember]) -> bool:
     """Run one scenario. Returns False if generation failed for this seed."""
     for attempt in range(MAX_GENERATION_ATTEMPTS):
+        # Each attempt plays a fresh hand, so the panel must forget what it
+        # saw during a failed attempt (the callbacks feed it opponent actions).
+        reset_panel_tracking(panel)
         game = generate_scenario(seed + attempt * 1000, panel)
         if game is not None:
             break
@@ -405,10 +415,7 @@ def main() -> None:
     panel = build_panel(args.mc_sims, args.mc_workers)
     completed = 0
     for i in range(args.count):
-        # Fresh opponent tracking per scenario, same panel tallies
-        for member in panel:
-            if member.is_context_aware:
-                member.ai.reset_for_new_hand()
+        # run_scenario resets opponent tracking per attempt; tallies persist
         if run_scenario(base_seed + i, panel):
             completed += 1
         else:

@@ -1,6 +1,7 @@
 """FastAPI web application for Gin Rummy."""
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from gin_rummy.database import (
     get_game_hands, get_all_players, delete_player_stats,
     get_hand_turns, get_connection, cleanup_empty_games,
     get_ai_decisions_for_turn, db_list_to_cards, card_to_db_str,
-    delete_game, GameTracker, get_incomplete_games,
+    delete_game, GameTracker, get_incomplete_games, init_db,
 )
 from gin_rummy.models import analyze_hand
 
@@ -59,9 +60,13 @@ def get_or_create_session(request: Request, response: Response) -> GameSession:
     return session
 
 
-# Lifespan: periodic cleanup of expired sessions
+# Lifespan: create the DB schema up front, then periodically clean up expired sessions
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # History/stats routes query the DB directly, so the schema must exist
+    # before any GameSession has created a GameTracker.
+    init_db()
+
     async def cleanup_loop():
         while True:
             await asyncio.sleep(10 * 60)  # every 10 minutes
@@ -105,8 +110,6 @@ class DiscardRequest(BaseModel):
     card: str  # Card ID like "7H" or "10S"
     knock: bool | None = None  # None = check if can knock, True/False = execute
 
-
-import logging
 
 logger = logging.getLogger("gin_rummy.web")
 ai_logger = logging.getLogger("gin_rummy.ai")

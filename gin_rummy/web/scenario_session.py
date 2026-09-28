@@ -15,6 +15,7 @@ from gin_rummy.scenario_quiz import (
     PanelMember,
     build_panel,
     generate_scenario,
+    reset_panel_tracking,
     panel_discard_choices,
     panel_draw_choices,
     panel_knock_choices,
@@ -64,13 +65,12 @@ class ScenarioSession:
 
     def new_scenario(self, seed: int | None = None) -> dict[str, Any]:
         panel = self._ensure_panel()
-        for member in panel:
-            if member.is_context_aware:
-                member.ai.reset_for_new_hand()
 
         base = seed if seed is not None else random.randrange(1_000_000)
         game = None
         for attempt in range(MAX_GENERATION_ATTEMPTS):
+            # Each attempt is a fresh hand, so the panel must forget the last one
+            reset_panel_tracking(panel)
             game = generate_scenario(base + attempt * 1000, panel)
             if game is not None:
                 break

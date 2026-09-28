@@ -720,6 +720,15 @@ class MonteCarloAI(ContextAwareAI):
 
         return opp_hand, deck, list(discard_pile)
 
+    def _clear_thinking(self, key: str) -> None:
+        """Forget the last MC numbers for one decision type.
+
+        Called on every early return that skips simulation, so the
+        `*_with_reasoning` wrappers never report the previous turn's data.
+        """
+        if self.last_mc_thinking is not None:
+            self.last_mc_thinking[key] = None
+
     def decide_draw(
         self,
         hand: Hand,
@@ -738,18 +747,19 @@ class MonteCarloAI(ContextAwareAI):
         ctx = context or self._current_context
 
         if discard_top is None:
+            self._clear_thinking('draw')
             return DrawChoice.DECK
 
         known, unknown = self._get_known_and_unknown(hand, ctx)
 
         if len(unknown) < self.min_unknown_for_simulation:
+            self._clear_thinking('draw')
             return super().decide_draw(hand, discard_top, context)
 
         opponent_known = set()
         if ctx and ctx.known_cards:
             opponent_known = set(ctx.known_cards.opponent_hand_known)
 
-        deck_remaining = ctx.deck_remaining if ctx else len(unknown)
 
         knock_threshold = self._knock_threshold
         if ctx and hasattr(ctx, 'knock_threshold'):
@@ -843,6 +853,7 @@ class MonteCarloAI(ContextAwareAI):
         known, unknown = self._get_known_and_unknown(hand, ctx)
 
         if len(unknown) < self.min_unknown_for_simulation:
+            self._clear_thinking('discard')
             return super().decide_discard(hand)
 
         cards = list(hand)
@@ -872,7 +883,6 @@ class MonteCarloAI(ContextAwareAI):
         if ctx and ctx.known_cards:
             opponent_known = set(ctx.known_cards.opponent_hand_known)
 
-        deck_remaining = ctx.deck_remaining if ctx else len(unknown)
 
         knock_threshold = self._knock_threshold
         if ctx and hasattr(ctx, 'knock_threshold'):
@@ -1039,6 +1049,7 @@ class MonteCarloAI(ContextAwareAI):
             if self.last_mc_thinking is None:
                 self.last_mc_thinking = {'draw': None, 'discard': None, 'knock': None}
             self.last_mc_thinking['knock'] = knock_thinking
+            self._clear_thinking('knock')
             return True
 
         ctx = context or self._current_context
@@ -1046,6 +1057,7 @@ class MonteCarloAI(ContextAwareAI):
         # Eligibility uses the live threshold (dynamic under Oklahoma)
         eligibility_threshold = ctx.knock_threshold if ctx else self._knock_threshold
         if deadwood > eligibility_threshold:
+            self._clear_thinking('knock')
             return False
 
         # Edge case from parent: deck nearly empty (avoid a draw). The old
@@ -1063,6 +1075,7 @@ class MonteCarloAI(ContextAwareAI):
             if self.last_mc_thinking is None:
                 self.last_mc_thinking = {'draw': None, 'discard': None, 'knock': None}
             self.last_mc_thinking['knock'] = knock_thinking
+            self._clear_thinking('knock')
             return True
 
         # Consume the jointly-planned decision from decide_discard: both
@@ -1117,13 +1130,13 @@ class MonteCarloAI(ContextAwareAI):
             unknown = [c for c in unknown if c != pending_discard]
 
         if len(unknown) < self.min_unknown_for_simulation:
+            self._clear_thinking('knock')
             return super().should_knock(hand, context)
 
         opponent_known = set()
         if ctx and ctx.known_cards:
             opponent_known = set(ctx.known_cards.opponent_hand_known)
 
-        deck_remaining = ctx.deck_remaining if ctx else len(unknown)
 
         knock_threshold = self._knock_threshold
         if ctx and hasattr(ctx, 'knock_threshold'):

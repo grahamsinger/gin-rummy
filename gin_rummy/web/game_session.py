@@ -45,18 +45,17 @@ def card_to_id(card: Card) -> str:
 
 
 def id_to_card(card_id: str) -> Card:
-    """Convert a string ID like '7H' or '10S' to a Card."""
-    # Handle 10 specially
-    if card_id.startswith('10'):
-        rank_str = '10'
-        suit_str = card_id[2]
-    else:
-        rank_str = card_id[0]
-        suit_str = card_id[1]
+    """Convert a string ID like '7H' or '10S' to a Card.
 
-    rank = RANK_MAP[rank_str]
-    suit = SUIT_MAP[suit_str]
-    return Card(rank, suit)
+    Raises:
+        ValueError: If the string is not a valid card ID.
+    """
+    if not isinstance(card_id, str):
+        raise ValueError(f"Invalid card id: {card_id!r}")
+    rank_str, suit_str = card_id[:-1], card_id[-1:]
+    if rank_str not in RANK_MAP or suit_str not in SUIT_MAP:
+        raise ValueError(f"Invalid card id: {card_id!r}")
+    return Card(RANK_MAP[rank_str], SUIT_MAP[suit_str])
 
 
 def card_to_dict(card: Card) -> dict[str, str]:

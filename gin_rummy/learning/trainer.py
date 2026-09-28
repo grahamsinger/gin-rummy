@@ -288,7 +288,17 @@ class Trainer:
         Args:
             callback: Optional callback called after each episode with metrics.
         """
-        logger.info("Starting training for %d episodes", self.config.num_episodes)
+        if self._start_episode >= self.config.num_episodes:
+            logger.warning(
+                "Checkpoint already has %d completed episodes and num_episodes is %d; "
+                "nothing to train. --episodes is the total, not additional episodes.",
+                self._start_episode, self.config.num_episodes,
+            )
+        else:
+            logger.info(
+                "Starting training: episodes %d to %d",
+                self._start_episode, self.config.num_episodes,
+            )
 
         for episode in range(self._start_episode, self.config.num_episodes):
             # Train one episode
@@ -325,9 +335,10 @@ class Trainer:
                     self.current_exploration_rate,
                 )
 
-            # Save checkpoint periodically
+            # Save checkpoint periodically. The stored episode is the number
+            # of *completed* episodes, so a resume starts on the next one.
             if episode > 0 and episode % self.config.save_freq == 0:
-                self._save_checkpoint(episode)
+                self._save_checkpoint(episode + 1)
 
             # Log to TensorBoard
             if self._writer:
@@ -701,7 +712,7 @@ def main() -> None:
         "--episodes",
         type=int,
         default=10000,
-        help="Number of training episodes",
+        help="Total number of training episodes (when resuming, this includes episodes already completed)",
     )
     parser.add_argument(
         "--output",

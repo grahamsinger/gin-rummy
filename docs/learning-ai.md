@@ -325,6 +325,7 @@ Metadata includes:
    ```bash
    uv run gin-train --resume models/learning_ai.pt --episodes 5000
    ```
+   `--episodes` is the total, so a checkpoint saved after 3000 episodes trains 2000 more. Weights, exploration rate and curriculum position are restored; the replay buffer is not, so the first few hundred episodes refill it before batch training resumes.
 
 4. **Compare to baseline** after training:
    ```bash
