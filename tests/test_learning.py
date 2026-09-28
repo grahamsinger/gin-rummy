@@ -288,3 +288,71 @@ class TestRewardCalculator:
         normalized = calc.normalize_reward(50.0, scale=100.0)
 
         assert normalized == pytest.approx(0.5)
+
+
+class TestTrainerResume:
+    """B5: --resume must load weights into the networks the optimizers own."""
+
+    def _make_trainer(self, tmp_path):
+        from gin_rummy.learning.trainer import Trainer, TrainingConfig
+
+        config = TrainingConfig(num_episodes=5, min_buffer_size=10)
+        return Trainer(config, tmp_path / "ckpt.pt")
+
+    @staticmethod
+    def _param_ids(optimizer):
+        return {id(p) for group in optimizer.param_groups for p in group["params"]}
+
+    def test_load_checkpoint_keeps_optimizers_bound_and_restores_state(self, tmp_path):
+        source = self._make_trainer(tmp_path)
+        source.current_exploration_rate = 0.42
+        source._curriculum_idx = 1
+        source._curriculum_episodes = 7
+        with torch.no_grad():
+            for p in source.learning_ai.draw_net.parameters():
+                p.add_(1.0)
+        source._save_checkpoint(123)
+
+        target = self._make_trainer(tmp_path)
+        draw_net_before = target.learning_ai.draw_net
+        episode = target.load_checkpoint(tmp_path / "ckpt.pt")
+
+        # Same network objects -> optimizers still train the loaded weights.
+        assert target.learning_ai.draw_net is draw_net_before
+        assert self._param_ids(target.draw_optimizer) == {id(p) for p in target.learning_ai.draw_net.parameters()}
+        assert self._param_ids(target.discard_optimizer) == {
+            id(p) for p in target.learning_ai.discard_net.parameters()
+        }
+        assert self._param_ids(target.knock_optimizer) == {id(p) for p in target.learning_ai.knock_net.parameters()}
+
+        # Weights actually loaded.
+        for a, b in zip(source.learning_ai.draw_net.parameters(), target.learning_ai.draw_net.parameters()):
+            assert torch.equal(a, b)
+        for a, b in zip(target.learning_ai.draw_net.parameters(), target.target_ai.draw_net.parameters()):
+            assert torch.equal(a, b)
+
+        # Training state restored.
+        assert episode == 123
+        assert target._start_episode == 123
+        assert target.current_exploration_rate == pytest.approx(0.42)
+        assert target.learning_ai.exploration_rate == pytest.approx(0.42)
+        assert target._curriculum_idx == 1
+        assert target._curriculum_episodes == 7
+
+    def test_execute_ai_turn_forwards_opponent_actions_to_learning_ai(self):
+        """B4 end to end: LearningAI's opponent model fills up via the shared runner."""
+        from gin_rummy.ai import BasicAI
+        from gin_rummy.game import Game
+        from gin_rummy.game_runner import execute_ai_turn
+        from gin_rummy.learning.learning_ai import LearningAI
+
+        learner = LearningAI()
+        opponent = BasicAI()
+        game = Game("Learner", "Basic")
+        game.dealer_idx = 1  # dealer takes the first turn, so the opponent acts first
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+        assert game.current_player_idx == 1
+
+        execute_ai_turn(game, opponent, other_ai=learner)
+        assert learner.opponent_model.total_discards == 1

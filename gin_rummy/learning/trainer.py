@@ -179,6 +179,9 @@ class Trainer:
         self._curriculum_idx = 0
         self._curriculum_episodes = 0
 
+        # Episode to start from (non-zero after load_checkpoint)
+        self._start_episode = 0
+
         # TensorBoard writer
         self._writer: SummaryWriter | None = None
         if tensorboard_path:
@@ -188,6 +191,42 @@ class Trainer:
                 self._writer = SummaryWriter(str(tensorboard_path))
             except ImportError:
                 logger.warning("TensorBoard not available")
+
+    def load_checkpoint(self, path: Path) -> int:
+        """Resume training state from a checkpoint saved by _save_checkpoint.
+
+        Weights are loaded *into* the existing networks so that the
+        optimizers (which hold references to those parameters) keep
+        training the right tensors. Exploration rate and curriculum
+        position are restored from the checkpoint metadata.
+
+        Args:
+            path: Checkpoint file path.
+
+        Returns:
+            The episode number the checkpoint was saved at.
+        """
+        draw_net, discard_net, knock_net, metadata = ModelPersistence.load(path, self.device)
+        self.learning_ai.draw_net.load_state_dict(draw_net.state_dict())
+        self.learning_ai.discard_net.load_state_dict(discard_net.state_dict())
+        self.learning_ai.knock_net.load_state_dict(knock_net.state_dict())
+        self.learning_ai.metadata = metadata
+        self.learning_ai.train_mode()
+        self._sync_target_networks()
+
+        self.current_exploration_rate = float(
+            metadata.get("exploration_rate", self.config.exploration_start)
+        )
+        self.learning_ai.exploration_rate = self.current_exploration_rate
+        self._curriculum_idx = int(metadata.get("curriculum_idx", 0))
+        self._curriculum_episodes = int(metadata.get("curriculum_episodes", 0))
+        self._start_episode = int(metadata.get("episode", 0))
+
+        logger.info(
+            "Loaded checkpoint %s (episode %d, exploration=%.3f, curriculum stage %d)",
+            path, self._start_episode, self.current_exploration_rate, self._curriculum_idx,
+        )
+        return self._start_episode
 
     def _sync_target_networks(self) -> None:
         """Copy weights from learning networks to target networks."""
@@ -251,7 +290,7 @@ class Trainer:
         """
         logger.info("Starting training for %d episodes", self.config.num_episodes)
 
-        for episode in range(self.config.num_episodes):
+        for episode in range(self._start_episode, self.config.num_episodes):
             # Train one episode
             episode_reward = self._train_episode()
 
@@ -734,12 +773,9 @@ def main() -> None:
         resume_path = Path(args.resume)
         if resume_path.exists():
             logger.info("Resuming from checkpoint: %s", resume_path)
-            trainer.learning_ai = LearningAI(
-                model_path=resume_path,
-                exploration_rate=config.exploration_start,
-                device=trainer.device,
-            )
-            trainer._sync_target_networks()
+            trainer.load_checkpoint(resume_path)
+        else:
+            logger.warning("Checkpoint %s not found; starting from scratch", resume_path)
 
     # Progress bar state
     import time
@@ -779,7 +815,7 @@ def main() -> None:
 
         # Print progress line (overwrite previous)
         status = (
-            f"\r[{bar}] \ngts {metrics.episode:>6}/{config.num_episodes} "
+            f"\r[{bar}] {metrics.episode:>6}/{config.num_episodes} "
             f"| ε={metrics.exploration_rate:.3f} "
             f"| avg_r={avg_reward:>6.1f} "
             f"| buf={metrics.buffer_size:>6} "

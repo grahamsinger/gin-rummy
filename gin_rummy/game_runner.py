@@ -142,8 +142,11 @@ def record_opponent_pickup(other_ai: BasicAI | None, card: Card) -> None:
         other_ai: The other AI (opponent), or None.
         card: The card that was picked up.
     """
-    if isinstance(other_ai, ContextAwareAI):
-        other_ai.record_opponent_pickup(card)
+    # Duck-typed: ContextAwareAI, MonteCarloAI and LearningAI all track
+    # opponent actions but do not share a base class (see AUDIT §2.3).
+    record = getattr(other_ai, "record_opponent_pickup", None)
+    if record is not None:
+        record(card)
 
 
 def record_opponent_discard(other_ai: BasicAI | None, card: Card) -> None:
@@ -153,8 +156,9 @@ def record_opponent_discard(other_ai: BasicAI | None, card: Card) -> None:
         other_ai: The other AI (opponent), or None.
         card: The card that was discarded.
     """
-    if isinstance(other_ai, ContextAwareAI):
-        other_ai.record_opponent_discard(card)
+    record = getattr(other_ai, "record_opponent_discard", None)
+    if record is not None:
+        record(card)
 
 
 def calculate_post_discard_deadwood(hand: Hand, discard: Card) -> int:
