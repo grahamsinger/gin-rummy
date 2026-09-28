@@ -379,9 +379,11 @@ class Trainer:
         opponent = self._get_opponent()
         total_reward = 0.0
 
-        # Play a full game
+        # Play a full game. The learner persists across episodes, so it must
+        # forget the previous game's opponent model here.
         game = Game("LearningAI", "Opponent")
         game.deal()
+        self.learning_ai.reset_for_new_hand()
 
         rounds_played = 0
         while (
@@ -619,6 +621,8 @@ class Trainer:
         for _ in range(self.config.eval_games):
             game = Game("LearningAI", "Opponent")
             game.deal()
+            self.learning_ai.reset_for_new_hand()
+            opponent.reset_for_new_hand()
 
             rounds = 0
             while (
@@ -631,6 +635,7 @@ class Trainer:
                     game.new_round()
                     game.deal()
                     self.learning_ai.reset_for_new_hand()
+                    opponent.reset_for_new_hand()
 
             # Check winner
             if game.players[0].score >= self.config.target_score:
@@ -653,6 +658,7 @@ class Trainer:
         first_discard_ai = self.learning_ai if non_dealer_idx == 0 else opponent
         discard = first_discard_ai.decide_discard(game.players[non_dealer_idx].hand)
         game.discard_to_start(discard)
+        (opponent if non_dealer_idx == 0 else self.learning_ai).record_opponent_discard(discard)
 
         while game.phase.name not in ("ROUND_OVER", "KNOCKED"):
             current_player_idx = game.current_player_idx

@@ -587,6 +587,8 @@ class GameSession:
                     return {"error": "Discard pile is empty"}
                 card = self.game.draw_from_discard()
                 self.turn_drew_from = "discard"
+                if self.ai is not None:
+                    self.ai.record_opponent_pickup(card)
             else:
                 card = self.game.draw_from_deck()
                 self.turn_drew_from = "deck"
@@ -641,6 +643,8 @@ class GameSession:
             # Handle first discard phase (no knock possible)
             if self.game.phase == GamePhase.FIRST_DISCARD:
                 self.game.discard_to_start(card)
+                if self.ai is not None:
+                    self.ai.record_opponent_discard(card)
                 return self.get_state()
 
             if self.game.phase != GamePhase.DISCARDING:
@@ -690,6 +694,8 @@ class GameSession:
 
             # Just discard (no knock or can't knock)
             self.game.discard(card)
+            if self.ai is not None:
+                self.ai.record_opponent_discard(card)
 
             # Ensure DB started before recording turn
             self._ensure_db_started()

@@ -119,6 +119,7 @@ def generate_scenario(
     opener = seat_ais[opener_idx]
     discard = opener.decide_discard(game.current_player.hand)
     game.discard_to_start(discard)
+    seat_ais[1 - opener_idx].record_opponent_discard(discard)
     if opener_idx != HUMAN_SEAT:
         callbacks.on_discard(game.players[opener_idx], discard)
 

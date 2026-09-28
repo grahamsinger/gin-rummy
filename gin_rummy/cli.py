@@ -347,8 +347,8 @@ def get_card_choice(hand: Hand, prompt: str) -> int:
             print("Please enter a valid number")
 
 
-def play_human_first_discard(game: Game, human_player_idx: int) -> None:
-    """Handle human player's opening discard."""
+def play_human_first_discard(game: Game, human_player_idx: int) -> Card:
+    """Handle human player's opening discard. Returns the discarded card."""
     current = game.current_player
     display_game_state(game, human_player_idx, turn_player_name=current.name)
     print("Discard one card to start the game.")
@@ -359,6 +359,7 @@ def play_human_first_discard(game: Game, human_player_idx: int) -> None:
     card = display_cards[idx]
     game.discard_to_start(card)
     print(f"\nDiscarded {card}")
+    return card
 
 
 def play_ai_first_discard(game: Game, ai: BasicAI) -> None:
@@ -376,12 +377,13 @@ def play_ai_first_discard(game: Game, ai: BasicAI) -> None:
 
 def play_human_turn(
     game: Game, human_player_idx: int, tracker: GameTracker | None = None
-) -> tuple[TurnResult, RoundResult | None]:
+) -> tuple[TurnResult, TurnActions | None, RoundResult | None]:
     """Play a human player's turn.
 
     Returns:
-        (TurnResult, RoundResult) - the RoundResult is only set when the
-        round ended this turn (knock or draw).
+        (TurnResult, TurnActions, RoundResult), like execute_ai_turn: the
+        actions are None when the deck ran out, and the RoundResult is only
+        set when the round ended this turn (knock or draw).
     """
     current = game.current_player
     clear_screen()
@@ -390,6 +392,7 @@ def play_human_turn(
     # Capture state before turn (for database tracking)
     snapshot = TurnSnapshot.of(current)
     recorder = TurnRecorder(tracker)
+    deadwood_before = current.hand.deadwood_total
 
     # Drawing phase
     print("\nDraw from:")
@@ -425,7 +428,7 @@ def play_human_turn(
                 break
             except InvalidActionError as e:
                 print(f"\n{e}")
-                return TurnResult.DRAW, game.get_draw_result()
+                return TurnResult.DRAW, None, game.get_draw_result()
         elif choice == "2" and game.top_of_discard:
             card = game.draw_from_discard()
             drew_from = "discard"
@@ -495,14 +498,30 @@ def play_human_turn(
                         )
 
                         display_round_result(game, result)
-                        return TurnResult.KNOCKED, result
+                        actions = TurnActions(
+                            draw_source=DrawChoice.DISCARD if drew_from == "discard" else DrawChoice.DECK,
+                            drawn_card=card,
+                            discarded_card=discard_card,
+                            did_knock=True,
+                            deadwood_before=deadwood_before,
+                            deadwood_after=post_discard_deadwood,
+                        )
+                        return TurnResult.KNOCKED, actions, result
 
                 # Just discard (no knock or declined knock)
                 game.discard(discard_card)
                 print(f"\nDiscarded {discard_card}")
                 recorder.write(TurnRecord.human(current, snapshot, drew_from, card, discard_card, did_knock=False))
 
-                return TurnResult.CONTINUE, None
+                actions = TurnActions(
+                    draw_source=DrawChoice.DISCARD if drew_from == "discard" else DrawChoice.DECK,
+                    drawn_card=card,
+                    discarded_card=discard_card,
+                    did_knock=False,
+                    deadwood_before=deadwood_before,
+                    deadwood_after=current.hand.deadwood_total,
+                )
+                return TurnResult.CONTINUE, actions, None
             print(f"Please enter a number between 1 and {len(display_cards)}")
         except ValueError:
             print("Please enter a valid card number")
@@ -647,6 +666,7 @@ def finish_round(
 def play_round_vs_ai(game: Game, ai: BasicAI, human_player_idx: int, tracker: GameTracker | None = None) -> None:
     """Play a complete round against AI."""
     game.deal()
+    ai.reset_for_new_hand()
 
     # Start hand tracking
     if tracker:
@@ -659,7 +679,7 @@ def play_round_vs_ai(game: Game, ai: BasicAI, human_player_idx: int, tracker: Ga
 
     if non_dealer_idx == human_player_idx:
         # Human does first discard
-        play_human_first_discard(game, human_player_idx)
+        ai.record_opponent_discard(play_human_first_discard(game, human_player_idx))
     else:
         # AI does first discard
         ai_name = game.current_player.name
@@ -671,7 +691,13 @@ def play_round_vs_ai(game: Game, ai: BasicAI, human_player_idx: int, tracker: Ga
     round_result: RoundResult | None = None
     while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
         if game.current_player_idx == human_player_idx:
-            turn_result, round_result = play_human_turn(game, human_player_idx, tracker)
+            turn_result, actions, round_result = play_human_turn(game, human_player_idx, tracker)
+            if actions is not None:
+                # The AI tracks the human's play the same way it would an AI opponent
+                if actions.draw_source == DrawChoice.DISCARD:
+                    ai.record_opponent_pickup(actions.drawn_card)
+                if not actions.did_knock:
+                    ai.record_opponent_discard(actions.discarded_card)
             if turn_result != TurnResult.CONTINUE:
                 break
         else:
@@ -704,7 +730,7 @@ def play_round_pvp(game: Game, tracker: GameTracker | None = None) -> None:
     turn_result = TurnResult.CONTINUE
     round_result: RoundResult | None = None
     while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
-        turn_result, round_result = play_human_turn(game, game.current_player_idx, tracker)
+        turn_result, _, round_result = play_human_turn(game, game.current_player_idx, tracker)
         if turn_result != TurnResult.CONTINUE:
             break
         if game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
