@@ -6,6 +6,7 @@ curriculum, the web UI's difficulty setting and the CLI.
 
 from __future__ import annotations
 
+from concurrent.futures import Executor
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,7 @@ def make_ai(
     *,
     model_path: Path | str | None = None,
     stats_path: Path | str | None = None,
+    pool: Executor | None = None,
     **kwargs: Any,
 ) -> BasicAI:
     """Create an AI instance.
@@ -36,6 +38,8 @@ def make_ai(
         config: Optional config override (global config if None).
         model_path: Checkpoint for the "learning" type.
         stats_path: Statistics file for the "statistical" type.
+        pool: Executor for the "montecarlo" type to run simulations on
+            (borrowed, never shut down by the AI).
         **kwargs: Extra constructor arguments (e.g. exploration_rate, device
             for "learning").
 
@@ -47,7 +51,7 @@ def make_ai(
     if ai_type == "context":
         return ContextAwareAI(config, **kwargs)
     if ai_type == "montecarlo":
-        return MonteCarloAI(config, **kwargs)
+        return MonteCarloAI(config, pool=pool, **kwargs)
     if ai_type == "statistical":
         return StatisticalAI(stats_path=stats_path, config=config, **kwargs)
     if ai_type == "learning":

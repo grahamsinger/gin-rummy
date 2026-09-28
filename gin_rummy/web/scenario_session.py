@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import random
+import threading
+from concurrent.futures import Executor
 from typing import Any
 
-from gin_rummy.ai import DrawChoice, MonteCarloAI
+from gin_rummy.ai import DrawChoice
 from gin_rummy.game import Game
 from gin_rummy.game_runner import calculate_post_discard_deadwood
 from gin_rummy.models import Card, Hand
@@ -30,9 +32,13 @@ WEB_MC_WORKERS = 8
 class ScenarioSession:
     """One user's scenario-quiz state (parallel to GameSession)."""
 
-    def __init__(self, mc_sims: int = WEB_MC_SIMS, mc_workers: int = WEB_MC_WORKERS) -> None:
+    def __init__(
+        self, mc_sims: int = WEB_MC_SIMS, mc_workers: int = WEB_MC_WORKERS, pool: Executor | None = None
+    ) -> None:
         self.mc_sims = mc_sims
         self.mc_workers = mc_workers
+        self.pool = pool  # borrowed executor for the MC panel member
+        self.owner_lock = threading.Lock()  # replaced by the owning GameSession's lock in the app
         self.panel: list[PanelMember] | None = None
         self.game: Game | None = None
         self.phase: str = "idle"  # idle | draw | discard | knock | done
@@ -47,15 +53,13 @@ class ScenarioSession:
 
     def _ensure_panel(self) -> list[PanelMember]:
         if self.panel is None:
-            self.panel = build_panel(self.mc_sims, self.mc_workers)
+            self.panel = build_panel(self.mc_sims, self.mc_workers, pool=self.pool)
             self.tallies = {m.name: {"draw": 0, "discard": 0, "knock": 0} for m in self.panel}
         return self.panel
 
     def shutdown(self) -> None:
-        if self.panel:
-            for member in self.panel:
-                if isinstance(member.ai, MonteCarloAI):
-                    member.ai.shutdown()
+        for member in self.panel or []:
+            member.ai.shutdown()  # only releases pools the AI owns
 
     # ------------------------------------------------------------------
     # Actions

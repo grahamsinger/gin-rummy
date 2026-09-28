@@ -45,6 +45,7 @@ class SessionStore:
                 return None
             if time.monotonic() - entry.last_accessed > self.ttl_seconds:
                 del self._sessions[session_id]
+                entry.session.close()
                 return None
             entry.touch()
             return entry.session
@@ -56,9 +57,18 @@ class SessionStore:
         with self._lock:
             expired_ids = [sid for sid, entry in self._sessions.items() if now - entry.last_accessed > self.ttl_seconds]
             for sid in expired_ids:
-                del self._sessions[sid]
+                self._sessions.pop(sid).session.close()
                 removed += 1
         return removed
+
+    def close_all(self) -> int:
+        """Close and drop every session (app shutdown). Returns the number closed."""
+        with self._lock:
+            entries = list(self._sessions.values())
+            self._sessions.clear()
+        for entry in entries:
+            entry.session.close()
+        return len(entries)
 
     @property
     def active_count(self) -> int:

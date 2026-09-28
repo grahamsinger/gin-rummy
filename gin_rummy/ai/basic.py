@@ -77,6 +77,9 @@ class BasicAI:
         self.opponent_model.reset()
         self._current_context = None
 
+    def shutdown(self) -> None:
+        """Release external resources (worker pools). No-op for most AIs."""
+
     # ---- Decisions ----
     #
     # Each decision has ONE implementation (`_evaluate_*`) that returns the

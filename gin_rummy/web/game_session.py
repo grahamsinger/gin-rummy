@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,6 +13,7 @@ from gin_rummy.game_runner import TurnResult, execute_ai_turn
 from gin_rummy.models import Card, Player, Rank, Suit, analyze_hand
 from gin_rummy.models.hand import CardNotInHandError
 from gin_rummy.tracking import TurnRecord, TurnRecorder, TurnSnapshot
+from gin_rummy.web.workers import get_worker_pool
 
 
 def card_to_dict(card: Card) -> dict[str, str]:
@@ -176,6 +178,9 @@ class GameSession:
 
         # Scenario quiz state (created lazily by the /api/scenario endpoints)
         self.scenario_session = None
+        # Routes hold this while mutating the session (AI turns run in a threadpool)
+        self.lock = threading.Lock()
+        self.closed = False
 
     def new_game(
         self,
@@ -253,7 +258,7 @@ class GameSession:
             is_oklahoma_gin=self.oklahoma_gin,
             spade_doubling_enabled=self.spade_doubling,
         )
-        self.ai = make_ai(DIFFICULTY_TO_AI.get(self.ai_difficulty, "context"))
+        self._replace_ai()
         self.human_idx = 0
         self.last_round_result = None
         self.last_ai_action = None
@@ -303,7 +308,7 @@ class GameSession:
         self.winner = None
 
         # Create AI
-        self.ai = make_ai(DIFFICULTY_TO_AI.get(self.ai_difficulty, "context"))
+        self._replace_ai()
 
         # Create Game object
         self.game = Game(
@@ -394,6 +399,22 @@ class GameSession:
         self.buffered_ai_turns = []
 
         self.db_game_started = True
+
+    def _replace_ai(self) -> None:
+        """Build the AI for the current difficulty, releasing the previous one."""
+        if self.ai is not None:
+            self.ai.shutdown()
+        self.ai = make_ai(DIFFICULTY_TO_AI.get(self.ai_difficulty, "context"), pool=get_worker_pool())
+
+    def close(self) -> None:
+        """Release everything the session holds (called on eviction and app shutdown)."""
+        if self.closed:
+            return
+        self.closed = True
+        if self.ai is not None:
+            self.ai.shutdown()
+        if self.scenario_session is not None:
+            self.scenario_session.shutdown()
 
     def _record_human_turn(self, human: Player, discarded: Card, *, did_knock: bool) -> None:
         """Record the human's turn once the discard (or knock) has been applied."""
@@ -865,8 +886,9 @@ class GameSession:
             self.pending_dealer_name = self.game.dealer.name
             self.buffered_ai_turns = []
 
-        # Reset AI state with same difficulty
-        self.ai = make_ai(DIFFICULTY_TO_AI.get(self.ai_difficulty, "context"))
+        # Same AI for the whole game; it only forgets the finished hand
+        assert self.ai is not None
+        self.ai.reset_for_new_hand()
 
         self.last_round_result = None
         self.last_ai_action = None

@@ -28,6 +28,7 @@ from gin_rummy.database import (
 from gin_rummy.models import Card, analyze_hand
 from gin_rummy.web.game_session import GameSession
 from gin_rummy.web.session_store import SessionStore
+from gin_rummy.web.workers import get_worker_pool, shutdown_worker_pool
 
 # Initialize logging from config
 config = get_config()
@@ -82,6 +83,8 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(cleanup_loop())
     yield
     task.cancel()
+    session_store.close_all()
+    shutdown_worker_pool()
 
 
 # Create FastAPI app
@@ -151,9 +154,14 @@ async def index():
 
 
 @app.post("/api/game/new")
-async def new_game(request: Request, response: Response, game_request: NewGameRequest | None = None):
+def new_game(request: Request, response: Response, game_request: NewGameRequest | None = None):
     """Start a new game with optional settings."""
     session = get_or_create_session(request, response)
+    with session.lock:
+        return _new_game(session, game_request)
+
+
+def _new_game(session: GameSession, game_request: NewGameRequest | None):
     if game_request:
         return session.new_game(
             player_name=game_request.player_name,
@@ -168,67 +176,74 @@ async def new_game(request: Request, response: Response, game_request: NewGameRe
 
 
 @app.get("/api/game/state")
-async def get_state(request: Request, response: Response):
+def get_state(request: Request, response: Response):
     """Get current game state."""
     session = get_or_create_session(request, response)
-    return session.get_state()
+    with session.lock:
+        return session.get_state()
 
 
 @app.post("/api/game/draw")
-async def draw(request: Request, response: Response, draw_request: DrawRequest):
+def draw(request: Request, response: Response, draw_request: DrawRequest):
     """Draw a card from deck or discard pile."""
     session = get_or_create_session(request, response)
-    result = session.draw(draw_request.source)
+    with session.lock:
+        result = session.draw(draw_request.source)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
 @app.post("/api/game/discard")
-async def discard(request: Request, response: Response, discard_request: DiscardRequest):
+def discard(request: Request, response: Response, discard_request: DiscardRequest):
     """Discard a card from hand, optionally knocking."""
     session = get_or_create_session(request, response)
-    result = session.discard(discard_request.card, knock=discard_request.knock)
+    with session.lock:
+        result = session.discard(discard_request.card, knock=discard_request.knock)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
 @app.post("/api/game/knock")
-async def knock(request: Request, response: Response):
+def knock(request: Request, response: Response):
     """Knock to end the round."""
     session = get_or_create_session(request, response)
-    result = session.knock()
+    with session.lock:
+        result = session.knock()
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
 @app.post("/api/game/ai-turn")
-async def ai_turn(request: Request, response: Response):
+def ai_turn(request: Request, response: Response):
     """Execute AI's turn."""
     session = get_or_create_session(request, response)
-    result = session.ai_turn()
+    with session.lock:
+        result = session.ai_turn()
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
 @app.post("/api/game/new-round")
-async def new_round(request: Request, response: Response):
+def new_round(request: Request, response: Response):
     """Start a new round."""
     session = get_or_create_session(request, response)
-    result = session.new_round()
+    with session.lock:
+        result = session.new_round()
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 
 @app.post("/api/game/resume")
-async def resume_game(request: Request, response: Response, resume_request: ResumeGameRequest):
+def resume_game(request: Request, response: Response, resume_request: ResumeGameRequest):
     """Resume an incomplete game by ID."""
     session = get_or_create_session(request, response)
-    result = session.resume_game(resume_request.game_id)
+    with session.lock:
+        result = session.resume_game(resume_request.game_id)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -540,7 +555,8 @@ def _get_scenario_session(request: Request, response: Response):
 
     session = get_or_create_session(request, response)
     if session.scenario_session is None:
-        session.scenario_session = ScenarioSession()
+        session.scenario_session = ScenarioSession(pool=get_worker_pool())
+        session.scenario_session.owner_lock = session.lock
     return session.scenario_session
 
 
@@ -557,38 +573,43 @@ async def scenario_page():
 
 
 @app.post("/api/scenario/new")
-async def scenario_new(req: NewScenarioRequest, request: Request, response: Response):
+def scenario_new(req: NewScenarioRequest, request: Request, response: Response):
     """Generate a fresh scenario position."""
     scenario = _get_scenario_session(request, response)
-    return _scenario_result(scenario.new_scenario(seed=req.seed))
+    with scenario.owner_lock:
+        return _scenario_result(scenario.new_scenario(seed=req.seed))
 
 
 @app.get("/api/scenario/state")
-async def scenario_state(request: Request, response: Response):
+def scenario_state(request: Request, response: Response):
     """Current scenario state (for page reloads)."""
     scenario = _get_scenario_session(request, response)
-    return scenario.get_state()
+    with scenario.owner_lock:
+        return scenario.get_state()
 
 
 @app.post("/api/scenario/draw")
-async def scenario_draw(req: ScenarioDrawRequest, request: Request, response: Response):
+def scenario_draw(req: ScenarioDrawRequest, request: Request, response: Response):
     """Answer the draw decision; returns the panel reveal and drawn card."""
     scenario = _get_scenario_session(request, response)
-    return _scenario_result(scenario.answer_draw(req.source))
+    with scenario.owner_lock:
+        return _scenario_result(scenario.answer_draw(req.source))
 
 
 @app.post("/api/scenario/discard")
-async def scenario_discard(req: ScenarioDiscardRequest, request: Request, response: Response):
+def scenario_discard(req: ScenarioDiscardRequest, request: Request, response: Response):
     """Answer the discard decision; returns the panel reveal."""
     scenario = _get_scenario_session(request, response)
-    return _scenario_result(scenario.answer_discard(req.card))
+    with scenario.owner_lock:
+        return _scenario_result(scenario.answer_discard(req.card))
 
 
 @app.post("/api/scenario/knock")
-async def scenario_knock(req: ScenarioKnockRequest, request: Request, response: Response):
+def scenario_knock(req: ScenarioKnockRequest, request: Request, response: Response):
     """Answer the knock decision; returns the panel reveal."""
     scenario = _get_scenario_session(request, response)
-    return _scenario_result(scenario.answer_knock(req.knock))
+    with scenario.owner_lock:
+        return _scenario_result(scenario.answer_knock(req.knock))
 
 
 @app.post("/api/admin/cleanup")

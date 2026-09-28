@@ -6,7 +6,7 @@ import logging
 import os
 import random
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
@@ -277,7 +277,7 @@ def rollout(
 # ---------------------------------------------------------------------------
 
 
-def _worker_init() -> None:
+def worker_init() -> None:
     """Seed random uniquely per worker process."""
     seed = os.getpid() * 31 + int(time.time() * 1000) % 1_000_000
     random.seed(seed)
@@ -517,7 +517,14 @@ class MonteCarloAI(ContextAwareAI):
     runs simulated games to find the best option.
     """
 
-    def __init__(self, config: Config | None = None) -> None:
+    def __init__(self, config: Config | None = None, pool: Executor | None = None) -> None:
+        """Args:
+        config: Optional config override.
+        pool: Optional executor to run simulations on. When given, the AI
+            borrows it and never shuts it down (the web app shares one pool
+            across sessions); otherwise the AI lazily starts, and owns, a
+            ProcessPoolExecutor sized by monte_carlo_ai.max_workers.
+        """
         super().__init__(config)
         cfg = config or get_config()
         mc_cfg = cfg.monte_carlo_ai
@@ -563,20 +570,20 @@ class MonteCarloAI(ContextAwareAI):
         else:
             self._max_workers = max(1, mc_cfg.max_workers)
         self._sample_strategy = mc_cfg.sample_strategy
-        self._pool: ProcessPoolExecutor | None = None
+        self._pool: Executor | None = pool
+        self._owns_pool = False
 
         # Last thinking data for UI display
         self.last_mc_thinking: dict[str, Any] | None = None
 
-    def _get_pool(self) -> ProcessPoolExecutor | None:
-        """Lazy-create a ProcessPoolExecutor, or return None if sequential."""
+    def _get_pool(self) -> Executor | None:
+        """The borrowed pool, else a lazily created owned one, else None (sequential)."""
+        if self._pool is not None:
+            return self._pool
         if self._max_workers <= 1:
             return None
-        if self._pool is None:
-            self._pool = ProcessPoolExecutor(
-                max_workers=self._max_workers,
-                initializer=_worker_init,
-            )
+        self._pool = ProcessPoolExecutor(max_workers=self._max_workers, initializer=worker_init)
+        self._owns_pool = True
         return self._pool
 
     def _generate_samples(
@@ -674,10 +681,11 @@ class MonteCarloAI(ContextAwareAI):
         return [f.result() for f in futures]
 
     def shutdown(self) -> None:
-        """Shut down the process pool if active."""
-        if self._pool is not None:
+        """Shut down the process pool if this AI owns one (borrowed pools are left alone)."""
+        if self._owns_pool and self._pool is not None:
             self._pool.shutdown(wait=False)
             self._pool = None
+            self._owns_pool = False
 
     def __del__(self) -> None:
         self.shutdown()

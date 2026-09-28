@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import random
 import sys
+from concurrent.futures import Executor
 from dataclasses import dataclass, replace
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, MonteCarloAI
@@ -74,8 +75,8 @@ class _PanelFeedCallbacks:
         pass
 
 
-def build_panel(mc_sims: int, mc_workers: int) -> list[PanelMember]:
-    """Create the advisor AIs (fresh instances per scenario)."""
+def build_panel(mc_sims: int, mc_workers: int, pool: Executor | None = None) -> list[PanelMember]:
+    """Create the advisor AIs. `pool` lends MonteCarloAI an executor instead of starting its own."""
     cfg = get_config()
     mc_cfg = replace(
         cfg.monte_carlo_ai,
@@ -88,7 +89,7 @@ def build_panel(mc_sims: int, mc_workers: int) -> list[PanelMember]:
     return [
         PanelMember("BasicAI", BasicAI()),
         PanelMember("ContextAwareAI", ContextAwareAI()),
-        PanelMember("MonteCarloAI", MonteCarloAI(mc_config)),
+        PanelMember("MonteCarloAI", MonteCarloAI(mc_config, pool=pool)),
     ]
 
 
