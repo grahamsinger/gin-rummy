@@ -1,3 +1,6 @@
+
+// Escape user-controlled strings (player names, etc.) before innerHTML.
+const esc = window.CardUtils.escapeHtml;
 // Gin Rummy Web UI
 
 const API_BASE = '/api/game';
@@ -396,13 +399,13 @@ function renderGameState(state) {
             const playerLabel = document.querySelector('.scores .score:first-child');
             const opponentLabel = document.querySelector('.scores .score:last-child');
             if (playerLabel && !playerLabel.textContent.startsWith(humanName)) {
-                playerLabel.innerHTML = `${humanName}: <span id="player-score">${formatScore(humanScore)}</span>`;
+                playerLabel.innerHTML = `${esc(humanName)}: <span id="player-score">${formatScore(humanScore)}</span>`;
                 // Re-capture the element reference after innerHTML update
                 elements.playerScore = document.getElementById('player-score');
             }
             const diffLabel = state.ai_difficulty ? ` (${state.ai_difficulty.charAt(0).toUpperCase() + state.ai_difficulty.slice(1)})` : '';
             if (opponentLabel && !opponentLabel.textContent.startsWith(opponentName)) {
-                opponentLabel.innerHTML = `${opponentName}${diffLabel}: <span id="opponent-score">${formatScore(opponentScore)}</span>`;
+                opponentLabel.innerHTML = `${esc(opponentName)}${diffLabel}: <span id="opponent-score">${formatScore(opponentScore)}</span>`;
                 // Re-capture the element reference after innerHTML update
                 elements.opponentScore = document.getElementById('opponent-score');
             }
@@ -621,7 +624,7 @@ async function loadPlayerNamesForSettings() {
         elements.playerNamesList.innerHTML = players
             .filter(p => p.name !== 'Computer')
             .map(p =>
-                `<option value="${p.name}">${p.name} (${p.total_hands} hands, ${(p.win_rate * 100).toFixed(0)}% wins)</option>`
+                `<option value="${esc(p.name)}">${esc(p.name)} (${p.total_hands} hands, ${(p.win_rate * 100).toFixed(0)}% wins)</option>`
             ).join('');
     } catch (error) {
         console.error('Failed to load player names:', error);
@@ -1604,7 +1607,7 @@ function showResumePrompt(games) {
     if (game.match_mode) settings.push('Match Play');
 
     elements.resumeGameDetails.innerHTML = `
-        <div><span class="resume-detail-label">Players:</span> <span class="resume-detail-value">${game.player1_name} vs ${game.player2_name}</span></div>
+        <div><span class="resume-detail-label">Players:</span> <span class="resume-detail-value">${esc(game.player1_name)} vs ${esc(game.player2_name)}</span></div>
         <div><span class="resume-detail-label">Score:</span> <span class="resume-detail-value">${scoreInfo}</span></div>
         <div><span class="resume-detail-label">Hands played:</span> <span class="resume-detail-value">${game.hand_count}</span></div>
         ${timeAgo ? `<div><span class="resume-detail-label">Started:</span> <span class="resume-detail-value">${timeAgo}</span></div>` : ''}
@@ -1699,7 +1702,7 @@ async function loadPlayerList() {
 
         // Populate select dropdown with all players
         elements.statsPlayerSelect.innerHTML = players.map(p =>
-            `<option value="${p.name}">${p.name} (${p.total_hands} hands, ${(p.win_rate * 100).toFixed(0)}% wins)</option>`
+            `<option value="${esc(p.name)}">${esc(p.name)} (${p.total_hands} hands, ${(p.win_rate * 100).toFixed(0)}% wins)</option>`
         ).join('');
 
         // If current player not in list, add them
@@ -1713,7 +1716,7 @@ async function loadPlayerList() {
         const playerExists = players.some(p => p.name === currentPlayerName);
         if (!playerExists) {
             elements.statsPlayerSelect.innerHTML =
-                `<option value="${currentPlayerName}">${currentPlayerName} (0 hands)</option>` +
+                `<option value="${esc(currentPlayerName)}">${esc(currentPlayerName)} (0 hands)</option>` +
                 elements.statsPlayerSelect.innerHTML;
         }
     } catch (error) {
@@ -1752,7 +1755,7 @@ async function loadStatsForPlayer(playerName) {
         if (stats.total_hands === 0) {
             elements.statsContent.innerHTML = `
                 <div class="stats-empty">
-                    <p>No statistics available yet for <strong>${playerName}</strong>.</p>
+                    <p>No statistics available yet for <strong>${esc(playerName)}</strong>.</p>
                     <p>Play some hands to start tracking stats!</p>
                 </div>
             `;
@@ -1886,11 +1889,11 @@ function showGameOver(winner, scores, targetScore, matchMode, gamesWon, matchWin
             elements.gameOverDetails.innerHTML = `
                 <div style="text-align: center; padding: 20px;">
                     <p style="font-size: 1.5em; margin-bottom: 20px;">
-                        <strong>${matchWinner}</strong> wins the match!
+                        <strong>${esc(matchWinner)}</strong> wins the match!
                     </p>
                     <div style="font-size: 1.2em; margin: 20px 0;">
                         <div style="margin: 10px 0;">
-                            Match Score: ${playerDisplayName} ${playerGames} - ${aiGames} Computer
+                            Match Score: ${esc(playerDisplayName)} ${playerGames} - ${aiGames} Computer
                         </div>
                     </div>
                 </div>
@@ -1903,11 +1906,11 @@ function showGameOver(winner, scores, targetScore, matchMode, gamesWon, matchWin
             elements.gameOverDetails.innerHTML = `
                 <div style="text-align: center; padding: 20px;">
                     <p style="font-size: 1.5em; margin-bottom: 20px;">
-                        <strong>${winner}</strong> wins this game!
+                        <strong>${esc(winner)}</strong> wins this game!
                     </p>
                     <div style="font-size: 1.2em; margin: 20px 0;">
                         <div style="margin: 10px 0;">
-                            Match Score: ${playerDisplayName} ${playerGames} - ${aiGames} Computer
+                            Match Score: ${esc(playerDisplayName)} ${playerGames} - ${aiGames} Computer
                         </div>
                         <div style="margin: 10px 0;">
                             First to win 2 games wins the match!
@@ -1923,14 +1926,14 @@ function showGameOver(winner, scores, targetScore, matchMode, gamesWon, matchWin
         elements.gameOverDetails.innerHTML = `
             <div style="text-align: center; padding: 20px;">
                 <p style="font-size: 1.5em; margin-bottom: 20px;">
-                    <strong>${winner}</strong> reached ${targetScore} points!
+                    <strong>${esc(winner)}</strong> reached ${targetScore} points!
                 </p>
                 <div style="font-size: 1.2em; margin: 20px 0;">
                     <div style="margin: 10px 0;">
-                        <strong>${winner}:</strong> ${winnerScore} points
+                        <strong>${esc(winner)}:</strong> ${winnerScore} points
                     </div>
                     <div style="margin: 10px 0;">
-                        <strong>${loserName}:</strong> ${loserScore} points
+                        <strong>${esc(loserName)}:</strong> ${loserScore} points
                     </div>
                 </div>
             </div>
@@ -1976,8 +1979,8 @@ async function showScoreHistory() {
                         <th>Round</th>
                         <th>Winner</th>
                         <th>Points</th>
-                        <th>${history.player1_name}</th>
-                        <th>${history.player2_name}</th>
+                        <th>${esc(history.player1_name)}</th>
+                        <th>${esc(history.player2_name)}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1992,7 +1995,7 @@ async function showScoreHistory() {
             html += `
                 <tr class="score-history-row clickable" data-hand-id="${round.hand_id}" title="Click to view turn-by-turn replay">
                     <td>${round.hand_number}</td>
-                    <td>${round.winner || 'Draw'}${badges.join('')}</td>
+                    <td>${esc(round.winner || 'Draw')}${badges.join('')}</td>
                     <td>${round.points}</td>
                     <td>${round.cumulative_p1}</td>
                     <td>${round.cumulative_p2}</td>

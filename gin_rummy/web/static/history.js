@@ -3,6 +3,9 @@
  * Browse and replay past games and hands.
  */
 
+// Escape user-controlled strings (player names, etc.) before innerHTML.
+const esc = window.CardUtils.escapeHtml;
+
 // State
 let currentPage = 0;
 const pageSize = 20;
@@ -218,7 +221,7 @@ function renderGameCard(game) {
     const winner = game.winner_name || 'In Progress';
     const hasScores = game.final_score_p1 !== null && game.final_score_p2 !== null;
     const scoreDisplay = hasScores
-        ? `${game.player1_name} ${game.final_score_p1} - ${game.final_score_p2} ${game.player2_name}`
+        ? `${esc(game.player1_name)} ${game.final_score_p1} - ${game.final_score_p2} ${esc(game.player2_name)}`
         : '';
 
     let handsHtml = '';
@@ -239,9 +242,9 @@ function renderGameCard(game) {
                 <thead>
                     <tr>
                         <th></th>
-                        <th style="text-align:right">${game.player1_name}</th>
+                        <th style="text-align:right">${esc(game.player1_name)}</th>
                         <th style="text-align:center"></th>
-                        <th style="text-align:left">${game.player2_name}</th>
+                        <th style="text-align:left">${esc(game.player2_name)}</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -260,16 +263,16 @@ function renderGameCard(game) {
         <div class="game-card" data-game-id="${game.game_id}">
             <div class="game-header">
                 <div class="game-info">
-                    <div class="game-players">${game.player1_name} vs ${game.player2_name}</div>
+                    <div class="game-players">${esc(game.player1_name)} vs ${esc(game.player2_name)}</div>
                     <div class="game-date">${dateDisplay} - ${game.hand_count} hand(s)</div>
                     ${settingsText ? `<div class="game-settings">${settingsText}</div>` : ''}
                 </div>
                 <div class="game-result">
-                    <div class="game-winner">${winner}</div>
+                    <div class="game-winner">${esc(winner)}</div>
                     <div class="game-score">${scoreDisplay}</div>
                 </div>
                 ${!game.winner_name ? `<button class="resume-game-btn" data-game-id="${game.game_id}" title="Resume game">Resume</button>` : '<span></span>'}
-                <button class="delete-game-btn" data-game-id="${game.game_id}" data-players="${game.player1_name} vs ${game.player2_name}" title="Delete game"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+                <button class="delete-game-btn" data-game-id="${game.game_id}" data-players="${esc(game.player1_name)} vs ${esc(game.player2_name)}" title="Delete game"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
                 <span class="game-expand-icon">▼</span>
             </div>
             <div class="game-hands">
@@ -355,8 +358,8 @@ function renderScoreGraph(game) {
                     <text x="${width / 2}" y="${height - 3}" class="graph-label" text-anchor="middle">Hand</text>
                 </svg>
                 <div class="graph-legend">
-                    <span class="legend-item player1-legend"><span class="legend-dot"></span>${game.player1_name}</span>
-                    <span class="legend-item player2-legend"><span class="legend-dot"></span>${game.player2_name}</span>
+                    <span class="legend-item player1-legend"><span class="legend-dot"></span>${esc(game.player1_name)}</span>
+                    <span class="legend-item player2-legend"><span class="legend-dot"></span>${esc(game.player2_name)}</span>
                 </div>
             </div>
         </div>
@@ -381,7 +384,7 @@ function renderHandRow(hand, player1Name, player2Name) {
     const rightBadges = p2Won ? badges : '';
 
     return `
-        <tr class="hand-row" data-hand-id="${hand.id}" data-player1="${player1Name}" data-player2="${player2Name}" title="Click to view replay">
+        <tr class="hand-row" data-hand-id="${hand.id}" data-player1="${esc(player1Name)}" data-player2="${esc(player2Name)}" title="Click to view replay">
             <td>${hand.hand_number}</td>
             <td style="text-align:right">${leftBadges} ${p1Score}</td>
             <td style="text-align:center">-</td>

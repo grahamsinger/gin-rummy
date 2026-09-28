@@ -263,7 +263,7 @@
 
                     <div class="replay-header">
                         <h3>Hand #${this.handId} - Turn ${this.currentTurnIndex + 1} of ${this.turns.length}</h3>
-                        <div class="replay-player-name">${turn.player_name}'s turn</div>
+                        <div class="replay-player-name">${this.escapeHtml(turn.player_name)}'s turn</div>
                     </div>
 
                     ${this.options.showControls ? this.renderControls() : ''}
@@ -333,8 +333,8 @@
                 <div class="replay-filter">
                     <span class="filter-label">Show:</span>
                     <button class="filter-btn ${this.playerFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
-                    <button class="filter-btn ${this.playerFilter === 'player1' ? 'active' : ''}" data-filter="player1">${this.player1Name}</button>
-                    <button class="filter-btn ${this.playerFilter === 'player2' ? 'active' : ''}" data-filter="player2">${this.player2Name}</button>
+                    <button class="filter-btn ${this.playerFilter === 'player1' ? 'active' : ''}" data-filter="player1">${this.escapeHtml(this.player1Name)}</button>
+                    <button class="filter-btn ${this.playerFilter === 'player2' ? 'active' : ''}" data-filter="player2">${this.escapeHtml(this.player2Name)}</button>
                 </div>
             `;
         }
@@ -351,7 +351,7 @@
                     <div class="turn-list-item ${isActive ? 'active' : ''} ${colorClass} ${isFiltered ? 'filtered-out' : ''}" data-turn-index="${index}">
                         <span class="turn-number">${index + 1}</span>
                         <span class="turn-deadwood">${turn.deadwood_after}</span>
-                        <span class="turn-player">${turn.player_name}</span>
+                        <span class="turn-player">${this.escapeHtml(turn.player_name)}</span>
                         <span class="turn-action">${formatCard(turn.card_drawn)} → ${formatCard(turn.card_discarded)}</span>
                         ${turn.did_knock ? '<span class="knock-indicator">K</span>' : ''}
                     </div>
@@ -463,8 +463,8 @@
                             <text x="${width / 2}" y="${height - 3}" class="graph-label" text-anchor="middle">Turn</text>
                         </svg>
                         <div class="graph-legend">
-                            <span class="legend-item player1-legend"><span class="legend-dot"></span>${this.player1Name}</span>
-                            <span class="legend-item player2-legend"><span class="legend-dot"></span>${this.player2Name}</span>
+                            <span class="legend-item player1-legend"><span class="legend-dot"></span>${this.escapeHtml(this.player1Name)}</span>
+                            <span class="legend-item player2-legend"><span class="legend-dot"></span>${this.escapeHtml(this.player2Name)}</span>
                         </div>
                     </div>
                 </div>
@@ -525,10 +525,7 @@
          * Escape HTML to prevent XSS
          */
         escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+            return window.CardUtils.escapeHtml(text);
         }
 
         /**

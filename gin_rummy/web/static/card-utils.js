@@ -36,6 +36,24 @@ window.CardUtils = (function () {
         return !!cardId && RED_SUIT_LETTERS.has(cardId.slice(-1));
     }
 
+    const HTML_ESCAPES = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    };
+
+    /**
+     * Escape a value for safe interpolation into innerHTML, in both text
+     * and attribute contexts. Use this for anything user-controlled
+     * (player names from the DB, etc.).
+     */
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value).replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
+    }
+
     return {
         SUIT_SYMBOLS_BY_LETTER,
         SUIT_SYMBOLS_BY_NAME,
@@ -43,5 +61,6 @@ window.CardUtils = (function () {
         RED_SUIT_NAMES,
         formatCardId,
         isRedId,
+        escapeHtml,
     };
 })();
