@@ -180,6 +180,7 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 - Everything uses the global `random` module. MC sampling shares the RNG stream with the deck shuffle, so `experiments/sim_budget.py`'s "same seed" comparison doesn't produce identical deals across sim counts.
 - Workers reseed from pid+time (`monte_carlo.py:282-285`).
 - The trainer and experiment runner have no `--seed`.
+- **Hash-order dependence is possible and unguarded.** `Card` hashes its `Rank`/`Suit` enums, which hash by name string, so set-of-cards iteration order changes per process unless `PYTHONHASHSEED` is fixed. A seeded 30-game Basic vs ContextAware run was still identical across two unpinned processes (2026-09-28), so no current tie-break is known to depend on it. But any AI that picks the first of several equal options while iterating a card set would silently break `--seed` reproducibility. Pin `PYTHONHASHSEED=0` for benchmark and fingerprint runs, or give `Card` a stable `__hash__` (e.g. from `Card.index` once §2.5 lands).
 - **Fix:** inject a `random.Random` into `Deck`, `Game` and each AI, pass derived seeds to workers, and add `seed` to `TrainingConfig`.
 
 ### Config
