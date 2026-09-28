@@ -2,7 +2,7 @@
 
 _Audited at commit `779a7ad` (2026-09-28). Line numbers refer to that commit and will drift._
 
-**Summary:** about 25k lines of source. There are 263 passing tests (1 skipped), 76 ruff errors, 42/57 files not ruff-formatted and 79 `ty` diagnostics. There is no CI. _As of `e196cf6`: 291 tests pass and ruff reports 70 errors._
+**Summary:** about 25k lines of source. There are 263 passing tests (1 skipped), 76 ruff errors, 42/57 files not ruff-formatted and 79 `ty` diagnostics. There is no CI. _As of `72c06c3`: 307 tests pass, ruff reports 0 errors, every file is ruff-formatted, and CI runs on push._
 
 The biggest structural problem is that the **game/round loop is implemented four separate times**: CLI vs AI, CLI PvP, simulator and scenario quiz (a fifth copy, the network server, was deleted on 2026-09-28). The web session and trainer run partial copies. Result recording and card serialization are copied in the same way. Several real bugs below come directly from those copies drifting apart.
 
@@ -12,7 +12,7 @@ The biggest structural problem is that the **game/round loop is implemented four
 
 Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. The **Status** column shows what has been done since the audit.
 
-**Progress (2026-09-28):** B1–B6 were re-confirmed against the code and fixed in commits `1646e4e`–`e196cf6`, each with a regression test. Still open: B7, B8, B9, B12, B13, B14, the schema-version half of B15, and two small B5 follow-ups (see review below).
+**Progress (2026-09-28):** B1–B6 were re-confirmed against the code and fixed in commits `1646e4e`–`e196cf6`, each with a regression test. Second batch (`2c8224b`–`72c06c3`) fixed B7, B12, B13, B14, B15 and the two B5 follow-ups below, and added the §5/§6 safety net. Still open: B8 and B9 (both belong with §2.3/§2.4).
 
 **Review of the fix commits (`1646e4e`, `cb442ff`, `b506c21`, `e196cf6`):** all four were read in full and verified. **291 tests pass** (was 263). Ruff errors went from 76 to 70, and the touched files add no new lint. Notes and follow-ups:
 
@@ -23,6 +23,7 @@ Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. T
   - **Off by one:** `_save_checkpoint(episode)` runs *after* episode `e` completes and stores `episode=e`. Resume starts `range(self._start_episode, ...)` at `e`, so that episode is trained twice. Store `episode + 1`, or resume from `+1`.
   - **`--episodes` is a total, not additional episodes.** Resuming from a final checkpoint (`episode == num_episodes`) with the same `--episodes` trains nothing and just re-saves. Either log a warning when `_start_episode >= num_episodes` or document that `--episodes` is the total.
   - The replay buffer isn't checkpointed, so a resumed run starts with an empty buffer. That's acceptable, but worth a line in `docs/learning-ai.md`.
+  - _All three addressed in `2c8224b`: checkpoints store completed episodes, `train()` warns when there is nothing left to train, and the docs note both._
 - **B6, XSS:** correct and complete for player names. Names in `data-players`/`data-player1` attributes are escaped. When the page reads them back, they go into `textContent` (`history.js:493`) or into `HandReplay`, which escapes them again, so there is no second injection point. The only remaining unescaped interpolation is `scenario.js:202` (`row.name`), and that's safe for now because those names are fixed, server-side AI panel names. `HandReplay.escapeHtml` (`replay.js:527`) now delegates to `CardUtils.escapeHtml`, so there is a single implementation.
 
 | # | Bug | Location | Status |
@@ -33,15 +34,15 @@ Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. T
 | B4 ✅ | **LearningAI never sees opponent actions.** `record_opponent_pickup/discard` only forward to `ContextAwareAI` instances, so ~34 opponent-model state features stay empty during training. | `game_runner.py:144,155` | **Fixed.** Forwarders now duck-type on the method. Tests: `test_game_runner.py`, `test_learning.py` |
 | B5 ✅ | **`--resume` trains the wrong network.** It replaces `trainer.learning_ai`, but the optimizers still hold the old network's parameters. Curriculum and exploration state are not restored either. | `learning/trainer.py:737-742` vs `:152-163` | **Fixed.** `Trainer.load_checkpoint()` loads into the existing networks and restores exploration/curriculum/episode. Test: `test_learning.py::TestTrainerResume` |
 | B6 ✅ | **Stored XSS via player names.** Names from the DB go into `innerHTML` unescaped. `escapeHtml` exists only as a private `HandReplay` method. | `game.js:404-409, 621, 1606, 1701-1716, 1753`; `history.js:~236-265` | **Fixed.** Shared `CardUtils.escapeHtml` used at every name interpolation in `game.js`, `history.js`, `replay.js` |
-| B7 | MonteCarloAI early returns don't reset `last_mc_thinking`, so the `*_with_reasoning` wrappers report the previous turn's numbers. | `ai/monte_carlo.py:746, 846, 1049, 1120` | Open |
+| B7 | MonteCarloAI early returns don't reset `last_mc_thinking`, so the `*_with_reasoning` wrappers report the previous turn's numbers. | `ai/monte_carlo.py:746, 846, 1049, 1120` | **Fixed.** `_clear_thinking()` on every early return. Test: `test_monte_carlo.py::TestThinkingReset` |
 | B8 | StatisticalAI and LearningAI inherit `BasicAI.*_with_reasoning`, so the reasoning stored in the DB describes greedy-deadwood logic, not the real decision. | `ai/basic.py:234-395` | Open |
 | B9 | The Oklahoma knock threshold is ignored outside ContextAware/MC, which hard-code `10`. | `context_aware.py:360,415,800,847`, `basic.py:192`, `statistical.py:249`, `learning_ai.py:268`, `learning/state.py:161` | Open |
 | B10 | Network server `_handle_knock` edits hand and discard pile directly, bypassing the discard-back rule and `_discard_history`. It also catches the wrong exception type. | `network/server.py:371-386` | **Gone** with `network/` |
 | B11 | The CLI PvP first discard prompts "1-11" but shows the hand without numbers and indexes the unsorted hand. | `cli.py:810`, `cli.py:328` | **Fixed.** PvP reuses `play_human_first_discard` |
-| B12 | The scenario quiz doesn't reset panel AI tracking between failed generation attempts. | `scenario_quiz.py:340-345` vs `409-411` | Open |
-| B13 | Duplicate `@keyframes pulse`: the second definition silently overrides the AI-pickup animation. | `style.css:1021` and `:1552` | Open |
-| B14 | `id_to_card("10")` raises `IndexError`, which `GameSession.discard` doesn't catch, so it returns a 500. | `web/game_session.py:829` | Open |
-| B15 | `scripts/stress_test_db.py` inserts schema version `2`, but `SCHEMA_VERSION = 4`. The trainer progress string contains a stray `\ngts`. | `scripts/stress_test_db.py:45`, `trainer.py:782` | Partly: `\ngts` removed; schema version still open |
+| B12 | The scenario quiz doesn't reset panel AI tracking between failed generation attempts. | `scenario_quiz.py:340-345` vs `409-411` | **Fixed** in both the CLI quiz and `web/scenario_session.py` via `reset_panel_tracking()` per attempt |
+| B13 | Duplicate `@keyframes pulse`: the second definition silently overrides the AI-pickup animation. | `style.css:1021` and `:1552` | **Fixed.** Second one renamed `pulse-soft` |
+| B14 | `id_to_card("10")` raises `IndexError`, which `GameSession.discard` doesn't catch, so it returns a 500. | `web/game_session.py:829` | **Fixed.** `id_to_card` raises `ValueError`; route returns 400. Test: `test_web_app.py::TestValidation` |
+| B15 | `scripts/stress_test_db.py` inserts schema version `2`, but `SCHEMA_VERSION = 4`. The trainer progress string contains a stray `\ngts`. | `scripts/stress_test_db.py:45`, `trainer.py:782` | **Fixed** (both halves) |
 
 ---
 
@@ -226,14 +227,14 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 
 ## 5. Tests
 
-- **There is no `tests/conftest.py`.**
+- ~~**There is no `tests/conftest.py`.**~~ Done (`f68eb01`): `tests/conftest.py` isolates the DB per test, and `tests/helpers.py` holds `make_ai_config`, `make_mc_config`, `make_context` and a `cards("7S 8S 9S KC")` builder. The three test files now import them; `test_context.py` still builds `GameContext(` by hand.
   - `make_test_config()` is copied in `test_ai.py:10`, `test_monte_carlo.py:15` and `test_mc_upgrades.py:17`.
   - `make_context()` is copied in `test_monte_carlo.py:35` and `test_mc_upgrades.py:42`, and `test_context.py` builds `GameContext(` by hand 11 times.
   - `Card(Rank.X, Suit.Y)` is written out about 830 times.
   - Add shared fixtures and a `cards("7S 8S 9S KC")` helper.
 - **Files named after events instead of modules.** Merge `test_review_fixes.py` into `test_game.py`/`test_melds.py`/`test_context.py` and a new `test_statistical.py`. Merge `test_mc_upgrades.py` into `test_monte_carlo.py` and `test_4card_run.py` into `test_ai.py`.
 - **Untested modules:** `simulator.py`, `analyze_hand.py`, `scenario_quiz.py`, all of `web/` except `scenario_session`, and `learning/experiment.py`. `cli.py`, `database.py`, `game_runner.py` and `learning/trainer.py` now have narrow regression tests for B2–B5 only. `test_learning.py` is skipped entirely without torch. Highest-value additions:
-  1. FastAPI `TestClient` game-flow tests (add `httpx` to dev deps). **Do this before splitting `app.py`, `game_session.py` or `game.js`.**
+  1. ~~FastAPI `TestClient` game-flow tests (add `httpx` to dev deps).~~ Done: `tests/test_web_app.py` (new game, full round, recording, validation, history routes). Extend to resume, match mode and the scenario API before splitting `app.py`/`game_session.py`.
   2. `database.py` against a `tmp_path` DB. Started in `tests/test_database.py` (would have caught B3); extend to `GameTracker.update_player_stats`, `delete_game`, `get_incomplete_games`.
   3. A 3-game `Simulator` smoke test.
   4. ~~A round-recording test for the CLI. This would have caught B2.~~ Done: `tests/test_cli.py`.
@@ -242,11 +243,11 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 
 ## 6. Tooling and repo hygiene
 
-- **No CI.** Add `.github/workflows/ci.yml` running `uv sync --all-extras`, `ruff check`, `ruff format --check`, `pytest` (with torch, so learning tests run) and `npm run lint`. Add `.pre-commit-config.yaml` with ruff and ruff-format.
-- **Ruff:** run `ruff check --fix` and `ruff format` once, then list that commit in `.git-blame-ignore-revs`. Extend `select` beyond `F,E,W` with `I, UP, B, SIM` (101 more hits, 52 auto-fixable), and optionally `RUF, PT, PERF`.
+- ~~**No CI.**~~ Done (`72c06c3`): `.github/workflows/ci.yml` runs `uv sync --all-extras`, `ruff check`, `ruff format --check`, `pytest` and `npm run lint`; `.pre-commit-config.yaml` has ruff and ruff-format.
+- **Ruff:** ~~run `ruff check --fix` and `ruff format` once, then list that commit in `.git-blame-ignore-revs`.~~ Done (`0b76869`, listed in `.git-blame-ignore-revs`). Still to do: extend `select` beyond `F,E,W` with `I, UP, B, SIM` (101 more hits, 52 auto-fixable), and optionally `RUF, PT, PERF`.
 - **ty:** 79 diagnostics. The meaningful ones are `object` not callable from loosely typed dicts (`simulator.py:360-450`, `trainer.py:347-622`) and `BasicAI` has no `update_context` (`scenario_quiz.py:227-279`); both go away with §2.3. Add a `[tool.ty]` section.
-- **Pytest:** add `addopts = "-ra --strict-markers"` and a `learning` marker so the torch skip is visible.
-- **Dependencies:** `fastapi`/`uvicorn` are an optional `web` extra, but the web UI is the primary interface; consider making them core. Add `httpx` and `pytest-cov` to dev.
+- ~~**Pytest:** add `addopts = "-ra --strict-markers"` and a `learning` marker so the torch skip is visible.~~ Done; `test_learning.py` should still be tagged with the marker.
+- **Dependencies:** `fastapi`/`uvicorn` are an optional `web` extra, but the web UI is the primary interface; consider making them core. ~~Add `httpx` and `pytest-cov` to dev.~~ Done.
 - **pyproject metadata:** `readme`, `license` and `authors` are missing.
 - **Layout:**
   - `scripts/stress_test_db.py` uses a `sys.path` hack and writes an un-ignored `stress_test.db` to the repo root.
@@ -268,7 +269,7 @@ There is no shared interface. Signatures differ (`context=`, `pending_discard=`)
 ## Suggested order of work
 
 1. ~~**Quick fixes:** B1 decision (delete `network/`), B2, B3, B4, B5, B6. Add tests for each as you go.~~ Done 2026-09-28.
-2. **Safety net:** CI + pre-commit, a one-time `ruff --fix` + `ruff format`, `conftest.py`, web `TestClient` and DB tests.
+2. ~~**Safety net:** CI + pre-commit, a one-time `ruff --fix` + `ruff format`, `conftest.py`, web `TestClient` and DB tests.~~ Done 2026-09-28.
 3. **Consolidate the core:** card codec (§2.5), `AIPlayer` protocol + factory (§2.3), shared recorder (§2.2), reasoning twins (§2.4).
 4. **Round runner (§2.1):** move CLI, simulator, quiz and trainer onto it.
 5. **Split the large files (§3):** `monte_carlo.py`, `game_session.py`/`app.py`, `database.py`, `cli.py`, `context.py`.
