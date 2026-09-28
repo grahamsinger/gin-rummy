@@ -28,7 +28,7 @@ from gin_rummy.database import (
 from gin_rummy.models import Card, analyze_hand
 from gin_rummy.web.game_session import GameSession
 from gin_rummy.web.session_store import SessionStore
-from gin_rummy.web.workers import get_worker_pool, shutdown_worker_pool
+from gin_rummy.web.workers import get_worker_pool, shutdown_worker_pool, worker_count
 
 # Initialize logging from config
 config = get_config()
@@ -554,10 +554,15 @@ def _get_scenario_session(request: Request, response: Response):
     from gin_rummy.web.scenario_session import ScenarioSession
 
     session = get_or_create_session(request, response)
-    if session.scenario_session is None:
-        session.scenario_session = ScenarioSession(pool=get_worker_pool())
-        session.scenario_session.owner_lock = session.lock
-    return session.scenario_session
+    with session.lock:
+        if session.scenario_session is None:
+            # mc_workers matches the shared pool, so when there is no shared
+            # pool (max_workers = 1) the panel runs inline instead of starting
+            # its own processes.
+            scenario = ScenarioSession(mc_workers=worker_count(), pool=get_worker_pool())
+            scenario.owner_lock = session.lock
+            session.scenario_session = scenario
+        return session.scenario_session
 
 
 def _scenario_result(result: dict) -> dict:

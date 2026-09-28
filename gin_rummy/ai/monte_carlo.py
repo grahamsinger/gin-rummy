@@ -576,6 +576,16 @@ class MonteCarloAI(ContextAwareAI):
         # Last thinking data for UI display
         self.last_mc_thinking: dict[str, Any] | None = None
 
+    def reset_for_new_hand(self) -> None:
+        """Forget per-hand tracking plus the per-turn plan and thinking snapshot.
+
+        The web app keeps one AI across hands, so nothing from the previous
+        hand may leak into the next one.
+        """
+        super().reset_for_new_hand()
+        self._turn_plan = None
+        self.last_mc_thinking = None
+
     def _get_pool(self) -> Executor | None:
         """The borrowed pool, else a lazily created owned one, else None (sequential)."""
         if self._pool is not None:
