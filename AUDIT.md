@@ -61,7 +61,7 @@
 
 > ## Next up (decided 2026-09-28)
 >
-> ### 0. ~~Expand the ruff rules (`I`, `UP`, `B`, `SIM`): do first, it's small~~ Done (`0a1fd6a` mechanical `I`+`UP`, blame-ignored; `f6649b6` `B`+`SIM` by hand, `zip(strict=True)` where lengths are derived from the same list)
+> ### 0. ~~Expand the ruff rules (`I`, `UP`, `B`, `SIM`): do first, it's small~~ Done (`0416d96` mechanical `I`+`UP`, blame-ignored in `0a1fd6a`; `f6649b6` `B`+`SIM` by hand, `zip(strict=True)` where lengths are derived from the same list)
 >
 > `pyproject.toml` only selects `F`, `E`, `W`. Counted at `6bef1bc` with `ruff check --select I,UP,B,SIM --statistics`: **65 hits**.
 >
