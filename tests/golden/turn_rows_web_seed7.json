@@ -6,7 +6,10 @@
   "card_discarded": "KD",
   "did_knock": 0,
   "deadwood_before": 59,
-  "deadwood_after": 59
+  "deadwood_after": 59,
+  "cards_before": "[\"KD\", \"4C\", \"9H\", \"JD\", \"10S\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\"]",
+  "cards_after": "[\"4C\", \"9H\", \"JD\", \"10S\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"JH\"]",
+  "decisions": "draw=DECK;discard=KD;knock=no_knock"
  },
  {
   "player_name": "Human",
@@ -15,7 +18,10 @@
   "card_discarded": "3S",
   "did_knock": 0,
   "deadwood_before": 60,
-  "deadwood_after": 63
+  "deadwood_after": 63,
+  "cards_before": "[\"3S\", \"5C\", \"7C\", \"QH\", \"7H\", \"3C\", \"2H\", \"9S\", \"KH\", \"4S\"]",
+  "cards_after": "[\"5C\", \"7C\", \"QH\", \"7H\", \"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\"]",
+  "decisions": null
  },
  {
   "player_name": "Computer",
@@ -24,7 +30,10 @@
   "card_discarded": "JD",
   "did_knock": 0,
   "deadwood_before": 59,
-  "deadwood_after": 52
+  "deadwood_after": 52,
+  "cards_before": "[\"4C\", \"9H\", \"JD\", \"10S\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"JH\"]",
+  "cards_after": "[\"4C\", \"9H\", \"10S\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"JH\", \"3S\"]",
+  "decisions": "draw=DISCARD;discard=JD;knock=no_knock"
  },
  {
   "player_name": "Human",
@@ -33,7 +42,10 @@
   "card_discarded": "5C",
   "did_knock": 0,
   "deadwood_before": 63,
-  "deadwood_after": 64
+  "deadwood_after": 64,
+  "cards_before": "[\"5C\", \"7C\", \"QH\", \"7H\", \"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\"]",
+  "cards_after": "[\"7C\", \"QH\", \"7H\", \"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\", \"6H\"]",
+  "decisions": null
  },
  {
   "player_name": "Computer",
@@ -42,7 +54,10 @@
   "card_discarded": "10S",
   "did_knock": 0,
   "deadwood_before": 52,
-  "deadwood_after": 32
+  "deadwood_after": 32,
+  "cards_before": "[\"4C\", \"9H\", \"10S\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"JH\", \"3S\"]",
+  "cards_after": "[\"4C\", \"9H\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"JH\", \"3S\", \"5C\"]",
+  "decisions": "draw=DISCARD;discard=10S;knock=no_knock"
  },
  {
   "player_name": "Human",
@@ -51,7 +66,10 @@
   "card_discarded": "7C",
   "did_knock": 0,
   "deadwood_before": 64,
-  "deadwood_after": 65
+  "deadwood_after": 65,
+  "cards_before": "[\"7C\", \"QH\", \"7H\", \"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\", \"6H\"]",
+  "cards_after": "[\"QH\", \"7H\", \"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\", \"6H\", \"8C\"]",
+  "decisions": null
  },
  {
   "player_name": "Computer",
@@ -60,7 +78,10 @@
   "card_discarded": "JH",
   "did_knock": 0,
   "deadwood_before": 32,
-  "deadwood_after": 22
+  "deadwood_after": 22,
+  "cards_before": "[\"4C\", \"9H\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"JH\", \"3S\", \"5C\"]",
+  "cards_after": "[\"4C\", \"9H\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"3S\", \"5C\", \"7C\"]",
+  "decisions": "draw=DISCARD;discard=JH;knock=no_knock"
  },
  {
   "player_name": "Human",
@@ -69,7 +90,10 @@
   "card_discarded": "QH",
   "did_knock": 0,
   "deadwood_before": 65,
-  "deadwood_after": 63
+  "deadwood_after": 63,
+  "cards_before": "[\"QH\", \"7H\", \"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\", \"6H\", \"8C\"]",
+  "cards_after": "[\"7H\", \"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\", \"6H\", \"8C\", \"8D\"]",
+  "decisions": null
  },
  {
   "player_name": "Computer",
@@ -78,7 +102,10 @@
   "card_discarded": "9H",
   "did_knock": 0,
   "deadwood_before": 22,
-  "deadwood_after": 18
+  "deadwood_after": 18,
+  "cards_before": "[\"4C\", \"9H\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"3S\", \"5C\", \"7C\"]",
+  "cards_after": "[\"4C\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"3S\", \"5C\", \"7C\", \"5H\"]",
+  "decisions": "draw=DECK;discard=9H;knock=no_knock"
  },
  {
   "player_name": "Human",
@@ -87,7 +114,10 @@
   "card_discarded": "7H",
   "did_knock": 0,
   "deadwood_before": 63,
-  "deadwood_after": 60
+  "deadwood_after": 60,
+  "cards_before": "[\"7H\", \"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\", \"6H\", \"8C\", \"8D\"]",
+  "cards_after": "[\"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\", \"6H\", \"8C\", \"8D\", \"4H\"]",
+  "decisions": null
  },
  {
   "player_name": "Computer",
@@ -96,7 +126,10 @@
   "card_discarded": "5S",
   "did_knock": 0,
   "deadwood_before": 18,
-  "deadwood_after": 15
+  "deadwood_after": 15,
+  "cards_before": "[\"4C\", \"AD\", \"6C\", \"AH\", \"3D\", \"5S\", \"3S\", \"5C\", \"7C\", \"5H\"]",
+  "cards_after": "[\"4C\", \"AD\", \"6C\", \"AH\", \"3D\", \"3S\", \"5C\", \"7C\", \"5H\", \"2C\"]",
+  "decisions": "draw=DECK;discard=5S;knock=no_knock"
  },
  {
   "player_name": "Human",
@@ -105,7 +138,10 @@
   "card_discarded": "3C",
   "did_knock": 0,
   "deadwood_before": 60,
-  "deadwood_after": 67
+  "deadwood_after": 67,
+  "cards_before": "[\"3C\", \"2H\", \"9S\", \"KH\", \"4S\", \"6D\", \"6H\", \"8C\", \"8D\", \"4H\"]",
+  "cards_after": "[\"2H\", \"9S\", \"KH\", \"4S\", \"6D\", \"6H\", \"8C\", \"8D\", \"4H\", \"QD\"]",
+  "decisions": null
  },
  {
   "player_name": "Computer",
@@ -114,6 +150,9 @@
   "card_discarded": "5H",
   "did_knock": 1,
   "deadwood_before": 15,
-  "deadwood_after": 4
+  "deadwood_after": 4,
+  "cards_before": "[\"4C\", \"AD\", \"6C\", \"AH\", \"3D\", \"3S\", \"5C\", \"7C\", \"5H\", \"2C\"]",
+  "cards_after": "[\"4C\", \"AD\", \"6C\", \"AH\", \"3D\", \"3S\", \"5C\", \"7C\", \"2C\", \"3C\"]",
+  "decisions": "draw=DISCARD;discard=5H;knock=knock"
  }
 ]

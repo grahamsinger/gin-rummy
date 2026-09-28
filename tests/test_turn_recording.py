@@ -28,7 +28,9 @@ def _turn_rows(db_path: Path) -> list[sqlite3.Row]:
     conn.row_factory = sqlite3.Row
     try:
         return conn.execute(
-            "SELECT t.*, (SELECT COUNT(*) FROM ai_decisions d WHERE d.turn_id = t.id) AS n_decisions "
+            "SELECT t.*, (SELECT COUNT(*) FROM ai_decisions d WHERE d.turn_id = t.id) AS n_decisions, "
+            "(SELECT group_concat(x, ';') FROM (SELECT d.decision_type || '=' || d.choice AS x "
+            " FROM ai_decisions d WHERE d.turn_id = t.id ORDER BY d.id)) AS decisions "
             "FROM turns t ORDER BY t.id"
         ).fetchall()
     finally:
@@ -70,6 +72,9 @@ GOLDEN_COLUMNS = (
     "did_knock",
     "deadwood_before",
     "deadwood_after",
+    "cards_before",  # JSON, so hand order is pinned too
+    "cards_after",
+    "decisions",  # "type=choice;..." per turn, None for human turns
 )
 
 
