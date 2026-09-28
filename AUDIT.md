@@ -21,7 +21,7 @@
 
 > ## Next up (decided 2026-09-28)
 >
-> ### 0. Expand the ruff rules (`I`, `UP`, `B`, `SIM`): do first, it's small
+> ### 0. ~~Expand the ruff rules (`I`, `UP`, `B`, `SIM`): do first, it's small~~ Done (`0a1fd6a` mechanical `I`+`UP`, blame-ignored; `f6649b6` `B`+`SIM` by hand, `zip(strict=True)` where lengths are derived from the same list)
 >
 > `pyproject.toml` only selects `F`, `E`, `W`. Counted at `6bef1bc` with `ruff check --select I,UP,B,SIM --statistics`: **65 hits**.
 >
@@ -39,7 +39,7 @@
 > 3. **Verify:** tests, plus `scripts/fingerprint.py` unchanged. Re-sorting imports can change behaviour when a module has import-time side effects or circular imports.
 > 4. **Why now:** it's before the file splits (order of work, step 8), so moved code doesn't carry import churn. After this, pre-commit and CI keep imports sorted.
 >
-> ### A. Monte Carlo worker-pool lifecycle (web): fix before the round runner
+> ### A. ~~Monte Carlo worker-pool lifecycle (web): fix before the round runner~~ Done (commit after `f6649b6`): shared pool in `web/workers.py`, `MonteCarloAI(pool=)` borrows it, `GameSession.close()` on eviction and lifespan exit, AI kept across hands, routes sync + per-session lock, regression test in `tests/test_worker_pool.py`
 >
 > **Correction to §4:** the pools do **not** currently leak. Measured on 2026-09-28 by counting child processes of a real `GameSession` on "hard" (15 workers + 1 resource tracker = 16):
 >
@@ -306,7 +306,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
   - `scenario_quiz.py:398` (8 workers)
 
 ### Web server
-- **Blocking work in `async def` routes.** MonteCarloAI turns and the 3-AI scenario panel (500 sims × 8 workers) stall the event loop for every user for 2-4 s. Use plain `def` routes or `run_in_threadpool`, and add a per-session lock.
+- ~~**Blocking work in `async def` routes.**~~ Done: the game and scenario routes are plain `def` (threadpool) and hold a per-session lock.
 - **Process pool lifecycle** (_corrected 2026-09-28; see "Next up" A at the top_). Pools don't currently leak, because `__del__` runs on refcount drop. But that cleanup is fragile, a new 15-process pool starts every hand, and nothing caps processes across sessions. `ScenarioSession.shutdown` is never called, and session expiry just drops references. Fix: one shared app-level pool, `GameSession.close()` on eviction and on lifespan exit, and keep the AI across hands.
 - There is no cap on session count; every cookieless request creates a 4-hour session (`app.py:51`).
 - **Missing API validation:**
@@ -397,8 +397,8 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 2. ~~**Safety net:** CI + pre-commit, a one-time `ruff --fix` + `ruff format`, `conftest.py`, web `TestClient` and DB tests.~~ Done 2026-09-28.
 3. ~~**First:** fix the B7 regression (two lines plus a test). Optional: a CPU-only torch index for CI.~~ Done 2026-09-28.
 4. ~~**Consolidate the core:** card codec (§2.5), `AIPlayer` protocol + factory (§2.3), shared recorder (§2.2), reasoning twins (§2.4).~~ Done 2026-09-28, one commit per step, each verified against `scripts/fingerprint.py` (seeded per-game hashes, unchanged throughout) and the twin-agreement test.
-5. **Expand the ruff rules** ("Next up" 0 at the top): `I` + `UP` as one mechanical commit (blame-ignored), then `B` + `SIM` fixed by hand. Done before the file splits so moved code doesn't carry import churn.
-6. **MC worker-pool lifecycle and blocking web routes** ("Next up" A at the top).
+5. ~~**Expand the ruff rules** ("Next up" 0 at the top)~~ Done 2026-09-28.
+6. ~~**MC worker-pool lifecycle and blocking web routes** ("Next up" A at the top).~~ Done 2026-09-28.
 7. **Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.
 8. **Split the large files (§3):** `monte_carlo.py`, `game_session.py`/`app.py`, `database.py`, `cli.py`, `context.py`.
 9. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
