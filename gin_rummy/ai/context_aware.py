@@ -815,7 +815,9 @@ class ContextAwareAI(BasicAI):
                 if pursue_gin:
                     gin_modifier = -cfg.gin_pursuit_weight
                     score += gin_modifier
-                    factors.append(f"Gin pursuit: {gin_modifier:+.2f} (prob={gin_prob:.2f}, thresh={effective_threshold})")
+                    factors.append(
+                        f"Gin pursuit: {gin_modifier:+.2f} (prob={gin_prob:.2f}, thresh={effective_threshold})"
+                    )
         else:
             # Original flat gin pursuit
             if deadwood <= cfg.gin_pursuit_threshold:

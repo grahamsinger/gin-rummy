@@ -372,7 +372,10 @@ class BasicAI:
                 factors.append(f"Conservative: {deadwood} <= {self.conservative_knock_threshold}")
                 return KnockReasoning(
                     should_knock=True,
-                    reasoning=f"Knocked: deadwood={deadwood} <= {self.conservative_knock_threshold} (strategy=conservative)",
+                    reasoning=(
+                        f"Knocked: deadwood={deadwood} <= {self.conservative_knock_threshold} "
+                        "(strategy=conservative)"
+                    ),
                     score=None,
                     factors=factors,
                 )
@@ -380,7 +383,10 @@ class BasicAI:
                 factors.append(f"Conservative: {deadwood} > {self.conservative_knock_threshold}")
                 return KnockReasoning(
                     should_knock=False,
-                    reasoning=f"No knock: deadwood={deadwood} > {self.conservative_knock_threshold} (strategy=conservative)",
+                    reasoning=(
+                        f"No knock: deadwood={deadwood} > {self.conservative_knock_threshold} "
+                        "(strategy=conservative)"
+                    ),
                     score=None,
                     factors=factors,
                 )

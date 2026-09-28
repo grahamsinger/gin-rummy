@@ -627,7 +627,10 @@ class CLITurnCallbacks:
                     turn_id=turn_id,
                     decision_type="discard",
                     choice=card_to_db_str(actions.discarded_card),
-                    reasoning=f"Discarded {card_to_db_str(actions.discarded_card)}, deadwood {actions.deadwood_before} -> {actions.deadwood_after}",
+                    reasoning=(
+                        f"Discarded {card_to_db_str(actions.discarded_card)}, "
+                        f"deadwood {actions.deadwood_before} -> {actions.deadwood_after}"
+                    ),
                 )
 
 

@@ -64,7 +64,6 @@ def run_experiment(label: str, mc_config: MonteCarloAIConfig) -> dict:
 
     p1 = metrics.player1
     p2 = metrics.player2
-    total_rounds = p1.rounds_won + p2.rounds_won + metrics.draws
 
     return {
         "label": label,
@@ -93,7 +92,10 @@ def main():
     print(f"MC AI (Player 1) vs BasicAI (Player 2) — {NUM_GAMES} games, seed={SEED}")
     print("=" * 80)
 
-    header = f"{'Config':<20} {'Wins':>5} {'Losses':>6} {'Win%':>6} {'Rnds W':>6} {'Rnds L':>6} {'Pts':>6} {'Opp Pts':>7} {'Gins':>4} {'AvgKnDW':>7} {'Time':>7}"
+    header = (
+        f"{'Config':<20} {'Wins':>5} {'Losses':>6} {'Win%':>6} {'Rnds W':>6} {'Rnds L':>6} "
+        f"{'Pts':>6} {'Opp Pts':>7} {'Gins':>4} {'AvgKnDW':>7} {'Time':>7}"
+    )
     print(header)
     print("-" * len(header))
 

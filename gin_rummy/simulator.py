@@ -8,6 +8,15 @@ import time
 from dataclasses import dataclass, field
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, MonteCarloAI, StatisticalAI
+from gin_rummy.models import Card, Player
+from gin_rummy.config import Config
+from gin_rummy.game import Game, GamePhase, RoundResult
+from gin_rummy.game_runner import (
+    TurnResult,
+    TurnActions,
+    TurnCallbacks,
+    execute_ai_turn,
+)
 
 # Lazy import for LearningAI to avoid requiring torch
 _LearningAI = None
@@ -20,17 +29,6 @@ def _get_learning_ai():
         from gin_rummy.learning import LearningAI
         _LearningAI = LearningAI
     return _LearningAI
-
-
-from gin_rummy.models import Card, Player
-from gin_rummy.config import Config
-from gin_rummy.game import Game, GamePhase, RoundResult
-from gin_rummy.game_runner import (
-    TurnResult,
-    TurnActions,
-    TurnCallbacks,
-    execute_ai_turn,
-)
 
 
 logger = logging.getLogger(__name__)
@@ -126,8 +124,6 @@ class PlayerMetrics:
     def points_per_knock_win(self) -> float:
         """Average points scored when winning by knock (gin or regular)."""
         knock_points = self.points_from_gins + self.points_from_knocks
-        wins = self.gins + self.rounds_won - self.gins - self.undercuts_made
-        # Simpler: knock_wins = rounds_won - undercuts_made
         knock_wins = self.rounds_won - self.undercuts_made
         return knock_points / knock_wins if knock_wins > 0 else 0.0
 
@@ -195,14 +191,22 @@ class SimulatorMetrics:
             f"{'Total points':<30} {self.player1.total_points:>{col_width}} {self.player2.total_points:>{col_width}}",
             f"{'Gins':<30} {self.player1.gins:>{col_width}} {self.player2.gins:>{col_width}}",
             f"{'Knocks':<30} {self.player1.knocks:>{col_width}} {self.player2.knocks:>{col_width}}",
-            f"{'Avg knock deadwood':<30} {self.player1.avg_knock_deadwood:>{col_width}.1f} {self.player2.avg_knock_deadwood:>{col_width}.1f}",
-            f"{'Pts per knock win':<30} {self.player1.points_per_knock_win:>{col_width}.1f} {self.player2.points_per_knock_win:>{col_width}.1f}",
-            f"{'Undercuts made':<30} {self.player1.undercuts_made:>{col_width}} {self.player2.undercuts_made:>{col_width}}",
-            f"{'Pts per undercut':<30} {self.player1.points_per_undercut:>{col_width}.1f} {self.player2.points_per_undercut:>{col_width}.1f}",
-            f"{'Undercuts received':<30} {self.player1.undercuts_received:>{col_width}} {self.player2.undercuts_received:>{col_width}}",
-            f"{'Draws from deck':<30} {self.player1.draws_from_deck:>{col_width}} {self.player2.draws_from_deck:>{col_width}}",
-            f"{'Draws from discard':<30} {self.player1.draws_from_discard:>{col_width}} {self.player2.draws_from_discard:>{col_width}}",
-            f"{'Discard draw rate':<30} {self.player1.discard_draw_rate:>{col_width - 1}.1%} {self.player2.discard_draw_rate:>{col_width - 1}.1%}",
+            f"{'Avg knock deadwood':<30} {self.player1.avg_knock_deadwood:>{col_width}.1f} "
+            f"{self.player2.avg_knock_deadwood:>{col_width}.1f}",
+            f"{'Pts per knock win':<30} {self.player1.points_per_knock_win:>{col_width}.1f} "
+            f"{self.player2.points_per_knock_win:>{col_width}.1f}",
+            f"{'Undercuts made':<30} {self.player1.undercuts_made:>{col_width}} "
+            f"{self.player2.undercuts_made:>{col_width}}",
+            f"{'Pts per undercut':<30} {self.player1.points_per_undercut:>{col_width}.1f} "
+            f"{self.player2.points_per_undercut:>{col_width}.1f}",
+            f"{'Undercuts received':<30} {self.player1.undercuts_received:>{col_width}} "
+            f"{self.player2.undercuts_received:>{col_width}}",
+            f"{'Draws from deck':<30} {self.player1.draws_from_deck:>{col_width}} "
+            f"{self.player2.draws_from_deck:>{col_width}}",
+            f"{'Draws from discard':<30} {self.player1.draws_from_discard:>{col_width}} "
+            f"{self.player2.draws_from_discard:>{col_width}}",
+            f"{'Discard draw rate':<30} {self.player1.discard_draw_rate:>{col_width - 1}.1%} "
+            f"{self.player2.discard_draw_rate:>{col_width - 1}.1%}",
             "=" * line_width,
         ]
         return "\n".join(lines)
@@ -287,7 +291,8 @@ class Simulator:
                     f"Game {game_num + 1}/{self.config.num_games} "
                     f"| Wins: {p1_wins}-{p2_wins} "
                     f"| Score: {game_result.score_p1}-{game_result.score_p2} "
-                    f"| {game_result.rounds} hands ({game_result.hands_won_p1}-{game_result.hands_won_p2}), {game_result.ai1_turns + game_result.ai2_turns} turns "
+                    f"| {game_result.rounds} hands ({game_result.hands_won_p1}-{game_result.hands_won_p2}), "
+                    f"{game_result.ai1_turns + game_result.ai2_turns} turns "
                     f"| {_format_time(game_time)} "
                     f"({game_result.ai1_avg_turn:.2f}s, "
                     f"{game_result.ai2_avg_turn:.2f}s/turn) "

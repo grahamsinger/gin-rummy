@@ -137,13 +137,6 @@ def batch_to_tensors(
     actions = torch.tensor([exp.action for exp in batch], dtype=torch.long, device=device)
     rewards = torch.tensor([exp.reward for exp in batch], dtype=torch.float32, device=device)
 
-    # Handle terminal states (next_state is None)
-    non_terminal_mask = torch.tensor(
-        [exp.next_state is not None for exp in batch],
-        dtype=torch.bool,
-        device=device,
-    )
-
     # Create next_states tensor with zeros for terminal states
     state_size = states.shape[1]
     next_states = torch.zeros(len(batch), state_size, device=device)

@@ -187,7 +187,9 @@ class Game:
         # Exclude cards either player picked up from the pile - those are in
         # a hand now, not buried
         discard_top = self.discard_pile[-1] if self.discard_pile else None
-        discard_buried_candidates = frozenset(self._discard_history[:-1]) if len(self._discard_history) > 1 else frozenset()
+        discard_buried_candidates: frozenset[Card] = frozenset()
+        if len(self._discard_history) > 1:
+            discard_buried_candidates = frozenset(self._discard_history[:-1])
         discard_buried = discard_buried_candidates - opponent_hand_known - frozenset(player.hand)
 
         known_cards = KnownCards(
