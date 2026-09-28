@@ -4,29 +4,12 @@ from __future__ import annotations
 
 from gin_rummy.config import AIConfig, Config, MonteCarloAIConfig
 from gin_rummy.context import GameContext, KnownCards
-from gin_rummy.models import Card, Hand, Rank, Suit
-
-_RANKS = {
-    "A": Rank.ACE,
-    "2": Rank.TWO,
-    "3": Rank.THREE,
-    "4": Rank.FOUR,
-    "5": Rank.FIVE,
-    "6": Rank.SIX,
-    "7": Rank.SEVEN,
-    "8": Rank.EIGHT,
-    "9": Rank.NINE,
-    "10": Rank.TEN,
-    "J": Rank.JACK,
-    "Q": Rank.QUEEN,
-    "K": Rank.KING,
-}
-_SUITS = {"S": Suit.SPADES, "H": Suit.HEARTS, "D": Suit.DIAMONDS, "C": Suit.CLUBS}
+from gin_rummy.models import Card, Hand
 
 
 def card(code: str) -> Card:
     """Build a Card from a code like "7S" or "10H"."""
-    return Card(_RANKS[code[:-1]], _SUITS[code[-1]])
+    return Card.parse(code)
 
 
 def cards(codes: str) -> list[Card]:

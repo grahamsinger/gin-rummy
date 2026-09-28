@@ -6,87 +6,16 @@ from dataclasses import dataclass
 from typing import Any
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, MonteCarloAI, DrawChoice
-from gin_rummy.database import GameTracker, card_to_db_str, cards_to_db_list, get_connection, get_resumable_game
+from gin_rummy.database import GameTracker, get_connection, get_resumable_game
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import execute_ai_turn, TurnResult
 from gin_rummy.models import Card, Suit, Rank, analyze_hand
 from gin_rummy.models.hand import CardNotInHandError
 
 
-# Map for converting card IDs to Card objects
-RANK_MAP = {
-    "A": Rank.ACE,
-    "2": Rank.TWO,
-    "3": Rank.THREE,
-    "4": Rank.FOUR,
-    "5": Rank.FIVE,
-    "6": Rank.SIX,
-    "7": Rank.SEVEN,
-    "8": Rank.EIGHT,
-    "9": Rank.NINE,
-    "10": Rank.TEN,
-    "J": Rank.JACK,
-    "Q": Rank.QUEEN,
-    "K": Rank.KING,
-}
-
-SUIT_MAP = {
-    "S": Suit.SPADES,
-    "H": Suit.HEARTS,
-    "D": Suit.DIAMONDS,
-    "C": Suit.CLUBS,
-}
-
-SUIT_NAMES = {
-    Suit.SPADES: "spades",
-    Suit.HEARTS: "hearts",
-    Suit.DIAMONDS: "diamonds",
-    Suit.CLUBS: "clubs",
-}
-
-RANK_NAMES = {
-    Rank.ACE: "A",
-    Rank.TWO: "2",
-    Rank.THREE: "3",
-    Rank.FOUR: "4",
-    Rank.FIVE: "5",
-    Rank.SIX: "6",
-    Rank.SEVEN: "7",
-    Rank.EIGHT: "8",
-    Rank.NINE: "9",
-    Rank.TEN: "10",
-    Rank.JACK: "J",
-    Rank.QUEEN: "Q",
-    Rank.KING: "K",
-}
-
-
-def card_to_id(card: Card) -> str:
-    """Convert a Card to a string ID like '7H' or '10S'."""
-    return f"{RANK_NAMES[card.rank]}{card.suit.name[0]}"
-
-
-def id_to_card(card_id: str) -> Card:
-    """Convert a string ID like '7H' or '10S' to a Card.
-
-    Raises:
-        ValueError: If the string is not a valid card ID.
-    """
-    if not isinstance(card_id, str):
-        raise ValueError(f"Invalid card id: {card_id!r}")
-    rank_str, suit_str = card_id[:-1], card_id[-1:]
-    if rank_str not in RANK_MAP or suit_str not in SUIT_MAP:
-        raise ValueError(f"Invalid card id: {card_id!r}")
-    return Card(RANK_MAP[rank_str], SUIT_MAP[suit_str])
-
-
 def card_to_dict(card: Card) -> dict[str, str]:
-    """Convert a Card to a JSON-serializable dict."""
-    return {
-        "id": card_to_id(card),
-        "rank": RANK_NAMES[card.rank],
-        "suit": SUIT_NAMES[card.suit],
-    }
+    """Convert a Card to a JSON-serializable dict ({"id": "7H", "rank": "7", "suit": "hearts"})."""
+    return {"id": card.code, "rank": card.rank.short_name, "suit": card.suit.value}
 
 
 def calculate_card_helpfulness(hand: list[Card], dead_cards: frozenset[Card]) -> dict[str, Any]:
@@ -164,7 +93,7 @@ def calculate_card_helpfulness(hand: list[Card], dead_cards: frozenset[Card]) ->
                 helpful_cards.append(
                     {
                         "card": str(card),  # Format with suit symbols
-                        "card_id": card_to_id(card),  # ASCII format for frontend
+                        "card_id": card.code,  # ASCII format for frontend
                         "reduction": reduction,
                         "is_dead": is_dead,
                         "completes_meld": completes_meld,
@@ -449,7 +378,7 @@ class GameSession:
         self.game.discard_to_start(discard)
         self.last_ai_action = {
             "type": "first_discard",
-            "discarded": card_to_id(discard),
+            "discarded": discard.code,
         }
 
     def _ensure_db_started(self) -> None:
@@ -546,7 +475,7 @@ class GameSession:
             melds.append(
                 {
                     "type": "set" if meld.meld_type.name == "SET" else "run",
-                    "cards": [card_to_id(c) for c in meld.cards],
+                    "cards": [c.code for c in meld.cards],
                 }
             )
 
@@ -603,7 +532,7 @@ class GameSession:
             "hand": [card_to_dict(c) for c in human.hand],
             "melds": melds,
             "deadwood": analysis.deadwood_value,
-            "deadwood_cards": [card_to_id(c) for c in analysis.deadwood_cards],
+            "deadwood_cards": [c.code for c in analysis.deadwood_cards],
             "discard_top": card_to_dict(self.game.top_of_discard) if self.game.top_of_discard else None,
             "deck_remaining": len(self.game.deck),
             "opponent_card_count": len(opponent.hand),
@@ -685,7 +614,7 @@ class GameSession:
                 return self.get_state()
 
             # Save turn state BEFORE drawing
-            self.turn_cards_before = cards_to_db_list(list(human.hand))
+            self.turn_cards_before = [c.code for c in human.hand]
             analysis_before = human.hand.analyze()
             self.turn_deadwood_before = analysis_before.deadwood_value
 
@@ -743,7 +672,7 @@ class GameSession:
             return {"error": "Not your turn"}
 
         try:
-            card = id_to_card(card_id)
+            card = Card.parse(card_id)
             human = self.game.players[self.human_idx]
 
             # Handle first discard phase (no knock possible)
@@ -799,12 +728,12 @@ class GameSession:
                     and self.turn_drew_from
                     and self.turn_card_drawn
                 ):
-                    cards_after = cards_to_db_list(remaining_cards)
+                    cards_after = [c.code for c in remaining_cards]
                     self.tracker.record_turn(
                         player_name=human.name,
                         drew_from=self.turn_drew_from,
-                        card_drawn=card_to_db_str(self.turn_card_drawn),
-                        card_discarded=card_to_db_str(card),
+                        card_drawn=self.turn_card_drawn.code,
+                        card_discarded=card.code,
                         did_knock=True,
                         cards_before=self.turn_cards_before,
                         cards_after=cards_after,
@@ -828,13 +757,13 @@ class GameSession:
                 and self.turn_drew_from
                 and self.turn_card_drawn
             ):
-                cards_after = cards_to_db_list(list(human.hand))
+                cards_after = [c.code for c in human.hand]
                 deadwood_after = human.hand.analyze().deadwood_value
                 self.tracker.record_turn(
                     player_name=human.name,
                     drew_from=self.turn_drew_from,
-                    card_drawn=card_to_db_str(self.turn_card_drawn),
-                    card_discarded=card_to_db_str(card),
+                    card_drawn=self.turn_card_drawn.code,
+                    card_discarded=card.code,
                     did_knock=False,
                     cards_before=self.turn_cards_before,
                     cards_after=cards_after,
@@ -884,7 +813,7 @@ class GameSession:
 
         # Save AI player state before turn (for tracking)
         ai_player = self.game.players[1 - self.human_idx]
-        cards_before = cards_to_db_list(list(ai_player.hand))
+        cards_before = [c.code for c in ai_player.hand]
         deadwood_before = ai_player.hand.analyze().deadwood_value
 
         # Execute AI turn with reasoning capture
@@ -895,8 +824,8 @@ class GameSession:
             self.last_ai_action = {
                 "type": "turn",
                 "draw_from": "discard" if actions.draw_source == DrawChoice.DISCARD else "deck",
-                "drew_card": card_to_id(actions.drawn_card) if actions.draw_source == DrawChoice.DISCARD else None,
-                "discarded": card_to_id(actions.discarded_card),
+                "drew_card": actions.drawn_card.code if actions.draw_source == DrawChoice.DISCARD else None,
+                "discarded": actions.discarded_card.code,
             }
 
             # Attach Monte Carlo thinking data if available and enabled
@@ -911,15 +840,15 @@ class GameSession:
             drew_from = "discard" if actions.draw_source == DrawChoice.DISCARD else "deck"
             if actions.did_knock:
                 # Cards after knock (discarded card removed)
-                cards_after = cards_to_db_list([c for c in ai_player.hand if c != actions.discarded_card])
+                cards_after = [c.code for c in ai_player.hand if c != actions.discarded_card]
             else:
-                cards_after = cards_to_db_list(list(ai_player.hand))
+                cards_after = [c.code for c in ai_player.hand]
 
             turn_data = {
                 "player_name": ai_player.name,
                 "drew_from": drew_from,
-                "card_drawn": card_to_db_str(actions.drawn_card),
-                "card_discarded": card_to_db_str(actions.discarded_card),
+                "card_drawn": actions.drawn_card.code,
+                "card_discarded": actions.discarded_card.code,
                 "did_knock": actions.did_knock,
                 "cards_before": cards_before,
                 "cards_after": cards_after,
@@ -959,7 +888,7 @@ class GameSession:
             melds.append(
                 {
                     "type": "set" if meld.meld_type.name == "SET" else "run",
-                    "cards": [card_to_id(c) for c in meld.cards],
+                    "cards": [c.code for c in meld.cards],
                 }
             )
 
@@ -967,7 +896,7 @@ class GameSession:
             cards=[card_to_dict(c) for c in hand],
             melds=melds,
             deadwood=analysis.deadwood_value,
-            deadwood_cards=[card_to_id(c) for c in analysis.deadwood_cards],
+            deadwood_cards=[c.code for c in analysis.deadwood_cards],
         )
 
     def _save_round_result(self, result: RoundResult) -> None:
@@ -980,7 +909,7 @@ class GameSession:
         # Convert layoff cards to string format
         layoff_cards_str = None
         if result.layoff_cards:
-            layoff_cards_str = [card_to_id(c) for c in result.layoff_cards]
+            layoff_cards_str = [c.code for c in result.layoff_cards]
 
         self.last_round_result = RoundResultData(
             winner=winner_name,

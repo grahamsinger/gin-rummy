@@ -20,7 +20,7 @@ from gin_rummy.scenario_quiz import (
     panel_draw_choices,
     panel_knock_choices,
 )
-from gin_rummy.web.game_session import card_to_dict, card_to_id, id_to_card
+from gin_rummy.web.game_session import card_to_dict
 
 # Web defaults: ~2-4s per reveal (see experiments/mc_timing.py)
 WEB_MC_SIMS = 500
@@ -120,7 +120,7 @@ class ScenarioSession:
             return {"error": "Not expecting a discard decision"}
 
         try:
-            card = id_to_card(card_id)
+            card = Card.parse(card_id)
         except (KeyError, IndexError, ValueError):
             return {"error": f"Unknown card: {card_id}"}
 
@@ -143,7 +143,7 @@ class ScenarioSession:
                 {
                     "name": entry["name"],
                     "choice": str(entry["card"]),
-                    "choice_id": card_to_id(entry["card"]),
+                    "choice_id": entry["card"].code,
                     "reasoning": entry["reasoning"],
                     "agrees": agrees,
                     "mc_evs": mc_evs,
@@ -203,7 +203,7 @@ class ScenarioSession:
         melds = [
             {
                 "type": "set" if meld.meld_type.name == "SET" else "run",
-                "cards": [card_to_id(c) for c in meld.cards],
+                "cards": [c.code for c in meld.cards],
             }
             for meld in analysis.melds
         ]
@@ -215,15 +215,15 @@ class ScenarioSession:
             "hand": [card_to_dict(c) for c in human.hand],
             "melds": melds,
             "deadwood": analysis.deadwood_value,
-            "deadwood_cards": [card_to_id(c) for c in analysis.deadwood_cards],
+            "deadwood_cards": [c.code for c in analysis.deadwood_cards],
             "discard_top": card_to_dict(self.game.top_of_discard) if self.game.top_of_discard else None,
             "deck_remaining": len(self.game.deck),
             "knock_threshold": self.game.knock_threshold,
-            "opponent_pickups": [card_to_id(c) for c in ctx.opponent_pickups],
-            "buried": [card_to_id(c) for c in sorted(ctx.dead_cards)],
+            "opponent_pickups": [c.code for c in ctx.opponent_pickups],
+            "buried": [c.code for c in sorted(ctx.dead_cards)],
             "drawn_card": card_to_dict(self.drawn_card) if self.drawn_card else None,
-            "blocked_card": card_to_id(self.game.discard_blocked_card) if self.game.discard_blocked_card else None,
-            "user_discard": card_to_id(self.user_discard) if self.user_discard else None,
+            "blocked_card": self.game.discard_blocked_card.code if self.game.discard_blocked_card else None,
+            "user_discard": self.user_discard.code if self.user_discard else None,
             "post_discard_deadwood": self.post_discard_deadwood,
             "reveals": self.reveals,
             "tallies": self.tallies,

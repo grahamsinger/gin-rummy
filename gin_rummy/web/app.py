@@ -21,14 +21,12 @@ from gin_rummy.database import (
     get_connection,
     cleanup_empty_games,
     get_ai_decisions_for_turn,
-    db_list_to_cards,
-    card_to_db_str,
     delete_game,
     GameTracker,
     get_incomplete_games,
     init_db,
 )
-from gin_rummy.models import analyze_hand
+from gin_rummy.models import Card, analyze_hand
 
 
 # Initialize logging from config
@@ -347,7 +345,7 @@ def _analyze_cards_for_display(card_strs: list[str]) -> dict:
         return {"cards": [], "melds": []}
 
     # Parse cards
-    cards = db_list_to_cards(card_strs)
+    cards = [Card.parse(s) for s in card_strs]
 
     # Analyze for melds
     analysis = analyze_hand(cards)
@@ -356,7 +354,7 @@ def _analyze_cards_for_display(card_strs: list[str]) -> dict:
     melded_cards = set()
     melds_info = []
     for meld in analysis.melds:
-        meld_cards = [card_to_db_str(c) for c in meld.cards]
+        meld_cards = [c.code for c in meld.cards]
         melded_cards.update(meld.cards)
         melds_info.append(
             {
@@ -371,11 +369,11 @@ def _analyze_cards_for_display(card_strs: list[str]) -> dict:
     # Add meld cards (sorted by rank within each meld)
     for meld in analysis.melds:
         sorted_meld = sorted(meld.cards, key=lambda c: c.rank.value)
-        display_cards.extend([card_to_db_str(c) for c in sorted_meld])
+        display_cards.extend([c.code for c in sorted_meld])
 
     # Add deadwood cards sorted by rank (highest first for visibility)
     sorted_deadwood = sorted(analysis.deadwood_cards, key=lambda c: -c.rank.value)
-    display_cards.extend([card_to_db_str(c) for c in sorted_deadwood])
+    display_cards.extend([c.code for c in sorted_deadwood])
 
     return {
         "cards": display_cards,

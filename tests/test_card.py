@@ -99,3 +99,41 @@ class TestCard:
         assert sorted_cards[1] == Card(Rank.ACE, Suit.SPADES)
         assert sorted_cards[2] == Card(Rank.FIVE, Suit.DIAMONDS)
         assert sorted_cards[3] == Card(Rank.KING, Suit.HEARTS)
+
+
+# Recorded from the pre-consolidation codecs (database.card_to_db_str and
+# statistical._card_to_index) so the stored DB strings and the persisted
+# statistics/learning indices keep loading unchanged.
+_GOLDEN_CODES_AND_INDICES = "AC=0 2C=1 3C=2 4C=3 5C=4 6C=5 7C=6 8C=7 9C=8 10C=9 JC=10 QC=11 KC=12 AD=13 2D=14 3D=15 4D=16 5D=17 6D=18 7D=19 8D=20 9D=21 10D=22 JD=23 QD=24 KD=25 AH=26 2H=27 3H=28 4H=29 5H=30 6H=31 7H=32 8H=33 9H=34 10H=35 JH=36 QH=37 KH=38 AS=39 2S=40 3S=41 4S=42 5S=43 6S=44 7S=45 8S=46 9S=47 10S=48 JS=49 QS=50 KS=51"
+
+
+class TestCodec:
+    def test_code_and_index_match_the_stored_formats(self):
+        for entry in _GOLDEN_CODES_AND_INDICES.split():
+            code, index = entry.split("=")
+            card = Card.parse(code)
+            assert card.code == code
+            assert card.index == int(index)
+            assert Card.from_index(int(index)) == card
+
+    def test_round_trip_all_52(self):
+        deck = [Card(r, s) for s in Suit for r in Rank]
+        assert len({c.code for c in deck}) == 52
+        assert sorted(c.index for c in deck) == list(range(52))
+        for card in deck:
+            assert Card.parse(card.code) == card
+            assert Card.from_index(card.index) == card
+
+    def test_ten_alias_on_input_only(self):
+        assert Card.parse("TS") == Card(Rank.TEN, Suit.SPADES)
+        assert Card(Rank.TEN, Suit.SPADES).code == "10S"
+
+    @pytest.mark.parametrize("bad", ["", "1", "10", "7X", "ZH", "107H", "7h", "as", None, 7])
+    def test_invalid_codes_raise(self, bad):
+        with pytest.raises(ValueError):
+            Card.parse(bad)
+
+    @pytest.mark.parametrize("bad", [-1, 52])
+    def test_invalid_index_raises(self, bad):
+        with pytest.raises(ValueError):
+            Card.from_index(bad)

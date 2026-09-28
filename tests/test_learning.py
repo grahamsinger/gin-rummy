@@ -13,7 +13,7 @@ numpy = pytest.importorskip("numpy")
 pytestmark = pytest.mark.learning
 
 from gin_rummy.models import Card, Rank, Suit, Hand
-from gin_rummy.learning.state import StateEncoder, card_to_index, NUM_CARDS
+from gin_rummy.learning.state import StateEncoder, NUM_CARDS
 from gin_rummy.learning.models import DrawNet, DiscardNet, KnockNet, ModelPersistence
 from gin_rummy.learning.replay import Experience, ReplayBuffer, batch_to_tensors
 from gin_rummy.learning.rewards import RewardCalculator
@@ -26,15 +26,15 @@ class TestStateEncoder:
         """Test card to index conversion."""
         # Ace of Clubs should be 0
         ace_clubs = Card(Rank.ACE, Suit.CLUBS)
-        assert card_to_index(ace_clubs) == 0
+        assert ace_clubs.index == 0
 
         # King of Spades should be 51
         king_spades = Card(Rank.KING, Suit.SPADES)
-        assert card_to_index(king_spades) == 51
+        assert king_spades.index == 51
 
         # Ace of Diamonds should be 13
         ace_diamonds = Card(Rank.ACE, Suit.DIAMONDS)
-        assert card_to_index(ace_diamonds) == 13
+        assert ace_diamonds.index == 13
 
     def test_encode_hand(self):
         """Test hand encoding produces correct shape and values."""
@@ -50,9 +50,9 @@ class TestStateEncoder:
 
         assert encoding.shape == (NUM_CARDS,)
         assert encoding.sum() == 3  # 3 cards in hand
-        assert encoding[card_to_index(cards[0])] == 1.0
-        assert encoding[card_to_index(cards[1])] == 1.0
-        assert encoding[card_to_index(cards[2])] == 1.0
+        assert encoding[cards[0].index] == 1.0
+        assert encoding[cards[1].index] == 1.0
+        assert encoding[cards[2].index] == 1.0
 
     def test_encode_card(self):
         """Test single card encoding."""
@@ -63,7 +63,7 @@ class TestStateEncoder:
 
         assert encoding.shape == (NUM_CARDS,)
         assert encoding.sum() == 1
-        assert encoding[card_to_index(card)] == 1.0
+        assert encoding[card.index] == 1.0
 
     def test_encode_card_none(self):
         """Test encoding None card produces zeros."""

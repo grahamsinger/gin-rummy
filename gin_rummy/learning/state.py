@@ -16,27 +16,11 @@ if TYPE_CHECKING:
     from gin_rummy.models import Card, Hand
 
 
-# Card encoding: 52 cards indexed as suit * 13 + rank
-# Suits: CLUBS=0, DIAMONDS=1, HEARTS=2, SPADES=3
-# Ranks: ACE=0, TWO=1, ..., KING=12
-SUIT_ORDER = ["CLUBS", "DIAMONDS", "HEARTS", "SPADES"]
+# Card encoding: 52 cards indexed by Card.index (suit * 13 + rank;
+# suits CLUBS=0, DIAMONDS=1, HEARTS=2, SPADES=3; ranks ACE=0 .. KING=12)
 NUM_CARDS = 52
 NUM_RANKS = 13
 NUM_SUITS = 4
-
-
-def card_to_index(card: Card) -> int:
-    """Convert a card to its index (0-51)."""
-    suit_idx = SUIT_ORDER.index(card.suit.name)
-    rank_idx = card.rank.value - 1  # ACE=1 -> 0, KING=13 -> 12
-    return suit_idx * NUM_RANKS + rank_idx
-
-
-def index_to_card_tuple(idx: int) -> tuple[int, int]:
-    """Convert index to (suit_idx, rank_idx) tuple."""
-    suit_idx = idx // NUM_RANKS
-    rank_idx = idx % NUM_RANKS
-    return suit_idx, rank_idx
 
 
 @dataclass
@@ -67,21 +51,21 @@ class StateEncoder:
         """Encode hand as 52-dimensional one-hot vector."""
         encoding = np.zeros(NUM_CARDS, dtype=np.float32)
         for card in hand:
-            encoding[card_to_index(card)] = 1.0
+            encoding[card.index] = 1.0
         return encoding
 
     def encode_card(self, card: Card | None) -> np.ndarray:
         """Encode a single card as 52-dimensional one-hot vector."""
         encoding = np.zeros(NUM_CARDS, dtype=np.float32)
         if card is not None:
-            encoding[card_to_index(card)] = 1.0
+            encoding[card.index] = 1.0
         return encoding
 
     def encode_card_set(self, cards: set[Card] | frozenset[Card]) -> np.ndarray:
         """Encode a set of cards as 52-dimensional multi-hot vector."""
         encoding = np.zeros(NUM_CARDS, dtype=np.float32)
         for card in cards:
-            encoding[card_to_index(card)] = 1.0
+            encoding[card.index] = 1.0
         return encoding
 
     def encode_known_cards(self, known: KnownCards) -> np.ndarray:
@@ -239,7 +223,3 @@ class StateEncoder:
 
         state = np.concatenate(components)
         return torch.from_numpy(state).float()
-
-    def get_card_indices(self, hand: Hand) -> list[int]:
-        """Get the card indices for each card in hand (for discard action mapping)."""
-        return [card_to_index(card) for card in hand]

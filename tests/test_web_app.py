@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from gin_rummy.models import Card
 from gin_rummy.web.app import app
-from gin_rummy.web.game_session import id_to_card
 
 
 @pytest.fixture
@@ -84,7 +84,7 @@ class TestValidation:
         assert r.status_code == 400
 
     def test_malformed_card_id_is_400_not_500(self, client: TestClient):
-        """B14: id_to_card("10") used to raise IndexError and return a 500."""
+        """B14: parsing "10" used to raise IndexError and return a 500."""
         client.post("/api/game/new", json={"player_name": "Tester", "ai_difficulty": "easy"})
         for bad in ("10", "", "ZZ", "7X", "7h"):
             r = client.post("/api/game/discard", json={"card": bad})
@@ -97,12 +97,10 @@ class TestValidation:
         assert client.get("/").status_code == 200
 
 
-class TestIdToCard:
-    @pytest.mark.parametrize("bad", ["", "1", "10", "7X", "ZH", "107H", "7h"])
-    def test_invalid_ids_raise_value_error(self, bad: str):
-        with pytest.raises(ValueError):
-            id_to_card(bad)
+class TestCardIds:
+    """The web API's card ids are Card.code / Card.parse (see test_card.py)."""
 
-    def test_valid_ids(self):
-        assert str(id_to_card("10S")).startswith("10")
-        assert id_to_card("AH").rank.name == "ACE"
+    def test_state_uses_card_codes(self, client: TestClient):
+        state = client.post("/api/game/new", json={"player_name": "Tester", "ai_difficulty": "easy"}).json()
+        for card in state["hand"]:
+            assert Card.parse(card["id"]).code == card["id"]

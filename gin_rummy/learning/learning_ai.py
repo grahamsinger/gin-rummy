@@ -21,7 +21,7 @@ from gin_rummy.learning.models import (
     KnockNet,
     ModelPersistence,
 )
-from gin_rummy.learning.state import StateEncoder, card_to_index
+from gin_rummy.learning.state import StateEncoder
 
 if TYPE_CHECKING:
     from gin_rummy.context import GameContext
@@ -219,7 +219,7 @@ class LearningAI(BasicAI):
             q_values = self.discard_net(state)  # Shape: (1, 52)
 
         # Get card indices for cards in hand
-        card_indices = [card_to_index(c) for c in cards]
+        card_indices = [c.index for c in cards]
 
         # Mask: set non-hand cards to -inf so they won't be selected
         mask = torch.full((52,), float("-inf"), device=self.device)
@@ -232,7 +232,7 @@ class LearningAI(BasicAI):
         # Find the card with this index
         choice = None
         for card in cards:
-            if card_to_index(card) == best_card_idx:
+            if card.index == best_card_idx:
                 choice = card
                 break
 

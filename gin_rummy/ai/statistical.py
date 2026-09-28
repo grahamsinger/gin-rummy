@@ -7,20 +7,13 @@ import logging
 import random
 from pathlib import Path
 
-from gin_rummy.models import Card, Suit, Rank, Hand, analyze_hand
+from gin_rummy.models import Card, Hand, analyze_hand
 from gin_rummy.config import Config
 from gin_rummy.ai.types import DrawChoice
 from gin_rummy.ai.basic import BasicAI
 
 
 logger = logging.getLogger(__name__)
-
-
-def _card_to_index(card: Card) -> int:
-    """Convert a Card to an index 0-51 for statistics tracking."""
-    suit_idx = list(Suit).index(card.suit)
-    rank_idx = list(Rank).index(card.rank)
-    return suit_idx * 13 + rank_idx
 
 
 def _deadwood_bucket(deadwood: int) -> str:
@@ -185,7 +178,7 @@ class StatisticalAI(BasicAI):
             base_score = -deadwood
 
             # Adjust by historical win rate for this card
-            card_idx = _card_to_index(card)
+            card_idx = card.index
             card_stats = self.discard_stats.get(card_idx)
 
             if card_stats and card_stats.get("times", 0) >= 10:
@@ -225,7 +218,7 @@ class StatisticalAI(BasicAI):
         # hypothetical evaluations from _card_helps_hand (those would
         # poison the learned win-rate statistics with phantom samples)
         if not self._in_hypothetical:
-            self._round_discards.append(_card_to_index(best_discard))
+            self._round_discards.append(best_discard.index)
 
         return best_discard
 

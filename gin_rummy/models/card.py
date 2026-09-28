@@ -29,6 +29,11 @@ class Suit(Enum):
         """Return True if this is a red suit (hearts or diamonds)."""
         return self in (Suit.HEARTS, Suit.DIAMONDS)
 
+    @property
+    def code(self) -> str:
+        """One-letter ASCII code: C, D, H or S."""
+        return self.name[0]
+
 
 @total_ordering
 class Rank(Enum):
@@ -105,3 +110,53 @@ class Card:
         if self.rank != other.rank:
             return self.rank < other.rank
         return list(Suit).index(self.suit) < list(Suit).index(other.suit)
+
+    # ---- ASCII codec: the single serialization used by the DB, the web API,
+    # ---- the CLI tools and the tests ("AS", "10H", "KD").
+
+    @property
+    def code(self) -> str:
+        """ASCII code like 'AS', '10H', 'KD' (rank short name + suit letter)."""
+        return f"{self.rank.short_name}{self.suit.code}"
+
+    @classmethod
+    def parse(cls, code: str) -> "Card":
+        """Parse an ASCII code like 'AS', '10H' or 'KD' into a Card.
+
+        'T' is accepted as an alias for ten on input only. Matching is
+        case-sensitive: callers that want to be lenient should upper-case
+        first.
+
+        Raises:
+            ValueError: If the string is not a valid card code.
+        """
+        if not isinstance(code, str) or len(code) < 2:
+            raise ValueError(f"Invalid card code: {code!r}")
+        rank_str, suit_str = code[:-1], code[-1]
+        rank = _RANK_BY_CODE.get(rank_str)
+        suit = _SUIT_BY_CODE.get(suit_str)
+        if rank is None or suit is None:
+            raise ValueError(f"Invalid card code: {code!r}")
+        return cls(rank, suit)
+
+    # ---- Dense index 0..51 (suit-major: clubs, diamonds, hearts, spades),
+    # ---- shared by StatisticalAI's stats file and the learning encoders.
+
+    @property
+    def index(self) -> int:
+        """Index 0-51: suit position * 13 + (rank value - 1)."""
+        return _SUIT_POS[self.suit] * 13 + self.rank.value - 1
+
+    @classmethod
+    def from_index(cls, index: int) -> "Card":
+        """Inverse of `Card.index`."""
+        if not 0 <= index < 52:
+            raise ValueError(f"Card index out of range: {index}")
+        return cls(Rank(index % 13 + 1), _SUITS_IN_ORDER[index // 13])
+
+
+_SUITS_IN_ORDER: tuple[Suit, ...] = tuple(Suit)
+_SUIT_POS: dict[Suit, int] = {suit: i for i, suit in enumerate(_SUITS_IN_ORDER)}
+_SUIT_BY_CODE: dict[str, Suit] = {suit.code: suit for suit in Suit}
+_RANK_BY_CODE: dict[str, Rank] = {rank.short_name: rank for rank in Rank}
+_RANK_BY_CODE["T"] = Rank.TEN  # input alias only; `code` always emits "10"

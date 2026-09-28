@@ -16,55 +16,13 @@ from __future__ import annotations
 import argparse
 import sys
 
-from gin_rummy.models import Card, Suit, Rank, Hand, analyze_hand
+from gin_rummy.models import Card, Suit, Hand, analyze_hand
 from gin_rummy.context import OutsCalculator, KnownCards
 
 
-RANK_MAP = {
-    "A": Rank.ACE,
-    "2": Rank.TWO,
-    "3": Rank.THREE,
-    "4": Rank.FOUR,
-    "5": Rank.FIVE,
-    "6": Rank.SIX,
-    "7": Rank.SEVEN,
-    "8": Rank.EIGHT,
-    "9": Rank.NINE,
-    "T": Rank.TEN,
-    "10": Rank.TEN,
-    "J": Rank.JACK,
-    "Q": Rank.QUEEN,
-    "K": Rank.KING,
-}
-
-SUIT_MAP = {
-    "S": Suit.SPADES,
-    "H": Suit.HEARTS,
-    "D": Suit.DIAMONDS,
-    "C": Suit.CLUBS,
-}
-
-
 def parse_card(card_str: str) -> Card:
-    """Parse a card string like '3S' or 'KH' into a Card object."""
-    card_str = card_str.upper().strip()
-    if len(card_str) < 2:
-        raise ValueError(f"Invalid card: {card_str}")
-
-    # Handle 10 specially
-    if card_str.startswith("10"):
-        rank_str = "10"
-        suit_str = card_str[2:]
-    else:
-        rank_str = card_str[:-1]
-        suit_str = card_str[-1]
-
-    if rank_str not in RANK_MAP:
-        raise ValueError(f"Invalid rank: {rank_str} (use A,2-9,T,J,Q,K)")
-    if suit_str not in SUIT_MAP:
-        raise ValueError(f"Invalid suit: {suit_str} (use S,H,D,C)")
-
-    return Card(RANK_MAP[rank_str], SUIT_MAP[suit_str])
+    """Parse a card string like '3s', 'KH' or 'TS' (case-insensitive) into a Card."""
+    return Card.parse(card_str.strip().upper())
 
 
 def parse_hand(hand_str: str) -> Hand:

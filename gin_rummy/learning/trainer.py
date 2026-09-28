@@ -26,7 +26,7 @@ from gin_rummy.learning.replay import (
     batch_to_tensors,
 )
 from gin_rummy.learning.rewards import RewardCalculator, RewardConfig
-from gin_rummy.learning.state import StateEncoder, card_to_index
+from gin_rummy.learning.state import StateEncoder
 
 if TYPE_CHECKING:
     from torch.utils.tensorboard import SummaryWriter
@@ -500,7 +500,7 @@ class Trainer:
                 # Discard experience (requires both drawn_card and discarded_card)
                 if actions.discarded_card and actions.drawn_card:
                     # Use card index (0-51) instead of position in hand
-                    discard_action = card_to_index(actions.discarded_card)
+                    discard_action = actions.discarded_card.index
 
                     discard_state = self.encoder.encode_discard_state(
                         hand, actions.drawn_card, ctx, self.learning_ai.opponent_model
