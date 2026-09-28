@@ -1,6 +1,46 @@
 # Codebase Audit
 
-> ## Latest review: consolidation follow-ups (`8424e62`, `6bef1bc`), 2026-09-28
+> ## Latest review: ruff expansion + worker pool (`defb186`…`94b8076`), 2026-09-28
+>
+> **Verdict: verified. Behaviour preserved everywhere it should be, and the pool fix works.** Nothing blocking; a few nits.
+>
+> **Checks at `94b8076`:** 345 tests pass, `ruff check` (now `F,E,W,I,UP,B,SIM`) and `ruff format --check` are clean, eslint shows 0 warnings, and the fingerprint is unchanged (`49ebb018605bbae6` / `56c04fee7ecf6e24`). **`ty` went up from 43 to 52**, and all 9 new diagnostics are in `tests/test_worker_pool.py` (see nits).
+>
+> | Commit | What | Verified |
+> |---|---|---|
+> | `defb186` | Golden rows now include `cards_before`/`cards_after` and the AI decisions | ✅ The hand lists in both golden files equal my independent pre-step-3 dump from `a2f4989` |
+> | `0416d96` | `I` + `UP` auto-fixes | ✅ **Purely mechanical:** re-running `ruff check --fix` + `ruff format` on its parent with its `pyproject.toml` reproduces it exactly (0 diff lines). Blame-ignored in `0a1fd6a` |
+> | `f6649b6` | `B` + `SIM` fixed by hand (19) | ✅ Every change read. All are equivalent rewrites: ternaries, `contextlib.suppress` for the column migrations, a merged `if`, the CLI assist toggle (same logic), `.values()` loops, and `strict=True` on 3 quiz `zip`s over lists derived from the same panel plus 2 in tests. `game_id = g + 1` in `stress_test_db.py` equals the old top-of-loop increment (no `continue`) |
+> | `eeb406d` | Shared worker pool, `close()`, sync routes + per-session lock, AI kept across hands | ✅ See below |
+>
+> **Worker pool (`eeb406d`) in detail:**
+> - **Ownership is correct.** `MonteCarloAI(pool=)` borrows the pool and `shutdown()` only stops pools the AI owns, so neither `__del__` nor `close()` can kill the shared pool. `web/workers.py` creates it lazily under a lock and the lifespan shuts it down after `session_store.close_all()`. `ProcessPoolExecutor.submit` is thread-safe, so sessions sharing it from threadpool routes is fine.
+> - **Keeping the AI across hands is safe.** MonteCarloAI doesn't override `reset_for_new_hand`, so `_turn_plan` and `last_mc_thinking` now survive into the next hand. I traced both:
+>   - `_turn_plan` is cleared by every `decide_draw` (`monte_carlo.py:776`) and overwritten by `decide_discard`, and one of those always runs before `should_knock` can read it.
+>   - The session clears `last_mc_thinking` after every AI turn (`game_session.py:760`).
+>
+>   So nothing stale is used or shown.
+> - **Locking:** every game and scenario route that mutates the session holds `session.lock`, and the scenario session borrows the same lock.
+>
+> **Nits (optional):**
+> 1. **`tests/test_worker_pool.py` adds 9 `ty` diagnostics:**
+>    - A generator fixture is annotated `-> Config`; it should be `-> Iterator[Config]`.
+>    - `session.game` and `session.ai` are used without narrowing `Optional`. Add an `assert ... is not None`.
+>    - `pool.submit(abs, -1)` is a `ty` false positive; any picklable function would avoid it.
+> 2. **`MonteCarloAI` should clear `_turn_plan` and `last_mc_thinking` in its own `reset_for_new_hand()`.** It's safe today only because of the call ordering traced above, and it's cheap insurance now that AIs live across hands.
+> 3. **`_get_scenario_session` (`app.py`) creates the `ScenarioSession` before taking the lock.** Two simultaneous first requests could each build one, and the second would win. That's harmless (it's a borrowed pool, so nothing leaks), but it could move inside `session.lock`.
+> 4. **Edge case:** if `monte_carlo_ai.max_workers = 1`, `get_worker_pool()` returns `None`, and the scenario panel's MC AI (built with `WEB_MC_WORKERS = 8`) then starts its **own** 8-process pool. Pass the configured worker count to the panel, or treat "no shared pool" as "run inline".
+> 5. **Behaviour to be aware of (by design):** concurrent "hard" games now share one 15-worker pool, so under load each MC turn gets slower instead of the machine being oversubscribed.
+> 6. **Doc accuracy:** "Next up" 0 below says the mechanical `I`+`UP` commit is `0a1fd6a`. It's actually `0416d96`; `0a1fd6a` is the commit that adds it to `.git-blame-ignore-revs`.
+>
+> ## How reviews are verified (for any agent picking this up)
+>
+> - **Behaviour fingerprint at any commit:** `git worktree add <scratch>/<sha> <sha>`, then run `<repo>/.venv/bin/python <scratch>/<sha>/scripts/fingerprint.py` (the script re-execs with `PYTHONHASHSEED=0` and puts its own checkout first on `sys.path`). Check the import really comes from the checkout, e.g. `hasattr(Card, "code")` is false before `f6aeb6b`. Remove the worktrees afterwards.
+> - **Mechanical commits** (format, `ruff --fix`): check out the parent, apply the commit's `pyproject.toml`, re-run the tool, and `git diff <commit>` should be empty.
+> - **Recording changes:** `tests/golden/` holds the seeded CLI and web rows; `UPDATE_GOLDEN=1` accepts an intentional change.
+> - **Reviews are read-only:** never commit, merge or edit code while verifying. Findings go at the top of this file.
+
+> ## Earlier review: consolidation follow-ups (`8424e62`, `6bef1bc`), 2026-09-28
 >
 > **Verdict: all five follow-ups resolved correctly.** Nothing blocking; two optional nits.
 >
