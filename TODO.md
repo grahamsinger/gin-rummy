@@ -10,7 +10,7 @@
 ### Still open
 - [ ] **A10 (Low): `_should_pursue_gin` EV comparison is vacuous** — `context_aware.py`: `p*25 + (1-p)*ev_knock > ev_knock` holds for any p>0, so only the probability gate matters; gin value should be `25 + opponent_deadwood` and the probability denominator should account for opponent-held unknowns and remaining turns. (Tuning-adjacent; see AI Tuning section.)
 - [ ] **T3: `tests/test_learning.py` silently skips** without torch (`--extra learning`), so the learning suite is permanently green-but-unrun in default env. Run it in CI via `uv sync --extra learning`.
-- [ ] **T4: Zero coverage on product surfaces** — web/ (0%), network/ (0%), cli.py (0%), simulator/game_runner (0%), statistical.py (14%); overall 29%. Highest-value additions: FastAPI TestClient flow tests, `network/protocol.py` round-trip tests. (Engine draw-game/knock-rejection tests added 2026-07-12.)
+- [ ] **T4: Zero coverage on product surfaces** — web/ (0%), cli.py (0%), simulator/game_runner (0%), statistical.py (14%); overall 29%. Highest-value additions: FastAPI TestClient flow tests. (Engine draw-game/knock-rejection tests added 2026-07-12.)
 - [ ] **Perf (Low): MC draw fallback runs a full nested MC discard evaluation** — `monte_carlo.py` `_card_helps_hand` path invokes MonteCarloAI's own `decide_discard` on the hypothetical 11-card hand, doubling per-turn compute when the fallback triggers.
 - [ ] **(Low) Defender meld arrangement vs layoff** — `calculate_layoff` fixes the defender's own melds to the minimal-deadwood arrangement first; a different equal-deadwood arrangement could occasionally enable a bigger layoff. Cards laid off within a fixed arrangement are now optimal (E2), but arrangement choice itself isn't layoff-aware.
 
@@ -369,11 +369,6 @@ uv run gin-simulate --ai1-type learning --ai1-model models/learning_ai.pt --ai2-
 - [x] Suit-row layout with cards positioned by rank
 - [x] Brackets around melded cards
 - [x] Superscript selection numbers
-
-## Network Multiplayer (COMPLETED)
-- [x] Multiplayer over network
-  - Server: `uv run gin-server`
-  - Client: `uv run gin-client <ip-address>`
 
 ## Code Refactor (COMPLETED)
 - [x] Extract shared AI turn logic into reusable module (`gin_rummy/game_runner.py`)

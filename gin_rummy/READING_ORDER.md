@@ -48,10 +48,6 @@ Recommended order for understanding this codebase. Each layer builds on the prev
 
 14. **`analyze_hand.py`** - CLI utility to analyze a hand's outs. Usage: `uv run python -m gin_rummy.analyze_hand "3S 8S 2H..."`
 
-## Optional: Network
-
-15. **`network/`** - Client/server for networked multiplayer (protocol.py defines message types, client.py and server.py implement the connection logic).
-
 ## Dependency Graph (simplified)
 
 ```

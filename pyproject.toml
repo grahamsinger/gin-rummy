@@ -12,8 +12,6 @@ web = ["fastapi>=0.100", "uvicorn>=0.20"]
 [project.scripts]
 gin-rummy = "gin_rummy.cli:main"
 gin-simulate = "gin_rummy.simulator:main"
-gin-server = "gin_rummy.network.server:main"
-gin-client = "gin_rummy.network.client:main"
 gin-train = "gin_rummy.learning.trainer:main"
 gin-experiment = "gin_rummy.learning.experiment:main"
 gin-scenario = "gin_rummy.scenario_quiz:main"

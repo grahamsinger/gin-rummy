@@ -163,20 +163,6 @@ Undercuts made                             98            102
 
 For custom AI development, programmatic usage, and detailed metrics, see [docs/ai-simulation.md](docs/ai-simulation.md).
 
-## Network Multiplayer
-
-Play against another human over the network:
-
-```bash
-# Start the server (one player)
-uv run gin-server
-
-# Connect as client (other player)
-uv run gin-client <server-ip-address>
-```
-
-See [docs/network-multiplayer.md](docs/network-multiplayer.md) for details.
-
 ## Learning AI (Experimental)
 
 Train a reinforcement learning AI using Deep Q-Learning:
