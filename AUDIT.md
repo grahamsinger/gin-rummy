@@ -1,6 +1,80 @@
 # Codebase Audit
 
-> ## Latest review: core consolidation (`6a033ee`…`9e76db6`), 2026-09-28
+> ## Latest review: consolidation follow-ups (`8424e62`, `6bef1bc`), 2026-09-28
+>
+> **Verdict: all five follow-ups resolved correctly.** Nothing blocking; two optional nits.
+>
+> **Checks at `6bef1bc`:** 342 tests pass, `ruff check` and `ruff format --check` are clean, eslint shows 0 warnings, `ty` reports 43, and the behaviour fingerprint is unchanged (`49ebb018605bbae6` / `56c04fee7ecf6e24`).
+>
+> | # | Follow-up | Resolution | Verified |
+> |---|---|---|---|
+> | 1 | B9 leftover in `learning/state.py` | Falls back to `get_config().game_rules.knock_threshold` instead of `10` | ✅ Matches `BasicAI._knock_threshold_for`; the docstring was updated too |
+> | 2 | Mixed card formats in `ai_decisions` | `TurnRecorder` stores `discard.card.code`; `replay.js` formats anything matching `^(10\|[2-9AJQK])[SHDC]$` with `CardUtils.formatCardId` and passes other values through | ✅ Old display-string rows (`K♦`) still render. Old *CLI* rows, which already stored codes like `KD`, now render as proper cards too. Draw/knock choices (`DECK`, `knock`) don't match the pattern, so they pass through unchanged |
+> | 3 | StatisticalAI cores have side effects | Comment on the class explaining that one of plain/twin must be called per decision | ✅ The comment-only option is fine, since the runner calls exactly one |
+> | 4 | Silent fallback for unknown difficulty | `ai_difficulty` and both draw `source` fields are now `Literal`, so bad input gets a 422 from FastAPI | ✅ Only `easy`/`medium`/`hard` have ever existed in `index.html`'s history, so a value saved in localStorage can't trip the new validation. The resume path (`game_session.py:288`) still uses `DIFFICULTY_TO_AI.get(..., "context")`, which is fine because stored values came through the same input |
+> | 5 | Golden turns rows | `tests/golden/turn_rows_{cli,web}_seed7.json` plus `_check_golden()`, with `UPDATE_GOLDEN=1` to accept intentional changes | ✅ **Independently confirmed:** both golden files equal the rows I dumped from `a2f4989` (before the step-3 refactor), 13 rows each. So the golden data captures the original behaviour, not the refactored code's output |
+>
+> **Nits (optional):**
+>
+> - **The golden rows cover 7 of the `turns` columns** but not `cards_before`/`cards_after`, and not `ai_decisions`. The invariant check still validates the card sets, but a change in stored hand *order*, or in which decisions get recorded, would slip through. Adding `cards_before`, `cards_after` and `(decision_type, choice)` per turn would make the golden test complete.
+> - **In `web/app.py`, `from typing import Literal` sits between the FastAPI and pydantic imports.** Enabling ruff's `I` rule (§6) would sort it automatically.
+
+> ## Next up (decided 2026-09-28)
+>
+> ### 0. Expand the ruff rules (`I`, `UP`, `B`, `SIM`): do first, it's small
+>
+> `pyproject.toml` only selects `F`, `E`, `W`. Counted at `6bef1bc` with `ruff check --select I,UP,B,SIM --statistics`: **65 hits**.
+>
+> | Rule | Hits | Auto-fix |
+> |---|---|---|
+> | `I001` unsorted imports | 42 | yes |
+> | `UP035` / `UP037` outdated syntax | 3 + 1 | yes |
+> | `SIM118` | 1 | yes |
+> | `SIM108` / `SIM105` / `SIM102` / `SIM113` | 6 / 2 / 1 / 1 | by hand |
+> | `B905` `zip()` without `strict=` | 5 | by hand |
+> | `B007` unused loop variable | 3 | by hand |
+>
+> 1. **Commit 1, mechanical:** add `I` and `UP` to `select`, then run `ruff check --fix`. Add the commit to `.git-blame-ignore-revs`, and keep `AUDIT.md` out of it.
+> 2. **Commit 2, by hand:** add `B` and `SIM`, then fix the 19 remaining hits. Read each `B905` (`zip` without `strict=`) carefully: if the lists can differ in length, `zip` silently drops items, which is a potential real bug. Use `strict=True` where equal length is expected.
+> 3. **Verify:** tests, plus `scripts/fingerprint.py` unchanged. Re-sorting imports can change behaviour when a module has import-time side effects or circular imports.
+> 4. **Why now:** it's before the file splits (order of work, step 8), so moved code doesn't carry import churn. After this, pre-commit and CI keep imports sorted.
+>
+> ### A. Monte Carlo worker-pool lifecycle (web): fix before the round runner
+>
+> **Correction to §4:** the pools do **not** currently leak. Measured on 2026-09-28 by counting child processes of a real `GameSession` on "hard" (15 workers + 1 resource tracker = 16):
+>
+> | Action | Child processes |
+> |---|---|
+> | First MC AI spun up | 16 |
+> | `self.ai` replaced with a new MC AI, 3× (no `gc.collect()`) | 16 each time |
+> | Session dropped | 1 |
+> | Session expired via `SessionStore.cleanup_expired()` | 1 |
+>
+> CPython runs `MonteCarloAI.__del__` (`monte_carlo.py:682`) as soon as the last reference goes away, and that shuts the pool down. The real problems:
+>
+> 1. **Cleanup works only by accident.** It depends on nothing else holding a reference to the AI or the session. One future reference cycle (a callback or closure that captures the session, an AI that holds its game) and every replaced "hard" AI leaks `cpu_count - 1` processes until the garbage collector happens to run. `__del__` is also not guaranteed at interpreter exit, and nothing shuts pools down on app shutdown (`app.py:74-85` lifespan).
+> 2. **A new pool every hand.** `new_round` builds a new AI (`game_session.py:872`, also `:256`, `:306`), and every `MonteCarloAI` lazily starts its **own** `ProcessPoolExecutor` (`monte_carlo.py:571-580`). That's 15 processes on a 16-core machine, started from scratch each hand, and with macOS's `spawn` start method each worker re-imports the package.
+> 3. **No cap across sessions.** Each concurrent "hard" game, and each scenario-quiz panel (`app.py:545`), holds its own pool, so N sessions means about 15N processes.
+> 4. `ScenarioSession.shutdown()` (`scenario_session.py:54`) is never called, and session eviction (`session_store.py:47, 59`) just drops the entry. This works today only because of point 1.
+>
+> **Fix:**
+> - **One shared, app-level worker pool.** Create it in the lifespan, shut it down on exit, and pass it to MC AIs, which should no longer own pools. This removes the per-hand startup cost and caps total processes.
+> - **An explicit `GameSession.close()`** that `SessionStore` calls on eviction, so cleanup doesn't rely on `__del__`.
+> - **Keep the AI across hands.** Call `reset_for_new_hand()` in `new_round` instead of building a new AI.
+> - **A regression test** that replaces the AI and expires a session, then asserts the child-process count is stable (the measurement above is the template).
+>
+> **Related, same area (§4):** the MC turn and scenario routes are `async def` but do seconds of CPU work, so they block every user for 2–4 s. Run them in a threadpool with a per-session lock. With a shared pool, that thread mostly waits on worker futures.
+>
+> ### B. Round runner (§2.1): design decided
+>
+> - **Approach (b):** a blocking round runner for the four loop-style callers (CLI vs AI, CLI PvP, simulator, scenario quiz), plus the trainer's round loop. The **web session stays request-driven**; it already shares the turn-level pieces (`execute_ai_turn`, `TurnRecorder`, `end_hand_from_result`). Seats provide the decisions (human prompt, AI).
+> - **Safety net before starting:**
+>   - **Simulator:** covered by `scripts/fingerprint.py`.
+>   - **CLI:** covered by the golden `turns` rows in `tests/golden/`.
+>   - **Scenario quiz:** needs a seeded fingerprint of the generated scenarios.
+>   - **Trainer:** needs a `--seed` (including torch seeding, §4 Randomness) and a short seeded training-run fingerprint.
+
+> ## Previous review: core consolidation (`6a033ee`…`9e76db6`), 2026-09-28
 >
 > **Verdict: verified. The four steps preserve behaviour where they claim to.** No blocking issues; five small follow-ups below.
 >
@@ -233,7 +307,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 
 ### Web server
 - **Blocking work in `async def` routes.** MonteCarloAI turns and the 3-AI scenario panel (500 sims × 8 workers) stall the event loop for every user for 2-4 s. Use plain `def` routes or `run_in_threadpool`, and add a per-session lock.
-- **Process pools leak.** A new `MonteCarloAI` is built each hand without `shutdown()` (`game_session.py:1061`). `ScenarioSession.shutdown` is never called, and session expiry just drops references (`session_store.py:47, 63`). Add a `close()` hook on eviction and lifespan exit, and don't rely on `__del__` (`monte_carlo.py:657`).
+- **Process pool lifecycle** (_corrected 2026-09-28; see "Next up" A at the top_). Pools don't currently leak, because `__del__` runs on refcount drop. But that cleanup is fragile, a new 15-process pool starts every hand, and nothing caps processes across sessions. `ScenarioSession.shutdown` is never called, and session expiry just drops references. Fix: one shared app-level pool, `GameSession.close()` on eviction and on lifespan exit, and keep the AI across hands.
 - There is no cap on session count; every cookieless request creates a 4-hour session (`app.py:51`).
 - **Missing API validation:**
   - No Pydantic `response_model`s, and `/api/game/state` returns 200 with an `{'error'}` body.
@@ -295,7 +369,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 ## 6. Tooling and repo hygiene
 
 - ~~**No CI.**~~ Done (`72c06c3`): `.github/workflows/ci.yml` runs `uv sync --all-extras`, `ruff check`, `ruff format --check`, `pytest` and `npm run lint`; `.pre-commit-config.yaml` has ruff and ruff-format. First two runs passed; eslint is at 0 warnings as of `3b8bfb5`.
-- **Ruff:** ~~run `ruff check --fix` and `ruff format` once, then list that commit in `.git-blame-ignore-revs`.~~ Done (`0b76869`, listed in `.git-blame-ignore-revs`). Still to do: extend `select` beyond `F,E,W` with `I, UP, B, SIM` (101 more hits, 52 auto-fixable), and optionally `RUF, PT, PERF`.
+- **Ruff:** ~~run `ruff check --fix` and `ruff format` once, then list that commit in `.git-blame-ignore-revs`.~~ Done (`0b76869`, listed in `.git-blame-ignore-revs`). Still to do: extend `select` beyond `F,E,W` with `I, UP, B, SIM` (101 hits at audit time; **65 as of `6bef1bc`**, see "Next up" 0 at the top), and optionally `RUF, PT, PERF`.
 - **ty:** 79 diagnostics (63 as of `8c65454`). The meaningful ones are `object` not callable from loosely typed dicts (`simulator.py:360-450`, `trainer.py:347-622`) and `BasicAI` has no `update_context` (`scenario_quiz.py:227-279`); both go away with §2.3. Add a `[tool.ty]` section.
 - ~~**Pytest:** add `addopts = "-ra --strict-markers"` and a `learning` marker so the torch skip is visible.~~ Done, including the `pytestmark` in `test_learning.py`.
 - **Dependencies:** `fastapi`/`uvicorn` are an optional `web` extra, but the web UI is the primary interface; consider making them core. ~~Add `httpx` and `pytest-cov` to dev.~~ Done.
@@ -323,7 +397,9 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 2. ~~**Safety net:** CI + pre-commit, a one-time `ruff --fix` + `ruff format`, `conftest.py`, web `TestClient` and DB tests.~~ Done 2026-09-28.
 3. ~~**First:** fix the B7 regression (two lines plus a test). Optional: a CPU-only torch index for CI.~~ Done 2026-09-28.
 4. ~~**Consolidate the core:** card codec (§2.5), `AIPlayer` protocol + factory (§2.3), shared recorder (§2.2), reasoning twins (§2.4).~~ Done 2026-09-28, one commit per step, each verified against `scripts/fingerprint.py` (seeded per-game hashes, unchanged throughout) and the twin-agreement test.
-5. **Round runner (§2.1):** move CLI, simulator, quiz and trainer onto it.
-6. **Split the large files (§3):** `monte_carlo.py`, `game_session.py`/`app.py`, `database.py`, `cli.py`, `context.py`.
-7. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
-8. **Docs and TODO cleanup.**
+5. **Expand the ruff rules** ("Next up" 0 at the top): `I` + `UP` as one mechanical commit (blame-ignored), then `B` + `SIM` fixed by hand. Done before the file splits so moved code doesn't carry import churn.
+6. **MC worker-pool lifecycle and blocking web routes** ("Next up" A at the top).
+7. **Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.
+8. **Split the large files (§3):** `monte_carlo.py`, `game_session.py`/`app.py`, `database.py`, `cli.py`, `context.py`.
+9. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
+10. **Docs and TODO cleanup.**
