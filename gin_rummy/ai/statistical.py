@@ -11,6 +11,7 @@ from gin_rummy.models import Card, Hand, analyze_hand
 from gin_rummy.config import Config
 from gin_rummy.ai.types import DrawChoice
 from gin_rummy.ai.basic import BasicAI
+from gin_rummy.ai.types import DiscardReasoning, DrawReasoning, KnockReasoning
 from gin_rummy.context import GameContext
 
 
@@ -88,26 +89,35 @@ class StatisticalAI(BasicAI):
         self._round_draws = []
         self._round_knocks = []
 
+    # Each decision has one implementation (`_evaluate_*`) that also records
+    # the sample for learning; the plain method returns its choice and the
+    # *_with_reasoning twin describes the statistics it used.
+
     def decide_draw(self, hand: Hand, discard_top: Card | None, context: GameContext | None = None) -> DrawChoice:
-        """Use statistics to decide draw, with BasicAI fallback.
+        """Use statistics to decide draw, with BasicAI fallback."""
+        return self._evaluate_stats_draw(hand, discard_top)[0]
 
-        Args:
-            hand: Current hand.
-            discard_top: Top card of discard pile, or None if empty.
+    def decide_draw_with_reasoning(
+        self, hand: Hand, discard_top: Card | None, context: GameContext | None = None
+    ) -> DrawReasoning:
+        choice, reasoning, factors = self._evaluate_stats_draw(hand, discard_top)
+        return DrawReasoning(choice=choice, reasoning=reasoning, factors=factors)
 
-        Returns:
-            DrawChoice indicating where to draw from.
-        """
+    def _evaluate_stats_draw(self, hand: Hand, discard_top: Card | None) -> tuple[DrawChoice, str, list[str]]:
         if discard_top is None:
-            return DrawChoice.DECK
+            return DrawChoice.DECK, "Drew from DECK: discard pile empty", []
 
         bucket = _deadwood_bucket(hand.deadwood_total)
         stats = self.draw_stats.get(bucket)
+        samples = (stats.get("deck_draws", 0) + stats.get("discard_draws", 0)) if stats else 0
+        factors = [f"Deadwood bucket: {bucket}"]
 
-        # Check if we have enough data
-        if stats is None or (stats.get("deck_draws", 0) + stats.get("discard_draws", 0)) < self.MIN_SAMPLES:
+        if stats is None or samples < self.MIN_SAMPLES:
             # Fall back to BasicAI
-            choice = super().decide_draw(hand, discard_top)
+            choice, _, reason = self._evaluate_draw(hand, discard_top)
+            factors += [f"Samples: {samples} < {self.MIN_SAMPLES} (BasicAI fallback)", reason]
+            where = f"{discard_top} from DISCARD" if choice == DrawChoice.DISCARD else "from DECK"
+            reasoning = f"Drew {where}: too few samples, BasicAI fallback ({reason})"
         else:
             # Calculate win rates
             deck_draws = stats.get("deck_draws", 0)
@@ -121,25 +131,14 @@ class StatisticalAI(BasicAI):
             # Also check if the discard card itself would help (BasicAI logic)
             helps, _ = self._card_helps_hand(hand, discard_top)
 
-            # Probabilistic selection based on win rates
-            # Only consider discard if the card actually helps the hand
+            # Probabilistic selection based on win rates; halve the discard
+            # probability when the card does not help the hand
+            total_rate = deck_rate + discard_rate
             if helps:
-                # Use softmax-style probability: P(discard) = discard_rate / (deck_rate + discard_rate)
-                total_rate = deck_rate + discard_rate
-                if total_rate > 0:
-                    discard_prob = discard_rate / total_rate
-                else:
-                    discard_prob = 0.5
-                choice = DrawChoice.DISCARD if random.random() < discard_prob else DrawChoice.DECK
+                discard_prob = discard_rate / total_rate if total_rate > 0 else 0.5
             else:
-                # Card doesn't help - usually draw from deck, but still use probability
-                # Bias toward deck when card doesn't help
-                total_rate = deck_rate + discard_rate
-                if total_rate > 0:
-                    discard_prob = discard_rate / total_rate * 0.5  # Halve probability when card doesn't help
-                else:
-                    discard_prob = 0.25
-                choice = DrawChoice.DISCARD if random.random() < discard_prob else DrawChoice.DECK
+                discard_prob = discard_rate / total_rate * 0.5 if total_rate > 0 else 0.25
+            choice = DrawChoice.DISCARD if random.random() < discard_prob else DrawChoice.DECK
 
             logger.info(
                 "Draw decision: %s (bucket=%s, deck_rate=%.2f, discard_rate=%.2f, helps=%s)",
@@ -149,23 +148,31 @@ class StatisticalAI(BasicAI):
                 discard_rate,
                 helps,
             )
+            factors += [
+                f"Deck win rate: {deck_rate:.2f} ({deck_draws} draws)",
+                f"Discard win rate: {discard_rate:.2f} ({discard_draws} draws)",
+                f"{discard_top} helps hand: {helps}",
+                f"P(discard) = {discard_prob:.2f}",
+            ]
+            where = f"{discard_top} from DISCARD" if choice == DrawChoice.DISCARD else "from DECK"
+            reasoning = (
+                f"Drew {where}: P(discard)={discard_prob:.2f} from win rates "
+                f"(deck={deck_rate:.2f}, discard={discard_rate:.2f}, helps={helps})"
+            )
 
         # Record decision for later update
         self._round_draws.append((bucket, "discard" if choice == DrawChoice.DISCARD else "deck"))
-
-        return choice
+        return choice, reasoning, factors
 
     def decide_discard(self, hand: Hand, context: GameContext | None = None) -> Card:
-        """Use statistics to influence discard decision.
+        """Blend BasicAI's deadwood analysis with historical win rates."""
+        return self._evaluate_stats_discard(hand)[0]
 
-        Blends BasicAI's deadwood analysis with historical win rates.
+    def decide_discard_with_reasoning(self, hand: Hand, context: GameContext | None = None) -> DiscardReasoning:
+        card, reasoning, factors, options = self._evaluate_stats_discard(hand)
+        return DiscardReasoning(card=card, reasoning=reasoning, factors=factors, options_considered=options)
 
-        Args:
-            hand: Current hand (11 cards after drawing).
-
-        Returns:
-            Card to discard.
-        """
+    def _evaluate_stats_discard(self, hand: Hand) -> tuple[Card, str, list[str], list[tuple[str, int]]]:
         cards = list(hand)
         best_discard = None
         best_score = float("-inf")
@@ -173,32 +180,23 @@ class StatisticalAI(BasicAI):
 
         for i, card in enumerate(cards):
             remaining = cards[:i] + cards[i + 1 :]
-            analysis = analyze_hand(remaining)
-            deadwood = analysis.deadwood_value
+            deadwood = analyze_hand(remaining).deadwood_value
 
             # Base score: lower deadwood is better (negate so higher = better)
             base_score = -deadwood
 
-            # Adjust by historical win rate for this card
-            card_idx = card.index
-            card_stats = self.discard_stats.get(card_idx)
-
+            # Adjust by historical win rate for this card: cards with a HIGH
+            # win rate when discarded are good discards (+/-10 point swing)
+            card_stats = self.discard_stats.get(card.index)
             if card_stats and card_stats.get("times", 0) >= 10:
-                times = card_stats["times"]
-                wins = card_stats.get("wins", 0)
-                win_rate = wins / times
-
-                # Cards with LOW win rate when discarded are BAD to discard
-                # So we want to discard cards with HIGH win rate
-                # Adjust score: bonus for high win rate cards
-                win_adjustment = (win_rate - 0.5) * 20  # ±10 point swing
+                win_rate = card_stats.get("wins", 0) / card_stats["times"]
+                win_adjustment = (win_rate - 0.5) * 20
             else:
                 win_rate = 0.5
                 win_adjustment = 0
 
             score = base_score + win_adjustment
             options.append((card, score, deadwood, win_rate))
-
             if score > best_score:
                 best_score = score
                 best_discard = card
@@ -207,7 +205,6 @@ class StatisticalAI(BasicAI):
         if best_discard is None:
             best_discard = max(cards, key=lambda c: c.deadwood_value)
 
-        # Log decision
         options.sort(key=lambda x: -x[1])
         logger.info(
             "Discard decision: %s (score=%.1f, top3=%s)",
@@ -222,33 +219,56 @@ class StatisticalAI(BasicAI):
         if not self._in_hypothetical:
             self._round_discards.append(best_discard.index)
 
-        return best_discard
+        chosen = next((o for o in options if o[0] == best_discard), None)
+        if chosen is None:
+            return best_discard, f"Discarded {best_discard}: fallback to highest deadwood value", [], []
+        _, score, deadwood, win_rate = chosen
+        factors = [
+            f"Hand size: {len(cards)} cards",
+            f"Resulting deadwood: {deadwood}",
+            f"Historical win rate when discarded: {win_rate:.2f}",
+            f"Stats-adjusted score: {score:.1f}",
+        ]
+        reasoning = f"Discarded {best_discard}: deadwood={deadwood}, win rate {win_rate:.2f} (score={score:.1f})"
+        return best_discard, reasoning, factors, [(str(c), dw) for c, _, dw, _ in options[:5]]
 
     def should_knock(self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None) -> bool:
-        """Use statistics to decide whether to knock.
+        """Use statistics to decide whether to knock, with BasicAI fallback."""
+        return self._evaluate_stats_knock(hand, context)[0]
 
-        Args:
-            hand: Current hand (10 cards).
+    def should_knock_with_reasoning(
+        self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None
+    ) -> KnockReasoning:
+        decision, reasoning, factors = self._evaluate_stats_knock(hand, context)
+        return KnockReasoning(should_knock=decision, reasoning=reasoning, score=None, factors=factors)
 
-        Returns:
-            True if AI should knock.
-        """
+    def _evaluate_stats_knock(self, hand: Hand, context: GameContext | None) -> tuple[bool, str, list[str]]:
         deadwood = hand.deadwood_total
+        factors = [f"Deadwood: {deadwood}"]
 
         # Always knock with gin
         if deadwood == 0:
             self._round_knocks.append((0, True))
-            return True
+            return True, "Knocked: GIN! (deadwood=0)", factors + ["GIN achieved!"]
 
         # Can't knock if deadwood over threshold
-        if deadwood > self.knock_threshold:
-            return False
+        threshold = self._knock_threshold_for(context)
+        if deadwood > threshold:
+            return (
+                False,
+                f"No knock: deadwood={deadwood} > {threshold}",
+                factors + [f"Cannot knock: deadwood > {threshold}"],
+            )
 
         stats = self.knock_stats.get(deadwood)
+        samples = (stats.get("knocked", 0) + stats.get("continued", 0)) if stats else 0
 
-        if stats is None or (stats.get("knocked", 0) + stats.get("continued", 0)) < self.MIN_SAMPLES:
+        if stats is None or samples < self.MIN_SAMPLES:
             # Fall back to BasicAI
-            decision = super().should_knock(hand)
+            basic = super().should_knock_with_reasoning(hand, context)
+            decision = basic.should_knock
+            factors = basic.factors + [f"Samples: {samples} < {self.MIN_SAMPLES} (BasicAI fallback)"]
+            reasoning = f"{basic.reasoning} [too few samples, BasicAI fallback]"
         else:
             knocked = stats.get("knocked", 0)
             knock_wins = stats.get("knock_wins", 0)
@@ -267,11 +287,18 @@ class StatisticalAI(BasicAI):
                 knock_rate,
                 continue_rate,
             )
+            factors += [
+                f"Knock win rate: {knock_rate:.2f} ({knocked} samples)",
+                f"Continue win rate: {continue_rate:.2f} ({continued} samples)",
+            ]
+            reasoning = (
+                f"{'Knocked' if decision else 'No knock'}: knock win rate {knock_rate:.2f} "
+                f"{'>=' if decision else '<'} continue win rate {continue_rate:.2f} (deadwood={deadwood})"
+            )
 
         # Record decision
         self._round_knocks.append((deadwood, decision))
-
-        return decision
+        return decision, reasoning, factors
 
     def record_round_outcome(self, won: bool, points: int) -> None:
         """Update statistics based on round outcome.

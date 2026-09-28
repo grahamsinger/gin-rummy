@@ -79,358 +79,186 @@ class BasicAI:
         self._current_context = None
 
     # ---- Decisions ----
+    #
+    # Each decision has ONE implementation (`_evaluate_*`) that returns the
+    # choice plus the raw numbers behind it. The plain method returns the
+    # choice; the *_with_reasoning twin formats those numbers. BasicAI is the
+    # Monte Carlo rollout AI, so the plain path builds no strings.
+
+    def _knock_threshold_for(self, context: GameContext | None) -> int:
+        """The knock threshold in effect (dynamic under Oklahoma Gin)."""
+        return context.knock_threshold if context is not None else self.knock_threshold
+
+    # -- draw --
 
     def decide_draw(self, hand: Hand, discard_top: Card | None, context: GameContext | None = None) -> DrawChoice:
-        """Decide whether to draw from deck or discard pile.
+        """Decide whether to draw from deck or discard pile."""
+        return self._evaluate_draw(hand, discard_top)[0]
 
-        Args:
-            hand: Current hand.
-            discard_top: Top card of discard pile, or None if empty.
-
-        Returns:
-            DrawChoice indicating where to draw from.
-        """
-        current_deadwood = hand.deadwood_total
-        logger.debug(
-            "Draw decision: current hand %s (deadwood=%d)",
-            [str(c) for c in hand],
-            current_deadwood,
+    def decide_draw_with_reasoning(
+        self, hand: Hand, discard_top: Card | None, context: GameContext | None = None
+    ) -> DrawReasoning:
+        """Draw decision with the reasoning behind it."""
+        choice, current_deadwood, reason = self._evaluate_draw(hand, discard_top)
+        factors = [f"Current deadwood: {current_deadwood}"]
+        if discard_top is None:
+            return DrawReasoning(choice=choice, reasoning="Drew from DECK: discard pile empty", factors=factors)
+        factors += [f"Discard top: {discard_top}", reason]
+        if choice == DrawChoice.DISCARD:
+            return DrawReasoning(choice=choice, reasoning=f"Drew {discard_top} from DISCARD: {reason}", factors=factors)
+        return DrawReasoning(
+            choice=choice, reasoning=f"Drew from DECK: {discard_top} doesn't help ({reason})", factors=factors
         )
+
+    def _evaluate_draw(self, hand: Hand, discard_top: Card | None) -> tuple[DrawChoice, int, str]:
+        """Returns (choice, current deadwood, one-line reason)."""
+        current_deadwood = hand.deadwood_total
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Draw decision: current hand %s (deadwood=%d)", [str(c) for c in hand], current_deadwood)
 
         if discard_top is None:
             logger.info("Draw decision: DECK (discard pile empty)")
-            return DrawChoice.DECK
+            return DrawChoice.DECK, current_deadwood, "discard pile empty"
 
-        # Check if taking the discard would improve our hand
         helps, reason = self._card_helps_hand(hand, discard_top)
         if helps:
-            logger.info(
-                "Draw decision: DISCARD - taking %s (%s)",
-                discard_top,
-                reason,
-            )
-            return DrawChoice.DISCARD
-
-        logger.info(
-            "Draw decision: DECK - %s doesn't help (%s)",
-            discard_top,
-            reason,
-        )
-        return DrawChoice.DECK
+            logger.info("Draw decision: DISCARD - taking %s (%s)", discard_top, reason)
+            return DrawChoice.DISCARD, current_deadwood, reason
+        logger.info("Draw decision: DECK - %s doesn't help (%s)", discard_top, reason)
+        return DrawChoice.DECK, current_deadwood, reason
 
     def _card_helps_hand(self, hand: Hand, card: Card) -> tuple[bool, str]:
         """Check if a card would help the hand form melds.
 
-        CRITICAL FIX: This method now coordinates with decide_discard to ensure
-        we don't pick up a card only to immediately discard it.
-
-        Args:
-            hand: Current hand.
-            card: Card to evaluate.
+        Coordinates with decide_discard so we never pick up a card only to
+        discard it immediately.
 
         Returns:
             Tuple of (helps: bool, reason: str explaining the decision).
         """
-        current_analysis = hand.analyze()
-        current_deadwood = current_analysis.deadwood_value
+        current_deadwood = hand.analyze().deadwood_value
 
-        # Add the card to simulate picking it up
+        # Add the card to simulate picking it up, then see what we would
+        # ACTUALLY discard (subclasses record nothing while _in_hypothetical)
         test_hand = Hand(list(hand) + [card])
-
-        # Use decide_discard to see what we would ACTUALLY discard
-        # This ensures coordination between draw and discard decisions
         self._in_hypothetical = True
         try:
             would_discard = self.decide_discard(test_hand)
         finally:
             self._in_hypothetical = False
 
-        # CRITICAL CHECK: Never pick up a card if we'd immediately discard it!
         if would_discard == card:
-            reason = f"would immediately discard {card} - wastes turn"
-            return False, reason
+            return False, f"would immediately discard {card} - wastes turn"
 
-        # Calculate the deadwood after discarding what we actually would discard
         remaining = [c for c in test_hand if c != would_discard]
-        analysis = analyze_hand(remaining)
-        new_deadwood = analysis.deadwood_value
-
-        # Take the card if it reduces deadwood by enough
+        new_deadwood = analyze_hand(remaining).deadwood_value
         improvement = current_deadwood - new_deadwood
         if improvement >= self.min_deadwood_improvement:
-            reason = f"reduces deadwood from {current_deadwood} to {new_deadwood} by discarding {would_discard}"
-            return True, reason
-        else:
-            reason = f"improvement {improvement} < required {self.min_deadwood_improvement}"
-            return False, reason
+            return True, f"reduces deadwood from {current_deadwood} to {new_deadwood} by discarding {would_discard}"
+        return False, f"improvement {improvement} < required {self.min_deadwood_improvement}"
+
+    # -- discard --
 
     def decide_discard(self, hand: Hand, context: GameContext | None = None) -> Card:
-        """Decide which card to discard.
+        """Discard the card that leaves the lowest deadwood."""
+        best, best_deadwood, options = self._rank_discards(hand)
+        logger.info("Discard decision: %s (leaves deadwood=%d, best of %d options)", best, best_deadwood, len(options))
+        return best
 
-        Args:
-            hand: Current hand (should have 11 cards after drawing).
-
-        Returns:
-            Card to discard.
-        """
-        cards = list(hand)
-        best_discard = None
-        best_deadwood = float("inf")
-        discard_options: list[tuple[Card, int]] = []
-
-        # Try discarding each card and see which leaves lowest deadwood
-        for i, card in enumerate(cards):
-            remaining = cards[:i] + cards[i + 1 :]
-            analysis = analyze_hand(remaining)
-            discard_options.append((card, analysis.deadwood_value))
-            if analysis.deadwood_value < best_deadwood:
-                best_deadwood = analysis.deadwood_value
-                best_discard = card
-
-        # Log all options considered
-        discard_options.sort(key=lambda x: x[1])
-        logger.debug(
-            "Discard options (card -> resulting deadwood): %s",
-            [(str(c), dw) for c, dw in discard_options],
+    def decide_discard_with_reasoning(self, hand: Hand, context: GameContext | None = None) -> DiscardReasoning:
+        """Discard decision with the reasoning behind it."""
+        best, best_deadwood, options = self._rank_discards(hand)
+        return DiscardReasoning(
+            card=best,
+            reasoning=f"Discarded {best}: leaves deadwood={best_deadwood} (best of {len(options)} options)",
+            factors=[f"Hand size: {len(options)} cards", f"Best resulting deadwood: {best_deadwood}"],
+            options_considered=[(str(c), dw) for c, dw in options[:5]],
         )
 
-        # Fallback: discard highest value card
-        if best_discard is None:
-            best_discard = max(cards, key=lambda c: c.deadwood_value)
-            logger.info(
-                "Discard decision: %s (fallback - highest deadwood value card)",
-                best_discard,
-            )
-        else:
-            logger.info(
-                "Discard decision: %s (leaves deadwood=%d, best of %d options)",
-                best_discard,
-                int(best_deadwood),
-                len(cards),
-            )
+    def _rank_discards(self, hand: Hand) -> tuple[Card, int, list[tuple[Card, int]]]:
+        """Try every discard. Returns (best card, its resulting deadwood, all options sorted by deadwood).
 
-        return best_discard
+        Ties go to the card that appears first in the hand.
+        """
+        cards = list(hand)
+        best: Card | None = None
+        best_deadwood = float("inf")
+        options: list[tuple[Card, int]] = []
+        for i, card in enumerate(cards):
+            deadwood = analyze_hand(cards[:i] + cards[i + 1 :]).deadwood_value
+            options.append((card, deadwood))
+            if deadwood < best_deadwood:
+                best_deadwood = deadwood
+                best = card
+        options.sort(key=lambda x: x[1])
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Discard options (card -> resulting deadwood): %s", [(str(c), dw) for c, dw in options])
+        if best is None:  # empty hand; keep the old fallback semantics
+            best = max(cards, key=lambda c: c.deadwood_value)
+        return best, int(best_deadwood), options
+
+    # -- knock --
 
     def should_knock(self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None) -> bool:
-        """Decide whether to knock based on configured strategy.
+        """Decide whether to knock based on the configured strategy."""
+        return self._evaluate_knock(hand, context)[0]
 
-        Args:
-            hand: Current hand (should have 10 cards).
+    def should_knock_with_reasoning(
+        self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None
+    ) -> KnockReasoning:
+        """Knock decision with the reasoning behind it."""
+        should_knock, code, deadwood, threshold = self._evaluate_knock(hand, context)
+        factors = [f"Deadwood: {deadwood}", f"Strategy: {self.knock_strategy}"]
+        cons = self.conservative_knock_threshold
+        if code == "gin":
+            factors.append("GIN achieved!")
+            reasoning = "Knocked: GIN! (deadwood=0)"
+        elif code == "cannot":
+            factors.append(f"Cannot knock: deadwood > {threshold}")
+            reasoning = f"No knock: deadwood={deadwood} > {threshold}"
+        elif code == "always":
+            factors.append("Strategy=always: knock when able")
+            reasoning = f"Knocked: deadwood={deadwood} (strategy=always)"
+        elif code == "conservative_yes":
+            factors.append(f"Conservative: {deadwood} <= {cons}")
+            reasoning = f"Knocked: deadwood={deadwood} <= {cons} (strategy=conservative)"
+        elif code == "conservative_no":
+            factors.append(f"Conservative: {deadwood} > {cons}")
+            reasoning = f"No knock: deadwood={deadwood} > {cons} (strategy=conservative)"
+        else:
+            factors.append(f"Unknown strategy '{self.knock_strategy}', defaulting to knock")
+            reasoning = f"Knocked: deadwood={deadwood} (unknown strategy, default=always)"
+        return KnockReasoning(should_knock=should_knock, reasoning=reasoning, score=None, factors=factors)
 
-        Returns:
-            True if AI should knock.
-        """
+    def _evaluate_knock(self, hand: Hand, context: GameContext | None) -> tuple[bool, str, int, int]:
+        """Returns (should_knock, verdict code, deadwood, threshold in effect)."""
         deadwood = hand.deadwood_total
-        can_knock = deadwood <= self.knock_threshold
-        is_gin = deadwood == 0
-
-        if is_gin:
+        threshold = self._knock_threshold_for(context)
+        if deadwood == 0:
             logger.info("Knock decision: YES - GIN! (deadwood=0)")
-            return True
-        elif not can_knock:
-            logger.debug(
-                "Knock decision: NO (deadwood=%d > %d, cannot knock)",
-                deadwood,
-                self.knock_threshold,
-            )
-            return False
-        elif self.knock_strategy == "always":
-            logger.info(
-                "Knock decision: YES (deadwood=%d, strategy=always)",
-                deadwood,
-            )
-            return True
-        elif self.knock_strategy == "conservative":
+            return True, "gin", deadwood, threshold
+        if deadwood > threshold:
+            logger.debug("Knock decision: NO (deadwood=%d > %d, cannot knock)", deadwood, threshold)
+            return False, "cannot", deadwood, threshold
+        if self.knock_strategy == "always":
+            logger.info("Knock decision: YES (deadwood=%d, strategy=always)", deadwood)
+            return True, "always", deadwood, threshold
+        if self.knock_strategy == "conservative":
             if deadwood <= self.conservative_knock_threshold:
                 logger.info(
                     "Knock decision: YES (deadwood=%d <= %d, strategy=conservative)",
                     deadwood,
                     self.conservative_knock_threshold,
                 )
-                return True
-            else:
-                logger.info(
-                    "Knock decision: NO (deadwood=%d > %d, strategy=conservative)",
-                    deadwood,
-                    self.conservative_knock_threshold,
-                )
-                return False
-        else:
-            # Unknown strategy, default to always knock
-            logger.warning(
-                "Unknown knock strategy '%s', defaulting to always knock",
-                self.knock_strategy,
+                return True, "conservative_yes", deadwood, threshold
+            logger.info(
+                "Knock decision: NO (deadwood=%d > %d, strategy=conservative)",
+                deadwood,
+                self.conservative_knock_threshold,
             )
-            return True
-
-    def decide_draw_with_reasoning(
-        self, hand: Hand, discard_top: Card | None, context: GameContext | None = None
-    ) -> DrawReasoning:
-        """Decide where to draw with detailed reasoning.
-
-        Args:
-            hand: Current hand.
-            discard_top: Top card of discard pile, or None if empty.
-
-        Returns:
-            DrawReasoning with choice, reasoning string, and factors.
-        """
-        current_deadwood = hand.deadwood_total
-        factors: list[str] = [f"Current deadwood: {current_deadwood}"]
-
-        if discard_top is None:
-            return DrawReasoning(
-                choice=DrawChoice.DECK,
-                reasoning="Drew from DECK: discard pile empty",
-                factors=factors,
-            )
-
-        # Check if taking the discard would improve our hand
-        helps, reason = self._card_helps_hand(hand, discard_top)
-
-        if helps:
-            # Parse the improvement from reason
-            factors.append(f"Discard top: {discard_top}")
-            factors.append(reason)
-            return DrawReasoning(
-                choice=DrawChoice.DISCARD,
-                reasoning=f"Drew {discard_top} from DISCARD: {reason}",
-                factors=factors,
-            )
-
-        factors.append(f"Discard top: {discard_top}")
-        factors.append(reason)
-        return DrawReasoning(
-            choice=DrawChoice.DECK,
-            reasoning=f"Drew from DECK: {discard_top} doesn't help ({reason})",
-            factors=factors,
-        )
-
-    def decide_discard_with_reasoning(self, hand: Hand, context: GameContext | None = None) -> DiscardReasoning:
-        """Decide which card to discard with detailed reasoning.
-
-        Args:
-            hand: Current hand (should have 11 cards after drawing).
-
-        Returns:
-            DiscardReasoning with card, reasoning string, factors, and options.
-        """
-        cards = list(hand)
-        best_discard = None
-        best_deadwood = float("inf")
-        discard_options: list[tuple[Card, int]] = []
-
-        # Try discarding each card and see which leaves lowest deadwood
-        for i, card in enumerate(cards):
-            remaining = cards[:i] + cards[i + 1 :]
-            analysis = analyze_hand(remaining)
-            discard_options.append((card, analysis.deadwood_value))
-            if analysis.deadwood_value < best_deadwood:
-                best_deadwood = analysis.deadwood_value
-                best_discard = card
-
-        # Sort options by resulting deadwood
-        discard_options.sort(key=lambda x: x[1])
-
-        # Convert to string format for the dataclass
-        options_str = [(str(c), dw) for c, dw in discard_options]
-
-        factors: list[str] = []
-        factors.append(f"Hand size: {len(cards)} cards")
-        factors.append(f"Best resulting deadwood: {int(best_deadwood)}")
-
-        # Fallback: discard highest value card
-        if best_discard is None:
-            best_discard = max(cards, key=lambda c: c.deadwood_value)
-            return DiscardReasoning(
-                card=best_discard,
-                reasoning=f"Discarded {best_discard}: fallback to highest deadwood value",
-                factors=factors,
-                options_considered=options_str[:5],  # Top 5 options
-            )
-
-        return DiscardReasoning(
-            card=best_discard,
-            reasoning=f"Discarded {best_discard}: leaves deadwood={int(best_deadwood)} (best of {len(cards)} options)",
-            factors=factors,
-            options_considered=options_str[:5],  # Top 5 options
-        )
-
-    def should_knock_with_reasoning(
-        self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None
-    ) -> KnockReasoning:
-        """Decide whether to knock with detailed reasoning.
-
-        Args:
-            hand: Current hand (should have 10 cards).
-
-        Returns:
-            KnockReasoning with decision, reasoning string, and factors.
-        """
-        deadwood = hand.deadwood_total
-        can_knock = deadwood <= self.knock_threshold
-        is_gin = deadwood == 0
-
-        factors: list[str] = [f"Deadwood: {deadwood}"]
-        factors.append(f"Strategy: {self.knock_strategy}")
-
-        if is_gin:
-            factors.append("GIN achieved!")
-            return KnockReasoning(
-                should_knock=True,
-                reasoning="Knocked: GIN! (deadwood=0)",
-                score=None,
-                factors=factors,
-            )
-
-        if not can_knock:
-            factors.append(f"Cannot knock: deadwood > {self.knock_threshold}")
-            return KnockReasoning(
-                should_knock=False,
-                reasoning=f"No knock: deadwood={deadwood} > {self.knock_threshold}",
-                score=None,
-                factors=factors,
-            )
-
-        if self.knock_strategy == "always":
-            factors.append("Strategy=always: knock when able")
-            return KnockReasoning(
-                should_knock=True,
-                reasoning=f"Knocked: deadwood={deadwood} (strategy=always)",
-                score=None,
-                factors=factors,
-            )
-
-        if self.knock_strategy == "conservative":
-            if deadwood <= self.conservative_knock_threshold:
-                factors.append(f"Conservative: {deadwood} <= {self.conservative_knock_threshold}")
-                return KnockReasoning(
-                    should_knock=True,
-                    reasoning=(
-                        f"Knocked: deadwood={deadwood} <= {self.conservative_knock_threshold} (strategy=conservative)"
-                    ),
-                    score=None,
-                    factors=factors,
-                )
-            else:
-                factors.append(f"Conservative: {deadwood} > {self.conservative_knock_threshold}")
-                return KnockReasoning(
-                    should_knock=False,
-                    reasoning=(
-                        f"No knock: deadwood={deadwood} > {self.conservative_knock_threshold} (strategy=conservative)"
-                    ),
-                    score=None,
-                    factors=factors,
-                )
-
-        # Unknown strategy, default to always knock
-        factors.append(f"Unknown strategy '{self.knock_strategy}', defaulting to knock")
-        return KnockReasoning(
-            should_knock=True,
-            reasoning=f"Knocked: deadwood={deadwood} (unknown strategy, default=always)",
-            score=None,
-            factors=factors,
-        )
+            return False, "conservative_no", deadwood, threshold
+        logger.warning("Unknown knock strategy '%s', defaulting to always knock", self.knock_strategy)
+        return True, "unknown", deadwood, threshold
 
     def make_turn_decision(
         self,
@@ -457,9 +285,9 @@ class BasicAI:
         # Check if we can knock after discarding
         test_cards = [c for c in hand if c != discard]
         test_analysis = analyze_hand(test_cards)
-        can_knock = test_analysis.deadwood_value <= self.knock_threshold
+        can_knock = test_analysis.deadwood_value <= self._knock_threshold_for(context)
 
-        should_knock = can_knock and self.should_knock(Hand(test_cards))
+        should_knock = can_knock and self.should_knock(Hand(test_cards), context)
 
         logger.debug(
             "--- AI Turn End --- (discard=%s, knock=%s)",

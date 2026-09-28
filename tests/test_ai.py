@@ -717,3 +717,42 @@ class TestFactory:
 
         assert set(DIFFICULTY_TO_AI) == {"easy", "medium", "hard"}
         assert set(DIFFICULTY_TO_AI.values()) <= set(AI_TYPES)
+
+
+class TestKnockThresholdFromContext:
+    """B9: the knock threshold in effect (Oklahoma) comes from the context, not a hard-coded 10."""
+
+    SEVEN_DEADWOOD = "AS 2S 3S 4H 5H 6H 7C 8C 9C 7D"
+
+    @pytest.mark.parametrize("kind", ["basic", "context", "statistical"])
+    def test_context_threshold_blocks_knock(self, kind):
+        from dataclasses import replace
+
+        from gin_rummy.ai import make_ai
+        from tests.helpers import hand, make_context
+
+        h = hand(self.SEVEN_DEADWOOD)
+        assert h.deadwood_total == 7
+        cfg = make_test_config("always")  # config threshold is 10 -> would knock
+        ai = make_ai(kind, cfg)
+        assert ai.should_knock(h, make_context(h)) is True
+        assert ai.should_knock(h) is True
+
+        oklahoma = replace(make_context(h), knock_threshold=5)
+        ai = make_ai(kind, cfg)
+        assert ai.should_knock(h, oklahoma) is False
+        ai = make_ai(kind, cfg)
+        assert ai.should_knock_with_reasoning(h, oklahoma).should_knock is False
+
+    def test_make_turn_decision_respects_context_threshold(self):
+        from dataclasses import replace
+
+        from tests.helpers import card, hand, make_context
+
+        eleven = hand(self.SEVEN_DEADWOOD + " KD")
+        ai = BasicAI(make_test_config("always"))
+        _, knock = ai.make_turn_decision(eleven, None, card("KD"), make_context(eleven))
+        assert knock is True
+        oklahoma = replace(make_context(eleven), knock_threshold=5)
+        _, knock = ai.make_turn_decision(eleven, None, card("KD"), oklahoma)
+        assert knock is False

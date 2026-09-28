@@ -4,6 +4,8 @@ Note: These tests require the optional 'learning' dependencies.
 Run with: uv sync --extra learning && uv run pytest tests/test_learning.py
 """
 
+import random
+
 import pytest
 
 # Skip all tests if torch is not available
@@ -362,3 +364,52 @@ class TestLearningFactory:
         ai = make_ai("learning", exploration_rate=0.0)
         assert type(ai) is LearningAI
         assert LearningAI.needs_context is True
+
+
+class TestLearningReasoning:
+    """B8: LearningAI's *_with_reasoning twins describe its own decision, not BasicAI's."""
+
+    def _pair(self):
+        import copy
+
+        from gin_rummy.learning.learning_ai import LearningAI
+
+        ai = LearningAI(exploration_rate=0.0)
+        return ai, copy.deepcopy(ai)  # identical random weights
+
+    def test_twins_agree_and_mention_q_values(self):
+        from gin_rummy.game import Game
+        from gin_rummy.models import Hand
+
+        for seed in range(20):
+            random.seed(seed)
+            game = Game("A", "B")
+            game.deal()
+            game.discard_to_start(game.current_player.hand[0])
+            idx = game.current_player_idx
+            ctx = game.get_game_context(idx)
+            hand = game.players[idx].hand
+            top = game.top_of_discard
+            eleven = Hand(list(hand) + [game.deck._cards[0]])
+
+            a, b = self._pair()
+            assert a.decide_draw(hand, top, ctx) == b.decide_draw_with_reasoning(hand, top, ctx).choice
+            a, b = self._pair()
+            a._drawn_card = b._drawn_card = eleven[-1]
+            assert a.decide_discard(eleven, ctx) == b.decide_discard_with_reasoning(eleven, ctx).card
+            a, b = self._pair()
+            assert a.should_knock(hand, ctx) == b.should_knock_with_reasoning(hand, ctx).should_knock
+
+        r = b.decide_draw_with_reasoning(hand, top, ctx)
+        assert "Q" in r.reasoning or "DrawNet" in r.reasoning
+
+    def test_context_threshold_blocks_knock(self):
+        from dataclasses import replace
+
+        from tests.helpers import hand, make_context
+
+        h = hand("AS 2S 3S 4H 5H 6H 7C 8C 9C 7D")
+        ai, _ = self._pair()
+        oklahoma = replace(make_context(h), knock_threshold=5)
+        assert ai.should_knock(h, oklahoma) is False
+        assert ai.should_knock_with_reasoning(h, oklahoma).should_knock is False
