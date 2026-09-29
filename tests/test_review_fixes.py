@@ -5,9 +5,10 @@ IDs (E1, E2, ...) refer to the Bugs section of TODO.md.
 
 import pytest
 
-from gin_rummy.context import KnownCards, OpponentModel
+from gin_rummy.ai.opponent_model import OpponentModel
 from gin_rummy.game import Game, GamePhase, InvalidActionError
 from gin_rummy.models.card import Card, Rank, Suit
+from gin_rummy.models.game_context import KnownCards
 from gin_rummy.models.hand import Hand
 from gin_rummy.models.melds import (
     Meld,

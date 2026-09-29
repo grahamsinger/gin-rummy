@@ -3,8 +3,9 @@
 import pytest
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
-from gin_rummy.context import GameContext, OpponentModel
+from gin_rummy.ai.opponent_model import OpponentModel
 from gin_rummy.models import Card, Hand, Rank, Suit
+from gin_rummy.models.game_context import GameContext
 from tests.helpers import make_ai_config as make_test_config
 
 
@@ -567,7 +568,7 @@ class TestReasoningMethods:
     def test_context_aware_ai_knock_with_reasoning_includes_score(self):
         """ContextAwareAI should include knock score in reasoning."""
         from gin_rummy.ai import KnockReasoning
-        from gin_rummy.context import GameContext
+        from gin_rummy.models.game_context import GameContext
 
         ai = ContextAwareAI()
         # Hand with 5 deadwood

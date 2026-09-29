@@ -16,8 +16,8 @@ import time
 
 from gin_rummy.ai.mc import MonteCarloAI
 from gin_rummy.config import Config, MonteCarloAIConfig
-from gin_rummy.context import GameContext, KnownCards
 from gin_rummy.models import Card, Hand, Rank, Suit
+from gin_rummy.models.game_context import GameContext, KnownCards
 
 
 def make_hand_11() -> Hand:

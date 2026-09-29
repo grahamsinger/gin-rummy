@@ -1,15 +1,11 @@
 """Tests for context-aware AI components."""
 
-from gin_rummy.context import (
-    DynamicThresholdCalculator,
-    GameContext,
-    OpponentModel,
-    OutInfo,
-    OutsAnalysis,
-    OutsCalculator,
-    OutType,
-)
+from gin_rummy.ai.opponent_model import OpponentModel
+from gin_rummy.ai.outs import OutsCalculator
+from gin_rummy.ai.thresholds import DynamicThresholdCalculator
 from gin_rummy.models import Card, Hand, Rank, Suit
+from gin_rummy.models.game_context import GameContext
+from gin_rummy.models.outs import OutInfo, OutsAnalysis, OutType
 
 
 class TestOutsAnalysis:

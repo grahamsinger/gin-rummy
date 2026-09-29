@@ -18,7 +18,7 @@ from gin_rummy.game import Game, InvalidActionError, RoundResult
 from gin_rummy.models import Card, Hand, Player, analyze_hand
 
 if TYPE_CHECKING:
-    from gin_rummy.context import GameContext
+    from gin_rummy.models.game_context import GameContext
 
 
 class TurnResult(Enum):

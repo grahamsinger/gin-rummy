@@ -299,7 +299,8 @@ Game.get_game_context(player_idx)
 
 | File | Purpose |
 |------|---------|
-| `gin_rummy/context.py` | OutsCalculator, OpponentModel, DynamicThresholdCalculator, GameContext |
+| `gin_rummy/models/game_context.py`, `models/outs.py` | GameContext, KnownCards, OutsAnalysis (domain data) |
+| `gin_rummy/ai/outs.py`, `ai/opponent_model.py`, `ai/thresholds.py` | OutsCalculator, OpponentModel, DynamicThresholdCalculator (heuristics) |
 | `gin_rummy/ai.py` | ContextAwareAI class (extends BasicAI) |
 | `gin_rummy/game.py` | get_game_context() method |
 | `gin_rummy/config.py` | ContextAwareAIConfig dataclass |

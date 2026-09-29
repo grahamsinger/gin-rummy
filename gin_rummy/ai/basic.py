@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import ClassVar
 
+from gin_rummy.ai.opponent_model import OpponentModel
 from gin_rummy.ai.types import (
     DiscardReasoning,
     DrawChoice,
@@ -12,8 +13,8 @@ from gin_rummy.ai.types import (
     KnockReasoning,
 )
 from gin_rummy.config import Config, get_config
-from gin_rummy.context import GameContext, OpponentModel
 from gin_rummy.models import Card, Hand, analyze_hand
+from gin_rummy.models.game_context import GameContext
 
 logger = logging.getLogger(__name__)
 

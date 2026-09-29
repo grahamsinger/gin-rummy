@@ -12,7 +12,7 @@ from gin_rummy.models import Card, Deck, Player, Suit
 from gin_rummy.models.melds import calculate_layoff
 
 if TYPE_CHECKING:
-    from gin_rummy.context import GameContext
+    from gin_rummy.models.game_context import GameContext
 
 
 class GamePhase(Enum):
@@ -164,7 +164,7 @@ class Game:
         Returns:
             GameContext with all relevant state for AI decisions.
         """
-        from gin_rummy.context import GameContext, KnownCards
+        from gin_rummy.models.game_context import GameContext, KnownCards
 
         player = self.players[player_idx]
         opponent = self.players[1 - player_idx]

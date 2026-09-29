@@ -34,7 +34,7 @@ from gin_rummy.config import Config, get_config
 from gin_rummy.models import Card, Hand, Rank, Suit, analyze_hand
 
 if TYPE_CHECKING:
-    from gin_rummy.context import GameContext
+    from gin_rummy.models.game_context import GameContext
 
 
 logger = logging.getLogger(__name__)

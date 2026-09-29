@@ -14,8 +14,9 @@ import torch
 from gin_rummy.config import get_config
 
 if TYPE_CHECKING:
-    from gin_rummy.context import GameContext, KnownCards, OpponentModel
+    from gin_rummy.ai.opponent_model import OpponentModel
     from gin_rummy.models import Card, Hand
+    from gin_rummy.models.game_context import GameContext, KnownCards
 
 
 # Card encoding: 52 cards indexed by Card.index (suit * 13 + rank;

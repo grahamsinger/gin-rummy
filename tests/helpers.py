@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from gin_rummy.config import AIConfig, Config, MonteCarloAIConfig
-from gin_rummy.context import GameContext, KnownCards
 from gin_rummy.models import Card, Hand
+from gin_rummy.models.game_context import GameContext, KnownCards
 
 
 def card(code: str) -> Card:

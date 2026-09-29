@@ -6,6 +6,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from gin_rummy.ai.basic import BasicAI
+from gin_rummy.ai.outs import OutsCalculator
+from gin_rummy.ai.thresholds import DynamicThresholdCalculator
 from gin_rummy.ai.types import (
     DiscardReasoning,
     DrawChoice,
@@ -13,14 +15,10 @@ from gin_rummy.ai.types import (
     KnockReasoning,
 )
 from gin_rummy.config import Config, get_config
-from gin_rummy.context import (
-    DynamicThresholdCalculator,
-    OutsCalculator,
-)
 from gin_rummy.models import Card, Hand, analyze_hand
 
 if TYPE_CHECKING:
-    from gin_rummy.context import GameContext
+    from gin_rummy.models.game_context import GameContext
 
 
 logger = logging.getLogger(__name__)

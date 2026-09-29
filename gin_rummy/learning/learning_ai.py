@@ -23,8 +23,8 @@ from gin_rummy.learning.models import (
 from gin_rummy.learning.state import StateEncoder
 
 if TYPE_CHECKING:
-    from gin_rummy.context import GameContext
     from gin_rummy.models import Card, Hand
+    from gin_rummy.models.game_context import GameContext
 
 
 logger = logging.getLogger(__name__)
