@@ -7,8 +7,8 @@ import { loadPlayerNamesForSettings, showSettingsModal } from './settings.js';
 import { ui, generatePlayerName, savedSettings } from './state.js';
 import { confirmClearStats, loadSelectedPlayerStats, showClearStatsConfirmation, showPlayerStats } from './stats.js';
 
-// Initialize event listeners
-function init() {
+// The deck and discard pile: drawing.
+function bindTable() {
     // Deck click
     elements.deck.addEventListener('click', () => {
         if (ui.gameState && ui.gameState.your_turn && ui.gameState.phase === 'drawing') {
@@ -22,7 +22,10 @@ function init() {
             drawCard('discard');
         }
     });
+}
 
+// Knock confirmation after a discard.
+function bindKnockModal() {
     // Knock modal - Yes button
     elements.knockYesBtn.addEventListener('click', async () => {
         elements.knockModal.classList.add('hidden');
@@ -40,7 +43,10 @@ function init() {
             ui.pendingDiscardCard = null;
         }
     });
+}
 
+// Resuming an in-progress game, or starting fresh.
+function bindResumeModal() {
     // Resume modal buttons
     elements.resumeYesBtn.addEventListener('click', async () => {
         const gameId = parseInt(elements.resumeYesBtn.dataset.gameId, 10);
@@ -73,7 +79,10 @@ function init() {
             showSettingsModal();
         }
     });
+}
 
+// The new-game settings form.
+function bindSettingsModal() {
     // Settings modal cancel button and backdrop click
     elements.cancelSettingsBtn.addEventListener('click', () => {
         elements.settingsModal.classList.add('hidden');
@@ -142,7 +151,10 @@ function init() {
         };
         newGame(settings);
     });
+}
 
+// New game, next round, and the game-over modal.
+function bindGameButtons() {
     // New game button
     elements.newGameBtn.addEventListener('click', showSettingsModal);
 
@@ -178,7 +190,10 @@ function init() {
         elements.gameOverModal.classList.add('hidden');
         showSettingsModal();
     });
+}
 
+// Assist mode toggle and hand sorting.
+function bindAssistAndSort() {
     // Assist mode toggle
     elements.assistMode.addEventListener('change', () => {
         if (ui.gameState) {
@@ -186,6 +201,14 @@ function init() {
         }
     });
 
+    // Sort buttons
+    elements.sortSuitBtn.addEventListener('click', () => setSortMode('suit'));
+    elements.sortRankBtn.addEventListener('click', () => setSortMode('rank'));
+    elements.sortValueBtn.addEventListener('click', () => setSortMode('value'));
+}
+
+// Confirming a discard that breaks a meld.
+function bindMeldModal() {
     // Meld confirmation modal - Yes button
     elements.meldConfirmYesBtn.addEventListener('click', async () => {
         elements.meldConfirmModal.classList.add('hidden');
@@ -201,12 +224,10 @@ function init() {
         ui.pendingMeldDiscardCard = null;
         // User can now click another card
     });
+}
 
-    // Sort buttons
-    elements.sortSuitBtn.addEventListener('click', () => setSortMode('suit'));
-    elements.sortRankBtn.addEventListener('click', () => setSortMode('rank'));
-    elements.sortValueBtn.addEventListener('click', () => setSortMode('value'));
-
+// Player statistics modal, player selection and clearing stats.
+function bindStatsModal() {
     // Stats button and modal
     elements.viewStatsBtn.addEventListener('click', showPlayerStats);
     elements.statsCloseBtn.addEventListener('click', () => {
@@ -227,7 +248,10 @@ function init() {
     elements.clearStatsCancelBtn.addEventListener('click', () => {
         elements.clearStatsModal.classList.add('hidden');
     });
+}
 
+// Score history modal.
+function bindScoreHistory() {
     // Score History button and modal
     elements.scoreHistoryBtn.addEventListener('click', showScoreHistory);
     elements.scoreHistoryCloseBtn.addEventListener('click', () => {
@@ -238,7 +262,10 @@ function init() {
             elements.scoreHistoryModal.classList.add('hidden');
         }
     });
+}
 
+// Mini games modal.
+function bindMiniGames() {
     // Mini Games modal
     elements.miniGamesBtn.addEventListener('click', () => {
         elements.miniGamesModal.classList.remove('hidden');
@@ -251,6 +278,20 @@ function init() {
             elements.miniGamesModal.classList.add('hidden');
         }
     });
+}
+
+// Wire every control, then start or restore a game
+function init() {
+    bindTable();
+    bindKnockModal();
+    bindResumeModal();
+    bindSettingsModal();
+    bindGameButtons();
+    bindAssistAndSort();
+    bindMeldModal();
+    bindStatsModal();
+    bindScoreHistory();
+    bindMiniGames();
 
     // Initialize sort button active state
     updateSortButtonStates();
