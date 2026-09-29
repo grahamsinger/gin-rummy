@@ -23,12 +23,10 @@ from dataclasses import dataclass, replace
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, MonteCarloAI
 from gin_rummy.cli import display_hand_by_suit
 from gin_rummy.config import get_config
-from gin_rummy.game import Game, GamePhase
-from gin_rummy.game_runner import (
-    calculate_post_discard_deadwood,
-    execute_ai_turn,
-)
+from gin_rummy.game import Game
+from gin_rummy.game_runner import calculate_post_discard_deadwood
 from gin_rummy.models import Card, Hand
+from gin_rummy.round_runner import AISeat, run_round
 
 HUMAN_SEAT = 0
 MAX_GENERATION_ATTEMPTS = 50
@@ -106,47 +104,22 @@ def generate_scenario(
     """
     random.seed(seed)
     target_turns = random.randint(min_turns, max_turns)
+    max_total_turns = max_turns * 3
 
     game = Game("You", "Opponent")
     game.deal()
 
-    # AIs that actually play out the position (independent of the panel)
-    seat_ais = {0: ContextAwareAI(), 1: ContextAwareAI()}
+    # AIs that actually play out the position (independent of the panel).
+    # Only the opponent's actions are fed to the panel.
     callbacks = _PanelFeedCallbacks(panel, opponent_name="Opponent")
+    seats = [AISeat(ContextAwareAI(), callbacks=None if i == HUMAN_SEAT else callbacks) for i in range(2)]
 
-    # Opening discard by the non-dealer
-    opener_idx = game.current_player_idx
-    opener = seat_ais[opener_idx]
-    discard = opener.decide_discard(game.current_player.hand)
-    game.discard_to_start(discard)
-    seat_ais[1 - opener_idx].record_opponent_discard(discard)
-    if opener_idx != HUMAN_SEAT:
-        callbacks.on_discard(game.players[opener_idx], discard)
+    def frozen(game: Game, turns: int) -> bool:
+        return (turns >= target_turns and game.current_player_idx == HUMAN_SEAT) or turns > max_total_turns
 
-    turns_played = 0
-    while turns_played < target_turns or game.current_player_idx != HUMAN_SEAT:
-        if game.phase != GamePhase.DRAWING:
-            return None  # hand ended early (knock)
-
-        actor_idx = game.current_player_idx
-        actor = seat_ais[actor_idx]
-        other = seat_ais[1 - actor_idx]
-
-        result, actions, round_result = execute_ai_turn(
-            game,
-            actor,
-            other_ai=other,
-            callbacks=callbacks if actor_idx != HUMAN_SEAT else None,
-        )
-        if result.name != "CONTINUE":
-            return None  # knock or deck exhaustion - unusable scenario
-
-        turns_played += 1
-        if turns_played > max_turns * 3:
-            return None
-
-    if game.phase != GamePhase.DRAWING or game.current_player_idx != HUMAN_SEAT:
-        return None
+    outcome = run_round(game, seats, stop_when=frozen)
+    if outcome.result is not None or outcome.turns > max_total_turns:
+        return None  # knock or deck exhaustion, or the hand ran too long: unusable
     return game
 
 

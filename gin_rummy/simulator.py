@@ -9,13 +9,10 @@ from dataclasses import dataclass, field
 
 from gin_rummy.ai import AI_TYPES, BasicAI, DrawChoice, make_ai
 from gin_rummy.config import Config
-from gin_rummy.game import Game, GamePhase, RoundResult
-from gin_rummy.game_runner import (
-    TurnActions,
-    TurnResult,
-    execute_ai_turn,
-)
+from gin_rummy.game import Game, RoundResult
+from gin_rummy.game_runner import TurnActions, TurnResult
 from gin_rummy.models import Card, Player
+from gin_rummy.round_runner import AISeat, run_round
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +225,22 @@ class SimulatorTurnCallbacks:
         pass
 
 
+class _TimedSeat(AISeat):
+    """AI seat that records metrics and how long its turns took."""
+
+    def __init__(self, ai: BasicAI, player_metrics: PlayerMetrics) -> None:
+        super().__init__(ai, SimulatorTurnCallbacks(player_metrics))
+        self.turn_time = 0.0
+        self.turns = 0
+
+    def play_turn(self, game: Game) -> tuple[TurnResult, TurnActions | None, RoundResult | None]:
+        turn_start = time.time()
+        outcome = super().play_turn(game)
+        self.turn_time += time.time() - turn_start
+        self.turns += 1
+        return outcome
+
+
 class Simulator:
     """Runs AI vs AI games and collects metrics."""
 
@@ -344,65 +357,19 @@ class Simulator:
     def _run_round(self, game: Game, game_result: GameResult) -> RoundResult:
         """Run a single round and return the result."""
         game.deal()
+        seats = [
+            _TimedSeat(self.ai1, self.metrics.get_player_metrics(0)),
+            _TimedSeat(self.ai2, self.metrics.get_player_metrics(1)),
+        ]
+        outcome = run_round(game, seats)
 
-        # Reset AI tracking for new hand (ContextAwareAI and LearningAI)
-        for ai in (self.ai1, self.ai2):
-            ai.reset_for_new_hand()
+        game_result.ai1_turn_time += seats[0].turn_time
+        game_result.ai1_turns += seats[0].turns
+        game_result.ai2_turn_time += seats[1].turn_time
+        game_result.ai2_turns += seats[1].turns
 
-        # First discard by non-dealer
-        non_dealer_idx = 1 - game.dealer_idx
-        ai = self.ai1 if non_dealer_idx == 0 else self.ai2
-        discard = ai.decide_discard(game.current_player.hand)
-        game.discard_to_start(discard)
-
-        # Record first discard for opponent tracking
-        other_ai = self.ai2 if non_dealer_idx == 0 else self.ai1
-        other_ai.record_opponent_discard(discard)
-
-        # Main game loop
-        while game.phase == GamePhase.DRAWING:
-            result = self._play_turn(game, game_result)
-            if result is not None:
-                return result
-
-        return game.get_draw_result()
-
-    def _play_turn(self, game: Game, game_result: GameResult) -> RoundResult | None:
-        """Play a single turn using shared game runner logic.
-
-        Returns RoundResult if round ended, None if round continues.
-        """
-        current_idx = game.current_player_idx
-        ai = self.ai1 if current_idx == 0 else self.ai2
-        other_ai = self.ai2 if current_idx == 0 else self.ai1
-        player_metrics = self.metrics.get_player_metrics(current_idx)
-
-        # Create callbacks for metrics tracking
-        callbacks = SimulatorTurnCallbacks(player_metrics)
-
-        # Execute the turn with timing
-        turn_start = time.time()
-        turn_result, _, round_result = execute_ai_turn(game, ai, other_ai, callbacks)
-        turn_elapsed = time.time() - turn_start
-
-        # Track per-AI timing
-        if current_idx == 0:
-            game_result.ai1_turn_time += turn_elapsed
-            game_result.ai1_turns += 1
-        else:
-            game_result.ai2_turn_time += turn_elapsed
-            game_result.ai2_turns += 1
-
-        # Map TurnResult to RoundResult | None
-        if turn_result == TurnResult.KNOCKED:
-            # Round ended with knock - return the result from knock
-            return round_result
-        elif turn_result == TurnResult.DRAW:
-            # Deck exhausted
-            return game.get_draw_result()
-        else:
-            # Round continues
-            return None
+        assert outcome.result is not None  # no stop_when, so the round ran to its end
+        return outcome.result
 
     def _record_round_result(self, game: Game, result: RoundResult) -> None:
         """Record metrics from a round result."""

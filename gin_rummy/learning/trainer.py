@@ -19,8 +19,8 @@ import torch.nn as nn
 import torch.optim as optim
 
 from gin_rummy.ai import BasicAI, DrawChoice, make_ai
-from gin_rummy.game import Game
-from gin_rummy.game_runner import TurnResult, execute_ai_turn
+from gin_rummy.game import Game, RoundResult
+from gin_rummy.game_runner import TurnActions, TurnResult
 from gin_rummy.learning.learning_ai import LearningAI
 from gin_rummy.learning.models import ModelPersistence
 from gin_rummy.learning.replay import (
@@ -30,6 +30,7 @@ from gin_rummy.learning.replay import (
 )
 from gin_rummy.learning.rewards import RewardCalculator, RewardConfig
 from gin_rummy.learning.state import StateEncoder
+from gin_rummy.round_runner import AISeat, run_round
 
 if TYPE_CHECKING:
     from torch.utils.tensorboard import SummaryWriter
@@ -110,6 +111,103 @@ class TrainingMetrics:
 
     # Buffer sizes
     buffer_size: int = 0
+
+
+class _LearnerSeat(AISeat):
+    """The LearningAI's seat: records one experience per decision it makes."""
+
+    def __init__(self, trainer: Trainer) -> None:
+        super().__init__(trainer.learning_ai)
+        self.trainer = trainer
+        self.experiences: list[Experience] = []
+
+    def play_turn(self, game: Game) -> tuple[TurnResult, TurnActions | None, RoundResult | None]:
+        trainer = self.trainer
+        learning_ai = trainer.learning_ai
+        player_idx = game.current_player_idx
+        hand = game.current_player.hand
+
+        # Store state before turn
+        ctx = game.get_game_context(player_idx)
+        state_before = trainer.encoder.encode_draw_state(hand, game.top_of_discard, ctx, learning_ai.opponent_model)
+        deadwood_before = hand.deadwood_total
+        melds_before = len(hand.analyze().melds)
+
+        result, actions, round_result = super().play_turn(game)
+        if actions is None:
+            return result, actions, round_result
+
+        deadwood_after = hand.deadwood_total
+        melds_after = len(hand.analyze().melds)
+
+        # Calculate turn reward
+        turn_reward = trainer.reward_calculator.turn_reward(deadwood_before, deadwood_after, melds_before, melds_after)
+
+        # Create experiences for each decision
+        ctx = game.get_game_context(player_idx)
+
+        # Draw experience
+        # next_state is None because we transition to discard (different state size)
+        drew_from_discard = actions.draw_source == DrawChoice.DISCARD
+        draw_action = 0 if actions.draw_source == DrawChoice.DECK else 1
+
+        # Calculate draw-specific reward (penalize wasteful discard draws)
+        draw_specific_reward = trainer.reward_calculator.draw_reward(
+            drew_from_discard=drew_from_discard,
+            drawn_card=actions.drawn_card,
+            discarded_card=actions.discarded_card,
+            deadwood_before=deadwood_before,
+            deadwood_after=deadwood_after,
+        )
+        draw_reward = (turn_reward / 3) + draw_specific_reward
+
+        self.experiences.append(
+            Experience(
+                state=state_before,
+                action=draw_action,
+                reward=draw_reward,
+                next_state=None,  # Different state space (discard), so treat as terminal
+                done=False,
+                decision_type="draw",
+            )
+        )
+
+        # Discard experience (requires both drawn_card and discarded_card)
+        if actions.discarded_card and actions.drawn_card:
+            # Use card index (0-51) instead of position in hand
+            discard_action = actions.discarded_card.index
+
+            discard_state = trainer.encoder.encode_discard_state(
+                hand, actions.drawn_card, ctx, learning_ai.opponent_model
+            )
+            knock_state = trainer.encoder.encode_knock_state(hand, ctx, learning_ai.opponent_model)
+
+            self.experiences.append(
+                Experience(
+                    state=discard_state,
+                    action=discard_action,
+                    reward=turn_reward / 3,
+                    next_state=None,  # Different state space (knock), so treat as terminal
+                    done=False,
+                    decision_type="discard",
+                )
+            )
+
+            # Knock experience (if could have knocked)
+            if hand.deadwood_total <= 10:
+                knock_action = 1 if actions.did_knock else 0
+                self.experiences.append(
+                    Experience(
+                        state=knock_state,
+                        action=knock_action,
+                        reward=turn_reward / 3,
+                        next_state=None,  # Will be updated at round end
+                        done=actions.did_knock,
+                        decision_type="knock",
+                    )
+                )
+
+        return result, actions, round_result
 
 
 class Trainer:
@@ -379,11 +477,10 @@ class Trainer:
         opponent = self._get_opponent()
         total_reward = 0.0
 
-        # Play a full game. The learner persists across episodes, so it must
-        # forget the previous game's opponent model here.
+        # Play a full game (run_round resets both AIs' per-hand state, so
+        # the learner forgets the previous episode's opponent model)
         game = Game("LearningAI", "Opponent")
         game.deal()
-        self.learning_ai.reset_for_new_hand()
 
         rounds_played = 0
         while (
@@ -399,10 +496,6 @@ class Trainer:
             if max(p.score for p in game.players) < self.config.target_score:
                 game.new_round()
                 game.deal()
-
-                # Reset AI tracking for new hand
-                self.learning_ai.reset_for_new_hand()
-                opponent.reset_for_new_hand()
 
         # Train on collected experiences
         if len(self.replay_buffer) >= self.config.min_buffer_size:
@@ -420,145 +513,21 @@ class Trainer:
         Returns:
             Reward for the round.
         """
+        learner = _LearnerSeat(self)
+        outcome = run_round(game, [learner, AISeat(opponent)])  # LearningAI is player 0
+
         round_reward = 0.0
-        learning_player_idx = 0  # LearningAI is player 0
+        if outcome.ended_by == TurnResult.KNOCKED and outcome.result is not None:
+            final_reward = self.reward_calculator.round_end_reward(outcome.result, "LearningAI")
+            round_reward += final_reward
 
-        # Store experiences for this round
-        round_experiences: list[Experience] = []
-
-        # Handle first discard (non-dealer discards to start the discard pile)
-        non_dealer_idx = 1 - game.dealer_idx
-        first_discard_ai = self.learning_ai if non_dealer_idx == 0 else opponent
-        discard = first_discard_ai.decide_discard(game.players[non_dealer_idx].hand)
-        game.discard_to_start(discard)
-
-        # Record first discard for opponent tracking
-        if non_dealer_idx == 0:
-            # Learning AI discarded, record for opponent
-            opponent.record_opponent_discard(discard)
-        else:
-            # Opponent discarded, record for learning AI
-            self.learning_ai.record_opponent_discard(discard)
-
-        while game.phase.name not in ("ROUND_OVER", "KNOCKED"):
-            current_player_idx = game.current_player_idx
-            current_player = game.players[current_player_idx]
-
-            # Get the AI for current player
-            ai = self.learning_ai if current_player_idx == learning_player_idx else opponent
-
-            ai.update_context(game.get_game_context(current_player_idx))
-
-            # Store state before turn (for learning AI only)
-            state_before = None
-            deadwood_before = 0
-            melds_before = 0
-            if current_player_idx == learning_player_idx:
-                hand = current_player.hand
-                ctx = game.get_game_context(current_player_idx)
-                state_before = self.encoder.encode_draw_state(
-                    hand, game.top_of_discard, ctx, self.learning_ai.opponent_model
-                )
-                deadwood_before = hand.deadwood_total
-                melds_before = len(hand.analyze().melds)
-
-            # Execute turn
-            other_ai = opponent if current_player_idx == learning_player_idx else self.learning_ai
-            result, actions, round_result = execute_ai_turn(game, ai, other_ai)
-
-            # Collect experiences for learning AI
-            if current_player_idx == learning_player_idx and actions and state_before is not None:
-                hand = current_player.hand
-                deadwood_after = hand.deadwood_total
-                melds_after = len(hand.analyze().melds)
-
-                # Calculate turn reward
-                turn_reward = self.reward_calculator.turn_reward(
-                    deadwood_before, deadwood_after, melds_before, melds_after
-                )
-
-                # Create experiences for each decision
-                ctx = game.get_game_context(current_player_idx)
-
-                # Draw experience
-                # next_state is None because we transition to discard (different state size)
-                drew_from_discard = actions.draw_source == DrawChoice.DISCARD
-                draw_action = 0 if actions.draw_source == DrawChoice.DECK else 1
-
-                # Calculate draw-specific reward (penalize wasteful discard draws)
-                draw_specific_reward = self.reward_calculator.draw_reward(
-                    drew_from_discard=drew_from_discard,
-                    drawn_card=actions.drawn_card,
-                    discarded_card=actions.discarded_card,
-                    deadwood_before=deadwood_before,
-                    deadwood_after=deadwood_after,
-                )
-                draw_reward = (turn_reward / 3) + draw_specific_reward
-
-                round_experiences.append(
-                    Experience(
-                        state=state_before,
-                        action=draw_action,
-                        reward=draw_reward,
-                        next_state=None,  # Different state space (discard), so treat as terminal
-                        done=False,
-                        decision_type="draw",
-                    )
-                )
-
-                # Discard experience (requires both drawn_card and discarded_card)
-                if actions.discarded_card and actions.drawn_card:
-                    # Use card index (0-51) instead of position in hand
-                    discard_action = actions.discarded_card.index
-
-                    discard_state = self.encoder.encode_discard_state(
-                        hand, actions.drawn_card, ctx, self.learning_ai.opponent_model
-                    )
-                    knock_state = self.encoder.encode_knock_state(hand, ctx, self.learning_ai.opponent_model)
-
-                    round_experiences.append(
-                        Experience(
-                            state=discard_state,
-                            action=discard_action,
-                            reward=turn_reward / 3,
-                            next_state=None,  # Different state space (knock), so treat as terminal
-                            done=False,
-                            decision_type="discard",
-                        )
-                    )
-
-                    # Knock experience (if could have knocked)
-                    if hand.deadwood_total <= 10:
-                        knock_action = 1 if actions.did_knock else 0
-                        round_experiences.append(
-                            Experience(
-                                state=knock_state,
-                                action=knock_action,
-                                reward=turn_reward / 3,
-                                next_state=None,  # Will be updated at round end
-                                done=actions.did_knock,
-                                decision_type="knock",
-                            )
-                        )
-
-            # Check for round end
-            if result == TurnResult.DRAW:
-                # Round ended in draw
-                break
-            elif result == TurnResult.KNOCKED and round_result:
-                # Round ended, calculate final rewards
-                final_reward = self.reward_calculator.round_end_reward(round_result, "LearningAI")
-                round_reward += final_reward
-
-                # Update last experiences with terminal reward
-                for exp in round_experiences[-3:]:  # Last 3 decisions
-                    exp.reward += final_reward / 3
-                    exp.done = True
-
-                break
+            # Update last experiences with terminal reward
+            for exp in learner.experiences[-3:]:  # Last 3 decisions
+                exp.reward += final_reward / 3
+                exp.done = True
 
         # Add all experiences to buffer
-        for exp in round_experiences:
+        for exp in learner.experiences:
             self.replay_buffer.add(exp)
 
         return round_reward
@@ -621,8 +590,6 @@ class Trainer:
         for _ in range(self.config.eval_games):
             game = Game("LearningAI", "Opponent")
             game.deal()
-            self.learning_ai.reset_for_new_hand()
-            opponent.reset_for_new_hand()
 
             rounds = 0
             while (
@@ -634,8 +601,6 @@ class Trainer:
                 if max(p.score for p in game.players) < self.config.target_score:
                     game.new_round()
                     game.deal()
-                    self.learning_ai.reset_for_new_hand()
-                    opponent.reset_for_new_hand()
 
             # Check winner
             if game.players[0].score >= self.config.target_score:
@@ -653,24 +618,7 @@ class Trainer:
 
     def _play_eval_round(self, game: Game, opponent: BasicAI) -> None:
         """Play one evaluation round (no experience collection)."""
-        # Handle first discard (non-dealer discards to start the discard pile)
-        non_dealer_idx = 1 - game.dealer_idx
-        first_discard_ai = self.learning_ai if non_dealer_idx == 0 else opponent
-        discard = first_discard_ai.decide_discard(game.players[non_dealer_idx].hand)
-        game.discard_to_start(discard)
-        (opponent if non_dealer_idx == 0 else self.learning_ai).record_opponent_discard(discard)
-
-        while game.phase.name not in ("ROUND_OVER", "KNOCKED"):
-            current_player_idx = game.current_player_idx
-            ai = self.learning_ai if current_player_idx == 0 else opponent
-
-            ai.update_context(game.get_game_context(current_player_idx))
-
-            other_ai = opponent if current_player_idx == 0 else self.learning_ai
-            result, _, _ = execute_ai_turn(game, ai, other_ai)
-
-            if result in (TurnResult.DRAW, TurnResult.KNOCKED):
-                break
+        run_round(game, [AISeat(self.learning_ai), AISeat(opponent)])
 
     def _save_checkpoint(self, episode: int) -> None:
         """Save model checkpoint.

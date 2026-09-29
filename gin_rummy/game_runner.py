@@ -214,6 +214,8 @@ def execute_ai_turn(
 
     # Track top of discard before draw (for opponent pickup tracking)
     discard_top_before = game.top_of_discard
+    if draw_choice == DrawChoice.DISCARD and not discard_top_before:
+        draw_choice = DrawChoice.DECK  # nothing to pick up: execute_draw falls back to the deck
 
     # Execute draw
     card = execute_draw(game, draw_choice)
@@ -222,8 +224,8 @@ def execute_ai_turn(
         return TurnResult.DRAW, None, None
 
     # Record pickup for opponent tracking
-    if draw_choice == DrawChoice.DISCARD and discard_top_before:
-        record_opponent_pickup(other_ai, discard_top_before)
+    if draw_choice == DrawChoice.DISCARD:
+        record_opponent_pickup(other_ai, card)
 
     # Callback: draw complete
     callbacks.on_draw(current, draw_choice, card)

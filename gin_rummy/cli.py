@@ -10,13 +10,14 @@ from pathlib import Path
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
 from gin_rummy.config import get_config, load_config
 from gin_rummy.database import GameTracker
-from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
+from gin_rummy.game import Game, InvalidActionError, RoundResult
 from gin_rummy.game_runner import (
     TurnActions,
     TurnResult,
     execute_ai_turn,
 )
 from gin_rummy.models import Card, Hand, MeldType, Player, Suit, analyze_hand
+from gin_rummy.round_runner import AISeat, Seat, run_round
 from gin_rummy.tracking import TurnRecord, TurnRecorder, TurnSnapshot
 
 # ANSI color codes for terminal output
@@ -348,7 +349,7 @@ def get_card_choice(hand: Hand, prompt: str) -> int:
 
 
 def play_human_first_discard(game: Game, human_player_idx: int) -> Card:
-    """Handle human player's opening discard. Returns the discarded card."""
+    """Ask the human for the opening discard (the round runner applies it)."""
     current = game.current_player
     display_game_state(game, human_player_idx, turn_player_name=current.name)
     print("Discard one card to start the game.")
@@ -357,22 +358,21 @@ def play_human_first_discard(game: Game, human_player_idx: int) -> Card:
     display_cards = display_hand_by_suit(current.hand, show_numbers=True)
     idx = get_card_choice(game.current_player.hand, "\nCard to discard: ")
     card = display_cards[idx]
-    game.discard_to_start(card)
     print(f"\nDiscarded {card}")
     return card
 
 
-def play_ai_first_discard(game: Game, ai: BasicAI) -> None:
-    """Handle AI's opening discard."""
+def play_ai_first_discard(game: Game, ai: BasicAI) -> Card:
+    """Let the AI choose the opening discard (the round runner applies it)."""
     delay = get_config().display.ai_turn_delay
     ai_name = game.current_player.name
     print(f"\n{ai_name} is choosing a card to discard...")
     time.sleep(delay * 2)  # Slightly longer for first discard
 
     discard = ai.decide_discard(game.current_player.hand)
-    game.discard_to_start(discard)
     print(f"{ai_name} discarded {discard}")
     time.sleep(delay)
+    return discard
 
 
 def play_human_turn(
@@ -574,7 +574,7 @@ def play_ai_turn(
     ai: BasicAI,
     human_player_idx: int,
     tracker: GameTracker | None = None,
-) -> tuple[TurnResult, RoundResult | None]:
+) -> tuple[TurnResult, TurnActions | None, RoundResult | None]:
     """Play an AI turn using shared game runner logic.
 
     Args:
@@ -584,8 +584,7 @@ def play_ai_turn(
         tracker: Optional database tracker for recording turns.
 
     Returns:
-        (TurnResult, RoundResult) - the RoundResult is only set when the
-        round ended this turn (knock or draw).
+        (TurnResult, TurnActions, RoundResult) as execute_ai_turn returns them.
     """
     config = get_config()
     delay = config.display.ai_turn_delay
@@ -600,13 +599,7 @@ def play_ai_turn(
 
     # Execute the turn using shared game logic; capture reasoning when the
     # DB stores AI decisions (same rows the web UI records)
-    turn_result, _, round_result = execute_ai_turn(
-        game, ai, callbacks=callbacks, capture_reasoning=recorder.track_ai_decisions
-    )
-    if turn_result == TurnResult.DRAW:
-        round_result = game.get_draw_result()
-
-    return turn_result, round_result
+    return execute_ai_turn(game, ai, callbacks=callbacks, capture_reasoning=recorder.track_ai_decisions)
 
 
 def display_round_result(game: Game, result: RoundResult | None = None) -> None:
@@ -663,53 +656,66 @@ def finish_round(
     input("\nPress Enter to continue...")
 
 
+class CLIHumanSeat:
+    """A human at the terminal. In player-vs-player mode each turn starts with a hand-over prompt."""
+
+    def __init__(self, player_idx: int, tracker: GameTracker | None, pause_before_turn: bool = False) -> None:
+        self.player_idx = player_idx
+        self.tracker = tracker
+        self.pause_before_turn = pause_before_turn
+
+    def start_round(self, game: Game) -> None:
+        pass
+
+    def opening_discard(self, game: Game) -> Card:
+        clear_screen()
+        return play_human_first_discard(game, self.player_idx)
+
+    def play_turn(self, game: Game) -> tuple[TurnResult, TurnActions | None, RoundResult | None]:
+        if self.pause_before_turn:
+            input("\nPress Enter for next player's turn...")
+        return play_human_turn(game, self.player_idx, self.tracker)
+
+    def observe_pickup(self, card: Card) -> None:
+        pass
+
+    def observe_discard(self, card: Card) -> None:
+        pass
+
+
+class CLIAISeat(AISeat):
+    """The computer opponent: shows the table before it acts and records its turns."""
+
+    def __init__(self, ai: BasicAI, human_player_idx: int, tracker: GameTracker | None) -> None:
+        super().__init__(ai)
+        self.human_player_idx = human_player_idx
+        self.tracker = tracker
+
+    def opening_discard(self, game: Game) -> Card:
+        clear_screen()
+        display_game_state(game, self.human_player_idx, turn_player_name=game.current_player.name)
+        return play_ai_first_discard(game, self.ai)
+
+    def play_turn(self, game: Game) -> tuple[TurnResult, TurnActions | None, RoundResult | None]:
+        clear_screen()
+        display_game_state(game, self.human_player_idx, turn_player_name=game.current_player.name)
+        return play_ai_turn(game, self.ai, self.human_player_idx, self.tracker)
+
+
 def play_round_vs_ai(game: Game, ai: BasicAI, human_player_idx: int, tracker: GameTracker | None = None) -> None:
     """Play a complete round against AI."""
     game.deal()
-    ai.reset_for_new_hand()
 
     # Start hand tracking
     if tracker:
         tracker.start_hand(dealer_name=game.dealer.name)
 
-    # Determine who does first discard (non-dealer)
-    non_dealer_idx = 1 - game.dealer_idx
+    seats: list[Seat] = [CLIHumanSeat(human_player_idx, tracker), CLIAISeat(ai, human_player_idx, tracker)]
+    if human_player_idx == 1:
+        seats.reverse()
+    outcome = run_round(game, seats)
 
-    clear_screen()
-
-    if non_dealer_idx == human_player_idx:
-        # Human does first discard
-        ai.record_opponent_discard(play_human_first_discard(game, human_player_idx))
-    else:
-        # AI does first discard
-        ai_name = game.current_player.name
-        display_game_state(game, human_player_idx, turn_player_name=ai_name)
-        play_ai_first_discard(game, ai)
-
-    # Main game loop
-    turn_result = TurnResult.CONTINUE
-    round_result: RoundResult | None = None
-    while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
-        if game.current_player_idx == human_player_idx:
-            turn_result, actions, round_result = play_human_turn(game, human_player_idx, tracker)
-            if actions is not None:
-                # The AI tracks the human's play the same way it would an AI opponent
-                if actions.draw_source == DrawChoice.DISCARD:
-                    ai.record_opponent_pickup(actions.drawn_card)
-                if not actions.did_knock:
-                    ai.record_opponent_discard(actions.discarded_card)
-            if turn_result != TurnResult.CONTINUE:
-                break
-        else:
-            clear_screen()
-            ai_name = game.current_player.name
-            display_game_state(game, human_player_idx, turn_player_name=ai_name)
-            turn_result, round_result = play_ai_turn(game, ai, human_player_idx, tracker)
-            if turn_result != TurnResult.CONTINUE:
-                break
-            # Continue to human's turn without prompting
-
-    finish_round(game, turn_result, round_result, tracker)
+    finish_round(game, outcome.ended_by, outcome.result, tracker)
 
 
 def play_round_pvp(game: Game, tracker: GameTracker | None = None) -> None:
@@ -720,23 +726,10 @@ def play_round_pvp(game: Game, tracker: GameTracker | None = None) -> None:
     if tracker:
         tracker.start_hand(dealer_name=game.dealer.name)
 
-    # First discard (non-dealer is current player after deal)
-    clear_screen()
-    play_human_first_discard(game, game.current_player_idx)
+    seats = [CLIHumanSeat(idx, tracker, pause_before_turn=True) for idx in range(2)]
+    outcome = run_round(game, seats)
 
-    input("\nPress Enter for next player's turn...")
-
-    # Main game loop
-    turn_result = TurnResult.CONTINUE
-    round_result: RoundResult | None = None
-    while game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
-        turn_result, _, round_result = play_human_turn(game, game.current_player_idx, tracker)
-        if turn_result != TurnResult.CONTINUE:
-            break
-        if game.phase not in (GamePhase.ROUND_OVER, GamePhase.KNOCKED):
-            input("\nPress Enter for next player's turn...")
-
-    finish_round(game, turn_result, round_result, tracker)
+    finish_round(game, outcome.ended_by, outcome.result, tracker)
 
 
 def main() -> None:
