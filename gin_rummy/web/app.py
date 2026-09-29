@@ -43,8 +43,17 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Gin Rummy", lifespan=lifespan)
 
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files the browser must check before reusing, so an edited page or script is never served stale."""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Mount static files
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/static", RevalidatedStaticFiles(directory=STATIC_DIR), name="static")
 
 for router in (pages.router, game.router, history.router, stats.router, scenario.router):
     app.include_router(router)
