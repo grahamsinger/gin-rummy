@@ -4,12 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from gin_rummy.db.connection import get_connection
-
-if TYPE_CHECKING:
-    pass
 
 
 def get_recent_games(limit: int = 10, db_path: Path | None = None) -> list[sqlite3.Row]:

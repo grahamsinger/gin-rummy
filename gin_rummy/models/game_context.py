@@ -4,13 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING
 
 from gin_rummy.models import Card
 from gin_rummy.models.outs import OutsAnalysis
-
-if TYPE_CHECKING:
-    pass
 
 
 class CardLocation(Enum):

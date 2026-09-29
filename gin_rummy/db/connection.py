@@ -6,14 +6,10 @@ import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from gin_rummy.config import get_config
 from gin_rummy.db.migrations import apply_migrations
 from gin_rummy.db.schema import SCHEMA, SCHEMA_VERSION
-
-if TYPE_CHECKING:
-    pass
 
 
 def get_db_path() -> Path:

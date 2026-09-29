@@ -138,19 +138,27 @@ class TestMigrations:
         import sqlite3
 
         from gin_rummy.db import SCHEMA, SCHEMA_VERSION, init_db
+        from gin_rummy.db.migrations import MIGRATIONS
 
+        # A version-2 database: the current schema minus every column the migrations add
+        migrated_columns = [sql.split(" ADD COLUMN ")[1].split()[0] for _, sqls in MIGRATIONS for sql in sqls]
         path = tmp_path / "old.db"
         with sqlite3.connect(path) as conn:
             conn.executescript(SCHEMA)
+            for column in migrated_columns:
+                conn.execute(f"ALTER TABLE games DROP COLUMN {column}")
             conn.execute("INSERT INTO schema_info (version) VALUES (2)")
             conn.commit()
+            before = {row[1] for row in conn.execute("PRAGMA table_info(games)")}
+        assert not before & set(migrated_columns)
 
-        init_db(path)  # every migration runs; the ALTERs are skipped because SCHEMA already has the columns
+        init_db(path)
 
         with sqlite3.connect(path) as conn:
             assert conn.execute("SELECT version FROM schema_info").fetchone()[0] == SCHEMA_VERSION
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(games)")}
-        assert {"oklahoma_gin", "match_mode", "match_id"} <= columns
+            after = {row[1] for row in conn.execute("PRAGMA table_info(games)")}
+        assert set(migrated_columns) <= after
+        assert after == before | set(migrated_columns)
 
     def test_init_db_is_idempotent_on_a_current_database(self, tmp_path):
         import sqlite3

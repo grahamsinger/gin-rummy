@@ -4,13 +4,9 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 from gin_rummy.models import Card, MeldType, Rank, Suit
 from gin_rummy.models.game_context import GameContext
-
-if TYPE_CHECKING:
-    pass
 
 
 @dataclass
