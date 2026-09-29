@@ -19,9 +19,11 @@ the global generator, so a mismatch there may only mean a random call moved.
 Two more lines cover the other loop-style callers:
 - scenario: the frozen positions the scenario quiz generates (20 seeds) plus
   the panel's draw advice, so opponent tracking fed by callbacks is included.
-- learning: a short seeded training run (episode rewards, evaluation and a
-  checksum of the trained weights). Float-sensitive, so compare it only on
-  the same machine and torch build. Skipped when torch is not installed.
+- learning: a short seeded training run with exploration off (episode
+  rewards, evaluation and a checksum of the trained weights), and the
+  greedy choices of a seeded, untrained LearningAI on the scenario
+  positions. Both are float-sensitive, so compare them only on the same
+  machine and torch build. Skipped when torch is not installed.
 """
 
 from __future__ import annotations
@@ -41,7 +43,9 @@ sys.path.insert(0, str(ROOT))
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, StatisticalAI  # noqa: E402
 from gin_rummy.config import Config  # noqa: E402
-from gin_rummy.scenario_quiz import PanelMember, describe_position, generate_stable_scenario  # noqa: E402
+from gin_rummy.game import Game  # noqa: E402
+from gin_rummy.models import Hand  # noqa: E402
+from gin_rummy.scenario_quiz import HUMAN_SEAT, PanelMember, describe_position, generate_stable_scenario  # noqa: E402
 from gin_rummy.simulator import Simulator, SimulatorConfig  # noqa: E402
 
 STATS = ROOT / "models" / "statistical_ai_backup.json"
@@ -75,23 +79,67 @@ def _digest(data: object) -> str:
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
 
 
-def scenario_fingerprint(count: int, seed: int) -> tuple[str, int]:
-    """Hash the positions the scenario quiz generates for `count` consecutive seeds.
+Position = tuple[Game | None, dict | None]
+
+
+def scenario_positions(count: int, seed: int) -> list[Position]:
+    """The positions the scenario quiz generates for `count` consecutive seeds, with their descriptions.
 
     The panel is the two cheap deterministic advisors; MonteCarloAI is left
     out because the panel is only fed during generation, never asked.
     """
     cfg = Config()
     panel = [PanelMember("BasicAI", BasicAI(cfg)), PanelMember("ContextAwareAI", ContextAwareAI(cfg))]
-    positions = []
+    positions: list[Position] = []
     for i in range(count):
         game = generate_stable_scenario(seed + i, panel)
-        positions.append(None if game is None else describe_position(game, panel))
-    return _digest(positions), sum(p is not None for p in positions)
+        positions.append((game, None if game is None else describe_position(game, panel)))
+    return positions
+
+
+def scenario_fingerprint(positions: list[Position]) -> tuple[str, int]:
+    """Hash the described positions."""
+    described = [d for _, d in positions]
+    return _digest(described), sum(d is not None for d in described)
+
+
+def learning_greedy_fingerprint(positions: list[Position], seed: int) -> str | None:
+    """Hash a seeded, untrained LearningAI's greedy draw/discard/knock on each position.
+
+    This exercises the decision path (state encoding, networks, context
+    handling) directly, which the short training run barely does.
+    """
+    try:
+        import torch
+    except ImportError:
+        return None
+    from gin_rummy.learning.learning_ai import LearningAI
+
+    torch.manual_seed(seed)
+    ai = LearningAI(config=Config(), exploration_rate=0.0, device="cpu")
+    ai.eval_mode()
+    choices = []
+    for game, _ in positions:
+        if game is None:
+            choices.append(None)
+            continue
+        ai.reset_for_new_hand()
+        ctx = game.get_game_context(HUMAN_SEAT)
+        hand = game.players[HUMAN_SEAT].hand
+        top = game.top_of_discard
+        assert top is not None
+        draw = ai.decide_draw(hand, top, ctx)
+        hand11 = Hand([*hand, top])
+        discard = ai.decide_discard(hand11, ctx)
+        post = Hand([c for c in hand11 if c != discard])
+        can_knock = post.deadwood_total <= ctx.knock_threshold
+        knock = ai.should_knock(post, ctx, pending_discard=discard) if can_knock else None
+        choices.append((draw.name, discard.code, knock))
+    return _digest(choices)
 
 
 def learning_fingerprint(seed: int) -> tuple[str, int] | None:
-    """Hash a short seeded training run, or None when torch is not installed."""
+    """Hash a short seeded training run (exploration off), or None when torch is not installed."""
     try:
         import torch
     except ImportError:
@@ -110,6 +158,8 @@ def learning_fingerprint(seed: int) -> tuple[str, int] | None:
         eval_games=2,
         save_freq=10_000,
         curriculum=[("basic", 2), ("context", 2)],
+        exploration_start=0.0,
+        exploration_end=0.0,
         seed=seed,
     )
     with tempfile.TemporaryDirectory() as tmp:
@@ -138,7 +188,8 @@ def main() -> None:
         digest, w1, w2 = fingerprint(ai1, ai2, args.games, args.seed)
         print(f"{name}  games={args.games} seed={args.seed}  wins={w1}-{w2}  hash={digest}")
 
-    digest, generated = scenario_fingerprint(args.scenarios, args.seed)
+    positions = scenario_positions(args.scenarios, args.seed)
+    digest, generated = scenario_fingerprint(positions)
     print(
         f"scenario  quiz positions        seeds={args.scenarios} seed={args.seed}  generated={generated}  hash={digest}"
     )
@@ -150,6 +201,8 @@ def main() -> None:
         else:
             digest, buffer_size = result
             print(f"learning  seeded training run   episodes=4 seed={args.seed}  buffer={buffer_size}  hash={digest}")
+            greedy = learning_greedy_fingerprint(positions, args.seed)
+            print(f"learning  greedy on positions   seeds={args.scenarios} seed={args.seed}  hash={greedy}")
 
 
 if __name__ == "__main__":
