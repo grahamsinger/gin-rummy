@@ -34,6 +34,7 @@ out.txt
 stress_test.db
 game_history.db
 *.log
+.ui.pid
 
 # Node
 node_modules/

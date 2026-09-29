@@ -14,10 +14,18 @@ uv sync --extra learning  # + PyTorch for the learning AI
 ## Web UI
 
 ```bash
-uv run uvicorn gin_rummy.web.app:app --reload
+scripts/ui.sh start     # also: stop, restart, status, logs
 ```
 
-Then open http://127.0.0.1:8000
+Then open http://127.0.0.1:8100
+
+This runs the server in the background with auto-reload and writes its output to
+`ui.log`. Use `PORT=8123 scripts/ui.sh start` for a different port. To run it in the
+foreground instead:
+
+```bash
+uv run uvicorn gin_rummy.web.app:app --reload --port 8100
+```
 
 | Page | What it is |
 |------|------------|
