@@ -51,7 +51,7 @@ from gin_rummy.ai import BasicAI, ContextAwareAI, MonteCarloAI, StatisticalAI  #
 from gin_rummy.config import Config  # noqa: E402
 from gin_rummy.game import Game  # noqa: E402
 from gin_rummy.models import Hand  # noqa: E402
-from gin_rummy.scenario_quiz import HUMAN_SEAT, PanelMember, describe_position, generate_stable_scenario  # noqa: E402
+from gin_rummy.scenario.core import HUMAN_SEAT, PanelMember, describe_position, generate_stable_scenario  # noqa: E402
 from gin_rummy.simulator import Simulator, SimulatorConfig  # noqa: E402
 
 STATS = ROOT / "models" / "statistical_ai_backup.json"

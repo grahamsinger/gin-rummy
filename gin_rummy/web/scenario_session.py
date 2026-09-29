@@ -11,7 +11,7 @@ from gin_rummy.ai import DrawChoice
 from gin_rummy.game import Game
 from gin_rummy.game_runner import calculate_post_discard_deadwood
 from gin_rummy.models import Card, Hand
-from gin_rummy.scenario_quiz import (
+from gin_rummy.scenario.core import (
     HUMAN_SEAT,
     PanelMember,
     build_panel,

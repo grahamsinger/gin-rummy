@@ -13,7 +13,7 @@ from pathlib import Path
 from gin_rummy.ai import BasicAI, ContextAwareAI
 from gin_rummy.config import Config
 from gin_rummy.game import GamePhase
-from gin_rummy.scenario_quiz import (
+from gin_rummy.scenario.core import (
     HUMAN_SEAT,
     PanelMember,
     describe_position,

@@ -63,7 +63,7 @@ models/
                            |                              |
                            +------------------------------+-> game_runner --> round_runner
                                                                     |              |
-                                                               web/ (turns)   cli/ simulator/ scenario_quiz learning/trainer
+                                                               web/ (turns)   cli/ simulator/ scenario/ learning/trainer
                                                                     |              |
                                                                     +------ db/ ---+
 ```
