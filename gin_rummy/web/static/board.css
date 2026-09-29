@@ -189,7 +189,7 @@
 
 /* Melded cards */
 .card.melded {
-    border: 2px solid #4caf50;
+    border: 2px solid var(--success);
 }
 
 .meld-group {
@@ -251,7 +251,7 @@
 
 .sort-btn.active {
     background: rgba(255, 255, 255, 0.3);
-    border-color: #4caf50;
+    border-color: var(--success);
     font-weight: bold;
 }
 
@@ -270,7 +270,7 @@
     gap: 0.5rem;
     cursor: pointer;
     font-weight: 500;
-    color: #ff9800;
+    color: var(--warning);
     user-select: none;
 }
 
@@ -319,7 +319,7 @@
 }
 
 .new-game-btn {
-    background: #555;
+    background: var(--border);
     color: #fff;
     border: none;
     padding: 10px 20px;

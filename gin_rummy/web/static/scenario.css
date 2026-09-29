@@ -29,7 +29,7 @@
 .quiz-btn {
     background: #424242;
     color: #fff;
-    border: 1px solid #555;
+    border: 1px solid var(--border);
     padding: 0.5rem 1rem;
     border-radius: 4px;
     text-decoration: none;
@@ -38,7 +38,7 @@
     transition: background 0.2s;
 }
 
-.quiz-btn:hover:not(:disabled) { background: #555; }
+.quiz-btn:hover:not(:disabled) { background: var(--border); }
 .quiz-btn:disabled { opacity: 0.4; cursor: default; }
 .quiz-btn.primary { background: #1b5e20; border-color: #2e7d32; }
 .quiz-btn.primary:hover:not(:disabled) { background: #2e7d32; }
@@ -120,7 +120,7 @@
 
 .reveal-section { margin-bottom: 1rem; }
 .reveal-section h3 {
-    color: #aaa;
+    color: var(--muted);
     font-size: 0.9rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -142,7 +142,7 @@
 
 .reveal-marker { font-weight: bold; width: 1.2rem; text-align: center; }
 .reveal-row.agrees .reveal-marker { color: #66bb6a; }
-.reveal-row.disagrees .reveal-marker { color: #ef5350; }
+.reveal-row.disagrees .reveal-marker { color: var(--danger); }
 
 .reveal-name { color: #fff; font-weight: 600; min-width: 9.5rem; }
 .reveal-text { color: #bbb; flex: 1; }

@@ -44,7 +44,7 @@
 }
 
 .replay-player-name {
-    color: #4fc3f7;
+    color: var(--accent);
     font-weight: bold;
     font-size: 1.1rem;
 }
@@ -60,7 +60,7 @@
 
 .replay-btn {
     background: #424242;
-    border: 1px solid #555;
+    border: 1px solid var(--border);
     color: #fff;
     padding: 0.5rem 1rem;
     border-radius: 4px;
@@ -70,7 +70,7 @@
 }
 
 .replay-btn:hover:not(:disabled) {
-    background: #555;
+    background: var(--border);
 }
 
 .replay-btn:disabled {
@@ -95,15 +95,15 @@
 }
 
 .filter-label {
-    color: #aaa;
+    color: var(--muted);
     font-size: 0.9rem;
     margin-right: 0.5rem;
 }
 
 .filter-btn {
     background: #424242;
-    border: 1px solid #555;
-    color: #aaa;
+    border: 1px solid var(--border);
+    color: var(--muted);
     padding: 0.4rem 0.8rem;
     border-radius: 4px;
     cursor: pointer;
@@ -112,14 +112,14 @@
 }
 
 .filter-btn:hover {
-    background: #555;
+    background: var(--border);
     color: #fff;
 }
 
 .filter-btn.active {
-    background: #4fc3f7;
+    background: var(--accent);
     color: #000;
-    border-color: #4fc3f7;
+    border-color: var(--accent);
     font-weight: bold;
 }
 
@@ -144,7 +144,7 @@
 }
 
 .knock-badge {
-    background: linear-gradient(135deg, #ffc107, #ff9800);
+    background: linear-gradient(135deg, var(--gold), var(--warning));
     color: #000;
     padding: 0.2rem 0.6rem;
     border-radius: 4px;
@@ -175,7 +175,7 @@
 
 .deadwood-change.worsened {
     background: rgba(244, 67, 54, 0.3);
-    color: #ef5350;
+    color: var(--danger);
 }
 
 /* Card display */
@@ -198,7 +198,7 @@
 }
 
 .replay-card.highlight-card {
-    box-shadow: 0 0 0 2px #4fc3f7;
+    box-shadow: 0 0 0 2px var(--accent);
 }
 
 .no-cards {
@@ -222,7 +222,7 @@
 
 .replay-hand-section h4 {
     margin: 0 0 0.75rem 0;
-    color: #aaa;
+    color: var(--muted);
     font-size: 0.9rem;
     text-transform: uppercase;
 }
@@ -271,7 +271,7 @@
 
 .replay-turn-list h4 {
     margin: 0 0 0.75rem 0;
-    color: #aaa;
+    color: var(--muted);
     font-size: 0.9rem;
 }
 
@@ -301,11 +301,11 @@
 
 .turn-list-item.active {
     background: rgba(79, 195, 247, 0.2);
-    border: 1px solid #4fc3f7;
+    border: 1px solid var(--accent);
 }
 
 .turn-list-item.player1 .turn-player {
-    color: #4fc3f7;
+    color: var(--accent);
 }
 
 .turn-list-item.player2 .turn-player {
@@ -335,7 +335,7 @@
 }
 
 .turn-action {
-    color: #aaa;
+    color: var(--muted);
     flex: 1;
 }
 
@@ -344,7 +344,7 @@
 }
 
 .knock-indicator {
-    background: #ff9800;
+    background: var(--warning);
     color: #000;
     padding: 0.1rem 0.4rem;
     border-radius: 3px;
@@ -359,11 +359,11 @@
 }
 
 .replay-error h3 {
-    color: #ef5350;
+    color: var(--danger);
 }
 
 .replay-empty h3 {
-    color: #aaa;
+    color: var(--muted);
 }
 
 /* AI Reasoning Section */
@@ -372,12 +372,12 @@
     padding: 1rem;
     background: rgba(255, 193, 7, 0.05);
     border-radius: 8px;
-    border-left: 3px solid #ffc107;
+    border-left: 3px solid var(--gold);
 }
 
 .ai-reasoning-section h4 {
     margin: 0 0 0.75rem 0;
-    color: #ffc107;
+    color: var(--gold);
     font-size: 1rem;
     font-weight: 600;
 }
@@ -396,11 +396,11 @@
 }
 
 .ai-decision-draw {
-    border-left: 3px solid #4fc3f7;
+    border-left: 3px solid var(--accent);
 }
 
 .ai-decision-discard {
-    border-left: 3px solid #ef5350;
+    border-left: 3px solid var(--danger);
 }
 
 .ai-decision-knock {
@@ -498,12 +498,12 @@
 }
 
 .graph-axis {
-    stroke: #555;
+    stroke: var(--border);
     stroke-width: 1;
 }
 
 .graph-grid {
-    stroke: #333;
+    stroke: var(--panel);
     stroke-width: 0.5;
     stroke-dasharray: 2, 2;
 }
@@ -521,11 +521,11 @@
 }
 
 .player1-line {
-    stroke: #4fc3f7;
+    stroke: var(--accent);
 }
 
 .player2-line {
-    stroke: #ef5350;
+    stroke: var(--danger);
 }
 
 .graph-point {
@@ -533,16 +533,16 @@
 }
 
 .player1-point {
-    fill: #4fc3f7;
+    fill: var(--accent);
 }
 
 .player2-point {
-    fill: #ef5350;
+    fill: var(--danger);
 }
 
 .graph-current-point {
     fill: none;
-    stroke: #ffc107;
+    stroke: var(--gold);
     stroke-width: 2;
 }
 
@@ -566,9 +566,9 @@
 }
 
 .player1-legend .legend-dot {
-    background: #4fc3f7;
+    background: var(--accent);
 }
 
 .player2-legend .legend-dot {
-    background: #ef5350;
+    background: var(--danger);
 }

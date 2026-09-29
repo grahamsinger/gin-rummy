@@ -103,7 +103,7 @@
 }
 
 .knock-yes-btn {
-    background: #ff9800;
+    background: var(--warning);
     color: #000;
     border: none;
     padding: 1rem 2rem;
@@ -167,7 +167,7 @@
 }
 
 .meld-confirm-no-btn {
-    background: #4caf50;
+    background: var(--success);
     color: #fff;
     border: none;
     padding: 1rem 2rem;
@@ -233,7 +233,7 @@
 .settings-field input:focus,
 .settings-field select:focus {
     outline: none;
-    border-color: #4caf50;
+    border-color: var(--success);
 }
 
 .settings-buttons {
@@ -298,7 +298,7 @@
 .stats-player-name h3 {
     margin: 0;
     font-size: 1.3em;
-    color: #333;
+    color: var(--panel);
 }
 
 .stats-list {
@@ -316,12 +316,12 @@
 
 .stat-label {
     font-size: 0.95em;
-    color: #333;
+    color: var(--panel);
 }
 
 .stat-value {
     font-weight: bold;
-    color: #333;
+    color: var(--panel);
     font-size: 0.95em;
 }
 
@@ -385,7 +385,7 @@
 .stats-player-selector label {
     font-weight: 600;
     white-space: nowrap;
-    color: #333;
+    color: var(--panel);
     font-size: 0.95em;
 }
 
@@ -396,7 +396,7 @@
     border: 1px solid rgba(0, 0, 0, 0.2);
     border-radius: 6px;
     background: white;
-    color: #333;
+    color: var(--panel);
     font-size: 0.95em;
     cursor: pointer;
     transition: border-color 0.2s;
@@ -420,7 +420,7 @@
 .clear-stats-btn {
     flex: 1;
     padding: 12px;
-    background: linear-gradient(135deg, #ef5350 0%, #d32f2f 100%);
+    background: linear-gradient(135deg, var(--danger) 0%, #d32f2f 100%);
     color: white;
     border: none;
     border-radius: 8px;
@@ -449,14 +449,14 @@
 }
 
 .clear-stats-modal-content h2 {
-    color: #ff9800;
+    color: var(--warning);
     margin-bottom: 15px;
 }
 
 .clear-stats-modal-content p {
     margin: 10px 0;
     line-height: 1.5;
-    color: #333;
+    color: var(--panel);
 }
 
 .clear-stats-buttons {
@@ -468,7 +468,7 @@
 .clear-stats-confirm-btn {
     flex: 1;
     padding: 12px;
-    background: linear-gradient(135deg, #ef5350 0%, #d32f2f 100%);
+    background: linear-gradient(135deg, var(--danger) 0%, #d32f2f 100%);
     color: white;
     border: none;
     border-radius: 8px;
@@ -541,12 +541,12 @@
 }
 
 .score-badge-gin {
-    background: #4caf50;
+    background: var(--success);
     color: white;
 }
 
 .score-badge-undercut {
-    background: #ff9800;
+    background: var(--warning);
     color: white;
 }
 
@@ -605,7 +605,7 @@
 
 .game-over-details {
     margin: 20px 0;
-    color: #333;
+    color: var(--panel);
 }
 
 .game-over-buttons {
@@ -664,7 +664,7 @@
 
 .score-history-row .view-replay-hint {
     font-size: 0.8rem;
-    color: #4fc3f7;
+    color: var(--accent);
     opacity: 0;
     transition: opacity 0.2s;
 }

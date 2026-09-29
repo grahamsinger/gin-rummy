@@ -21,7 +21,8 @@ async function cssComputedDiff(oldUrl, newUrl) {
         return [...win.document.querySelectorAll('body *')].map(el => {
             const cs = win.getComputedStyle(el);
             const o = {};
-            for (const p of cs) o[p] = cs.getPropertyValue(p);
+            // custom properties (--x) inherit onto every element; only rendered values matter
+            for (const p of cs) if (!p.startsWith('--')) o[p] = cs.getPropertyValue(p);
             return { key: `${el.tagName}#${el.id}.${el.className}`, o };
         });
     }

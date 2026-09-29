@@ -24,7 +24,7 @@
 .back-to-game {
     background: #424242;
     color: #fff;
-    border: 1px solid #555;
+    border: 1px solid var(--border);
     padding: 0.5rem 1rem;
     border-radius: 4px;
     text-decoration: none;
@@ -32,7 +32,7 @@
 }
 
 .back-to-game:hover {
-    background: #555;
+    background: var(--border);
 }
 
 /* Status bar */
@@ -63,7 +63,7 @@
 }
 
 #timer-display {
-    color: #ffc107;
+    color: var(--gold);
 }
 
 /* Reveal area */
@@ -111,7 +111,7 @@
 }
 
 .reveal-area .card.guess-correct {
-    border: 2px solid #4caf50;
+    border: 2px solid var(--success);
     box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
 }
 
@@ -180,7 +180,7 @@
 }
 
 .grid-card.selected {
-    border-color: #4fc3f7;
+    border-color: var(--accent);
     background: rgba(79, 195, 247, 0.3);
     color: #fff;
     box-shadow: 0 0 8px rgba(79, 195, 247, 0.4);
@@ -202,7 +202,7 @@
 
 /* Result states */
 .grid-card.correct {
-    border-color: #4caf50;
+    border-color: var(--success);
     background: rgba(76, 175, 80, 0.4);
     color: #fff;
     box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
@@ -213,7 +213,7 @@
 }
 
 .grid-card.missed {
-    border-color: #ffc107;
+    border-color: var(--gold);
     background: rgba(255, 193, 7, 0.3);
     color: #fff;
     box-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
@@ -262,7 +262,7 @@
 }
 
 .btn-start {
-    background: #4caf50;
+    background: var(--success);
     color: #fff;
 }
 
@@ -271,7 +271,7 @@
 }
 
 .btn-submit {
-    background: #4fc3f7;
+    background: var(--accent);
     color: #000;
 }
 
@@ -285,11 +285,11 @@
 }
 
 .btn-next:hover:not(:disabled) {
-    background: #4caf50;
+    background: var(--success);
 }
 
 .btn-restart {
-    background: #ff9800;
+    background: var(--warning);
     color: #000;
 }
 
@@ -322,7 +322,7 @@
 }
 
 .results-summary.success .result-title {
-    color: #4caf50;
+    color: var(--success);
 }
 
 .results-summary.failure .result-title {
@@ -351,10 +351,10 @@
     border-radius: 3px;
 }
 
-.legend-swatch.correct { background: rgba(76, 175, 80, 0.5); border: 1px solid #4caf50; }
-.legend-swatch.missed { background: rgba(255, 193, 7, 0.4); border: 1px solid #ffc107; }
+.legend-swatch.correct { background: rgba(76, 175, 80, 0.5); border: 1px solid var(--success); }
+.legend-swatch.missed { background: rgba(255, 193, 7, 0.4); border: 1px solid var(--gold); }
 .legend-swatch.wrong { background: rgba(244, 67, 54, 0.4); border: 1px solid #f44336; }
-.legend-swatch.selected-swatch { background: rgba(79, 195, 247, 0.4); border: 1px solid #4fc3f7; }
+.legend-swatch.selected-swatch { background: rgba(79, 195, 247, 0.4); border: 1px solid var(--accent); }
 
 /* High score */
 .high-score {
@@ -365,5 +365,5 @@
 }
 
 .high-score strong {
-    color: #ffc107;
+    color: var(--gold);
 }

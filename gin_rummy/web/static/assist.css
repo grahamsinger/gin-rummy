@@ -15,7 +15,7 @@
 .ai-thinking-header {
     padding: 0.4rem 0.8rem;
     cursor: pointer;
-    color: #ffc107;
+    color: var(--gold);
     font-weight: 600;
     user-select: none;
     display: flex;
@@ -231,13 +231,13 @@
 /* Color coding for card locations */
 .tracker-cell.in-my-hand {
     background: rgba(76, 175, 80, 0.4);
-    border: 1px solid #4caf50;
+    border: 1px solid var(--success);
     color: #fff;
 }
 
 .tracker-cell.dead-card {
     background: rgba(50, 50, 50, 0.4);
-    color: #555;
+    color: var(--border);
     text-decoration: line-through;
     opacity: 0.6;
 }

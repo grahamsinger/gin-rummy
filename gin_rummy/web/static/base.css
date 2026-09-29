@@ -1,5 +1,18 @@
 /* Reset, body, utilities and animations shared by every page. */
 
+/* Colour tokens: change a colour here, not in the rules that use it. */
+:root {
+    --felt: #1a5f2a;  /* table background */
+    --accent: #4fc3f7;  /* links, highlights, the AI's colour */
+    --danger: #ef5350;  /* errors, delete, red suits in some panels */
+    --success: #4caf50;  /* confirm, positive values */
+    --warning: #ff9800;  /* attention, knock */
+    --gold: #ffc107;  /* gin, wins */
+    --muted: #aaa;  /* secondary text */
+    --panel: #333;  /* dark panel backgrounds */
+    --border: #555;  /* panel borders and dividers */
+}
+
 /* Reset and base styles */
 * {
     margin: 0;
@@ -9,7 +22,7 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #1a5f2a;
+    background: var(--felt);
     color: #fff;
     min-height: 100vh;
 }
