@@ -9,7 +9,7 @@ from pathlib import Path
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice
 from gin_rummy.config import get_config, load_config
-from gin_rummy.database import GameTracker
+from gin_rummy.db import GameTracker
 from gin_rummy.game import Game, InvalidActionError, RoundResult
 from gin_rummy.game_runner import (
     TurnActions,

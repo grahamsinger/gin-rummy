@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from gin_rummy.config import get_config
-from gin_rummy.database import (
+from gin_rummy.db import (
     GameTracker,
     cleanup_empty_games,
     delete_game,

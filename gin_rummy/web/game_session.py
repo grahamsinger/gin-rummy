@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gin_rummy.ai import DIFFICULTY_TO_AI, BasicAI, DrawChoice, MonteCarloAI, make_ai
-from gin_rummy.database import GameTracker, get_connection, get_resumable_game
+from gin_rummy.db import GameTracker, get_connection, get_resumable_game
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import TurnResult, execute_ai_turn, get_ai_context
 from gin_rummy.models import Card, Player, Rank, Suit, analyze_hand

@@ -18,7 +18,7 @@ import pytest
 import gin_rummy.config as config_module
 from gin_rummy.ai import BasicAI
 from gin_rummy.config import Config
-from gin_rummy.database import GameTracker
+from gin_rummy.db import GameTracker
 from gin_rummy.game import Game
 from gin_rummy.models import Card
 

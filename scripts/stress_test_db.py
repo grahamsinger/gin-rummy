@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from gin_rummy.database import SCHEMA, SCHEMA_VERSION
+from gin_rummy.db import SCHEMA, SCHEMA_VERSION
 
 STRESS_DB_PATH = Path(__file__).parent.parent / "stress_test.db"
 

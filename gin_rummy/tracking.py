@@ -22,7 +22,7 @@ from gin_rummy.ai import DrawChoice, TurnReasoning
 from gin_rummy.config import get_config
 
 if TYPE_CHECKING:
-    from gin_rummy.database import GameTracker
+    from gin_rummy.db import GameTracker
     from gin_rummy.game_runner import TurnActions
     from gin_rummy.models import Card, Player
 

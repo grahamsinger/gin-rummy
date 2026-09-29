@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from gin_rummy.database import GameTracker, get_resumable_game
+from gin_rummy.db import GameTracker, get_resumable_game
 from gin_rummy.game import Game
 from gin_rummy.models import Card, Rank, Suit
 
