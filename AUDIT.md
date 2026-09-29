@@ -229,10 +229,6 @@
 >   - **Scenario quiz:** needs a seeded fingerprint of the generated scenarios.
 >   - **Trainer:** needs a `--seed` (including torch seeding, §4 Randomness) and a short seeded training-run fingerprint.
 
-> ### C. Pass the game context to discard decisions: do before §3 (found 2026-09-29)
->
-> `execute_ai_turn` passes `context` to draw and knock but not to discard, so ContextAwareAI, MonteCarloAI and LearningAI discard with `ctx=None` everywhere. The trainer used to paper over this with `update_context()`, until `c386d82` removed those calls. Details, measurements and the fix are in **Latest review → Finding**. It's a deliberate behaviour change: one commit, with new fingerprint baselines and win rates in the message.
-
 > ### C. ~~Discard decisions made without a context (review finding, 2026-09-29)~~ Done (2026-09-29)
 >
 > Commits, in order: `a3e2191` fingerprint strengthening, `1ee409e` context to every discard, `2825803` post-draw context + `drawn_card`, `3c7ddd0` fallback removed, `52926fe` knock gate.
@@ -242,6 +238,7 @@
 > 3. **New finding, fixed: LearningAI never used DiscardNet on the runner path.** Its discard needs the drawn card, which only the legacy `make_turn_decision` set, so every trainer/eval/simulator discard was the BasicAI fallback (the network was trained on experiences it never played from). `execute_ai_turn` now rebuilds the context after the draw, and `GameContext.drawn_card` carries the card for the player on turn. Test: `TestLearnerDiscardsWithItsNetwork`. Fingerprints: primary `49ebb018605bbae6` → `1dac7619151ab161`, secondary `56c04fee7ecf6e24` → `e871d8e2b56ac099`, scenario unchanged, learning → `5727b2291609a143`, greedy → `9c27f019e9aee7f5` (the script now sets `drawn_card` too). Only ContextAwareAI's knock reads the changed fields; its win rate is unchanged within noise (400 games: seed 42 223→213, seed 7 209→223 vs Basic; 364→355 and 363→362 vs Statistical).
 > 4. **`update_context` / `_current_context` removed** everywhere; decisions take the context explicitly. Fingerprints unchanged.
 > 5. **Nit 1:** the trainer's knock-experience gate uses `game.knock_threshold`. Nit 2 is item 1.
+> 6. **Review nits on this batch** (commit after `3bcb2c0`): `make_turn_decision` and `LearningAI._drawn_card` removed, stale comments and `ctx` aliases gone from ContextAwareAI, web opening-discard test added, duplicate heading deleted. Fingerprints unchanged.
 >
 > Current baselines: primary `1dac7619151ab161` (72-78), secondary `e871d8e2b56ac099` (132-18), scenario `458764989f15a853`, learning `5727b2291609a143` (buffer 86), greedy `9c27f019e9aee7f5`.
 
