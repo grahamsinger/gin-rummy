@@ -592,7 +592,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 | ~~`learning/trainer.py`~~ | 799 | _Done: `_LearnerSeat` over the round runner (`c386d82`); `main()` moved to `learning/train_cli.py` (`e815b5f`), `trainer.py` is 646 lines._ |
 | ~~`simulator.py`~~ | 644 | _Done 2026-09-29 (`48066ba`, pure move): `simulator/metrics.py`, `simulator/runner.py`, `simulator/cli.py` (`create_ai` is a thin wrapper over `make_ai` from §2.3); `__init__` re-exports, `__main__` keeps `python -m` working._ |
 | ~~`web/app.py`~~ | 606 | _Done 2026-09-29 (`0abd6ab` pure move with the route table diffed before/after, then `Depends`): `web/sessions.py` (`SessionDep`, `ScenarioDep`), `web/routes/{pages,game,history,stats,scenario}.py`, `routes/common.py` (`ok()`); `app.py` is 50 lines._ |
-| `web/static/replay.js` | 651 | `HandReplay` is a single ~550-line class; split rendering from playback control. _Still open after the step-9 batch: it is an ES module exporting the class now (`8684d42`), but not split._ |
+| `web/static/replay.js` | 651 | ~~`HandReplay` is a single ~550-line class; split rendering from playback control.~~ Done: `replay.js` (283 lines, `HandReplay` state, navigation, listeners) + `replay-render.js` (391 lines, HTML builders). The close-button regression and the keydown doubling were fixed first in `be9efbf`. |
 
 **Longest functions**, in approximate lines:
 - `game.js init`: 255
@@ -734,5 +734,5 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 6. ~~**MC worker-pool lifecycle and blocking web routes** ("Next up" A at the top).~~ Done 2026-09-28.
 7. ~~**Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.~~ Done 2026-09-28 ("Next up" B).
 8. **Split the large files (§3):** ~~`monte_carlo.py`~~ (done 2026-09-29), ~~`context.py` + `database.py`~~ (done 2026-09-29), ~~`cli.py` + `simulator.py` + trainer glue~~ (done 2026-09-29), ~~`game_session.py`/`app.py`~~ (done 2026-09-29). Remaining §3 rows are the frontend files (step 9). One batch per review; pure-move commit first, cleanups after, every fingerprint line unchanged.
-9. ~~**Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.~~ Done 2026-09-29 (`8684d42`…`init` split); `replay.js` render/control split still open. Also done in this batch: `scenario_quiz.py` → `scenario/` (`d604345`), so the web app no longer imports `cli/`.
+9. ~~**Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.~~ Done 2026-09-29 (`8684d42`…`init` split); `replay.js` render/control split done in the follow-up batch (`be9efbf` regression fix, then the split). Also done in the step-9 batch: `scenario_quiz.py` → `scenario/` (`d604345`), so the web app no longer imports `cli/`.
 10. **Docs and TODO cleanup.**
