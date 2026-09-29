@@ -1,6 +1,33 @@
 # Codebase Audit
 
-> ## Latest review: §3 batch 1 of 4, `monte_carlo.py` split (`7ef5618`…`0034c27`), 2026-09-29
+> ## Latest review: §3 batch 2 of 4, `context.py` + `database.py` splits (`6088cd8`…`c0ff576`), 2026-09-29
+>
+> **Verdict: verified.** Both splits are byte-for-byte moves, the migrations list behaves identically on real upgrades, and last batch's nits are fixed. Nothing blocking; three small nits.
+>
+> **Checks at `c0ff576`:**
+> - **Tests:** 366 pass.
+> - **Real DB untouched:** `game_history.db` has the same md5 before and after the suite. That shows the split `isolated_db` fixture still isolates every write.
+> - **Lint and types:** `ruff check` and `ruff format --check` are clean, eslint shows 0 warnings, and `ty` reports 37.
+> - **Fingerprints:** all six lines are unchanged at `85f447a`, `cf59da9` and HEAD (`1dac7619151ab161`, `e871d8e2b56ac099`, `458764989f15a853`, `00812a7579abd075`, `5727b2291609a143`, `9c27f019e9aee7f5`). Scratch worktrees are removed.
+>
+> | Commit | Verified |
+> |---|---|
+> | `6088cd8` review nits | ✅ The pool test now simulates a knock (`AS 2S 3S 4H 5H 6H 7C 8C 9C 5D`, 5 deadwood, turn plan cleared) and asserts `knock_avg_points is not None`, so `_knock_sim_batch` goes through the real pool. The docs now say "four" |
+> | `9920210` audit row | ✅ |
+> | `85f447a` `context.py` split | ✅ **Checked with the AST:** all 10 top-level definitions have identical source in `models/outs.py`, `models/game_context.py`, `ai/outs.py`, `ai/opponent_model.py` and `ai/thresholds.py`. **The layering holds:** nothing under `models/` imports from `ai/`, `learning/`, `web/` or `db/`. No importers of `gin_rummy.context` remain |
+> | `cf59da9` `database.py` split | ✅ **Checked with the AST:** all 17 definitions are identical, and the only new one is `db/__init__.__all__`. The old module's only other top-level code was a `TYPE_CHECKING` import. **Test isolation, traced:** reads go through `connection.get_connection`, which resolves `connection.get_db_path`, and `GameTracker` uses `tracker.get_db_path`. The fixture patches both, and nothing else resolves the path |
+> | `6782ab9` migrations list | ✅ **Compared empirically:** I built databases at v2 and v3 by creating the current schema and `DROP COLUMN`-ing the later columns, plus one at v4. Old `init_db` (`cf59da9`) and new `init_db` produce **identical** results for all three: version 4, 16 `games` columns, same `sqlite_master`. `test_migration_list_is_ordered_and_ends_at_the_schema_version` guards against bumping `SCHEMA_VERSION` without adding a migration |
+>
+> **Nits (optional):**
+> 1. **`test_init_db_upgrades_an_old_database` never runs an `ALTER`.** It starts from the current `SCHEMA`, where every column already exists, so all the statements are suppressed as "column already exists". Its own comment says so. Drop the migrated columns first (`ALTER TABLE games DROP COLUMN …`, available since SQLite 3.35), so the test proves the columns actually get *added*. That's the check I ran by hand above.
+> 2. **Six empty `if TYPE_CHECKING: pass` blocks** came along with the moves: `db/connection.py:15`, `db/schema.py:7`, `db/queries.py:11`, `models/game_context.py:12`, `models/outs.py:11`, `ai/opponent_model.py:12`. `d22c02f` removed the same leftover from the `mc/` modules.
+> 3. **Some still-open audit items point at deleted files:**
+>    - §2's duplication table rows: `context.py:90-128`, `:477-505`; `database.py:794-807`.
+>    - §4: `database.py:283, 383, 411`, `:348-365` (connection per write), `:886-906`, and `context.py:274` (`find_all_melds` in a loop).
+>
+>    Repoint them at `db/tracker.py`, `db/queries.py`, `ai/outs.py` and `models/game_context.py`, or mark them done, so the next agent doesn't go looking for `database.py`.
+
+> ## Earlier review: §3 batch 1 of 4, `monte_carlo.py` split (`7ef5618`…`0034c27`), 2026-09-29
 >
 > **Verdict: verified.** The pure move is byte-for-byte identical, and both cleanups preserve behaviour on every path I could reach. Nothing blocking; three small nits.
 >
