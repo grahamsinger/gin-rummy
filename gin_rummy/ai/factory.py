@@ -12,7 +12,7 @@ from typing import Any
 
 from gin_rummy.ai.basic import BasicAI
 from gin_rummy.ai.context_aware import ContextAwareAI
-from gin_rummy.ai.monte_carlo import MonteCarloAI
+from gin_rummy.ai.mc import MonteCarloAI
 from gin_rummy.ai.statistical import StatisticalAI
 from gin_rummy.config import Config
 

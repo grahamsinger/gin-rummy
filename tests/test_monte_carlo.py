@@ -5,7 +5,7 @@ import random
 import pytest
 
 from gin_rummy.ai import BasicAI, DrawChoice, MonteCarloAI
-from gin_rummy.ai.monte_carlo import (
+from gin_rummy.ai.mc.rollout import (
     ALL_CARDS,
     RolloutResult,
     evaluate_terminal,
