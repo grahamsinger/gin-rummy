@@ -1,0 +1,775 @@
+/* Every modal on the game page: knock, meld, settings, stats, score history, game over, resume, mini games. */
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.modal-content {
+    background: #2e7d32;
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    max-width: 90%;
+    max-height: 90%;
+    overflow-y: auto;
+}
+
+.modal-content h2 {
+    margin-bottom: 1rem;
+}
+
+#round-result-details {
+    font-size: 1.2rem;
+    margin-bottom: 1.5rem;
+    white-space: pre-line;
+}
+
+.modal-hands {
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.modal-hand {
+    text-align: center;
+}
+
+.modal-hand h3 {
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+.modal-hand .card-row {
+    justify-content: center;
+}
+
+.modal-hand .card {
+    width: 50px;
+    height: 70px;
+    font-size: 1rem;
+}
+
+.modal-hand .card .suit {
+    font-size: 1.3rem;
+}
+
+.modal-hand .deadwood-label {
+    width: 100%;
+    text-align: center;
+    margin-top: 0.5rem;
+    font-weight: bold;
+    color: #ffeb3b;
+}
+
+.modal-hand .deadwood-after-layoff {
+    font-size: 1.15em;
+}
+
+.modal-hand .meld-group {
+    display: inline-flex;
+    gap: 0.15rem;
+    background: rgba(76, 175, 80, 0.3);
+    padding: 0.2rem;
+    border-radius: 6px;
+    margin: 0.15rem;
+}
+
+/* Knock confirmation modal */
+.knock-modal-content {
+    max-width: 400px;
+}
+
+.knock-modal-content p {
+    font-size: 1.2rem;
+    margin-bottom: 1.5rem;
+}
+
+.knock-modal-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.knock-yes-btn {
+    background: #ff9800;
+    color: #000;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.knock-yes-btn:hover {
+    background: #ffa726;
+}
+
+.knock-no-btn {
+    background: #666;
+    color: #fff;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.knock-no-btn:hover {
+    background: #777;
+}
+
+/* Meld discard confirmation modal */
+.meld-confirm-modal-content {
+    max-width: 400px;
+}
+
+.meld-confirm-modal-content h2 {
+    color: #ffa726;
+}
+
+.meld-confirm-modal-content p {
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
+}
+
+.meld-confirm-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.meld-confirm-yes-btn {
+    background: #f44336;
+    color: #fff;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.meld-confirm-yes-btn:hover {
+    background: #e53935;
+}
+
+.meld-confirm-no-btn {
+    background: #4caf50;
+    color: #fff;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.meld-confirm-no-btn:hover {
+    background: #43a047;
+}
+
+.next-round-btn {
+    background: #fff;
+    color: #2e7d32;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.next-round-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Settings modal */
+.settings-modal-content {
+    max-width: 400px;
+}
+
+.settings-modal-content form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    text-align: left;
+}
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.settings-field label {
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.settings-field input,
+.settings-field select {
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 2px solid #1b5e20;
+    border-radius: 6px;
+    background: #fff;
+    color: #000;
+}
+
+.settings-field input:focus,
+.settings-field select:focus {
+    outline: none;
+    border-color: #4caf50;
+}
+
+.settings-buttons {
+    display: flex;
+    gap: 1rem;
+}
+
+.start-game-btn {
+    flex: 1;
+    background: #fff;
+    color: #2e7d32;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.1s;
+    margin-top: 1rem;
+}
+
+.start-game-btn:hover {
+    transform: scale(1.05);
+}
+
+.cancel-settings-btn {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 1rem;
+}
+
+.cancel-settings-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.8);
+    transform: scale(1.05);
+}
+
+/* Stats Modal */
+.stats-modal-content {
+    max-width: 400px;
+}
+
+.stats-content {
+    margin: 15px 0;
+}
+
+.stats-player-name {
+    text-align: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #ddd;
+}
+
+.stats-player-name h3 {
+    margin: 0;
+    font-size: 1.3em;
+    color: #333;
+}
+
+.stats-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+}
+
+.stat-label {
+    font-size: 0.95em;
+    color: #333;
+}
+
+.stat-value {
+    font-weight: bold;
+    color: #333;
+    font-size: 0.95em;
+}
+
+.stats-loading, .stats-empty, .stats-error {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+}
+
+.stats-empty p {
+    margin: 10px 0;
+}
+
+.stats-error {
+    color: #d32f2f;
+}
+
+.stats-close-btn {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.stats-close-btn:hover {
+    opacity: 0.9;
+}
+
+.view-stats-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.view-stats-btn:hover {
+    opacity: 0.9;
+}
+
+/* Player Selection in Stats Modal */
+.stats-player-selector {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    border: 2px solid rgba(102, 126, 234, 0.3);
+}
+
+.stats-player-selector label {
+    font-weight: 600;
+    white-space: nowrap;
+    color: #333;
+    font-size: 0.95em;
+}
+
+.stats-player-select {
+    flex: 1;
+    min-width: 0; /* Allow flex item to shrink below content size */
+    padding: 8px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    background: white;
+    color: #333;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stats-player-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Stats Actions */
+.stats-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.clear-stats-btn {
+    flex: 1;
+    padding: 12px;
+    background: linear-gradient(135deg, #ef5350 0%, #d32f2f 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.clear-stats-btn:hover {
+    opacity: 0.9;
+}
+
+.clear-stats-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.stats-close-btn {
+    flex: 1;
+}
+
+/* Clear Stats Confirmation Modal */
+.clear-stats-modal-content {
+    max-width: 450px;
+    text-align: center;
+}
+
+.clear-stats-modal-content h2 {
+    color: #ff9800;
+    margin-bottom: 15px;
+}
+
+.clear-stats-modal-content p {
+    margin: 10px 0;
+    line-height: 1.5;
+    color: #333;
+}
+
+.clear-stats-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.clear-stats-confirm-btn {
+    flex: 1;
+    padding: 12px;
+    background: linear-gradient(135deg, #ef5350 0%, #d32f2f 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.clear-stats-confirm-btn:hover {
+    opacity: 0.9;
+}
+
+.clear-stats-cancel-btn {
+    flex: 1;
+    padding: 12px;
+    background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.clear-stats-cancel-btn:hover {
+    opacity: 0.9;
+}
+
+/* Score History Modal */
+.score-history-modal-content {
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.score-history-content {
+    margin: 15px 0;
+}
+
+.score-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+}
+
+.score-history-table th,
+.score-history-table td {
+    padding: 8px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.score-history-table th {
+    font-weight: bold;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.score-history-row-highlight {
+    background: rgba(255, 215, 0, 0.1);
+}
+
+.score-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.85em;
+    margin-left: 4px;
+}
+
+.score-badge-gin {
+    background: #4caf50;
+    color: white;
+}
+
+.score-badge-undercut {
+    background: #ff9800;
+    color: white;
+}
+
+.score-badge-draw {
+    background: #757575;
+    color: white;
+}
+
+.score-history-close-btn {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: opacity 0.2s;
+}
+
+.score-history-close-btn:hover {
+    opacity: 0.9;
+}
+
+.score-history-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.score-history-btn:hover {
+    opacity: 0.9;
+}
+
+/* Game Over Modal */
+.game-over-modal-content {
+    max-width: 500px;
+    text-align: center;
+}
+
+.game-over-modal-content h2 {
+    font-size: 2em;
+    margin-bottom: 10px;
+    background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.game-over-details {
+    margin: 20px 0;
+    color: #333;
+}
+
+.game-over-buttons {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.new-game-after-win-btn,
+.view-stats-after-win-btn {
+    flex: 1;
+    padding: 15px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.new-game-after-win-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.new-game-after-win-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.view-stats-after-win-btn {
+    background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+    color: white;
+}
+
+.view-stats-after-win-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(102, 187, 106, 0.4);
+}
+
+.score-loading {
+    text-align: center;
+    padding: 20px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* Score history clickable rows */
+.score-history-row.clickable {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.score-history-row.clickable:hover {
+    background: rgba(79, 195, 247, 0.1);
+}
+
+.score-history-row .view-replay-hint {
+    font-size: 0.8rem;
+    color: #4fc3f7;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.score-history-row.clickable:hover .view-replay-hint {
+    opacity: 1;
+}
+
+/* Replay modal */
+.replay-modal-content {
+    max-width: 900px;
+    width: 95%;
+}
+
+/* Score history hint */
+.score-history-hint {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+    margin: 0 0 1rem 0;
+    font-style: italic;
+}
+
+/* Resume Modal */
+.resume-modal-content {
+    max-width: 450px;
+}
+
+.resume-game-details {
+    margin: 1rem 0 1.5rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    text-align: left;
+    line-height: 1.6;
+}
+
+.resume-game-details .resume-detail-label {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.85rem;
+}
+
+.resume-game-details .resume-detail-value {
+    font-weight: bold;
+    color: #fff;
+}
+
+.resume-buttons {
+    display: flex;
+    gap: 1rem;
+}
+
+/* Mini Games Modal */
+.mini-games-modal-content {
+    max-width: 400px;
+}
+
+.mini-games-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+}
+
+.mini-game-option {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    text-decoration: none;
+    color: #fff;
+    transition: background 0.2s, transform 0.1s;
+    cursor: pointer;
+}
+
+.mini-game-option:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.02);
+}
+
+.mini-game-icon {
+    font-size: 2rem;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.mini-game-info {
+    text-align: left;
+}
+
+.mini-game-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+}
+
+.mini-game-desc {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+}

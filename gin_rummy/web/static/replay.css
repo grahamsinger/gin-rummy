@@ -1,0 +1,574 @@
+/* The hand replay component (game page score history and the history page). */
+
+/* ===========================================
+   Hand Replay Component
+   =========================================== */
+
+.replay-container {
+    background: rgba(30, 30, 30, 0.98);
+    border-radius: 12px;
+    padding: 1.5rem;
+    color: #fff;
+    position: relative;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.replay-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    line-height: 1;
+}
+
+.replay-close-btn:hover {
+    color: #fff;
+}
+
+.replay-header {
+    text-align: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 1rem;
+}
+
+.replay-header h3 {
+    margin: 0 0 0.5rem 0;
+    color: #fff;
+}
+
+.replay-player-name {
+    color: #4fc3f7;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+/* Navigation controls */
+.replay-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.replay-btn {
+    background: #424242;
+    border: 1px solid #555;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s;
+}
+
+.replay-btn:hover:not(:disabled) {
+    background: #555;
+}
+
+.replay-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.replay-position {
+    padding: 0 1rem;
+    font-weight: bold;
+    min-width: 80px;
+    text-align: center;
+}
+
+/* Player filter */
+.replay-filter {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.filter-label {
+    color: #aaa;
+    font-size: 0.9rem;
+    margin-right: 0.5rem;
+}
+
+.filter-btn {
+    background: #424242;
+    border: 1px solid #555;
+    color: #aaa;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.filter-btn:hover {
+    background: #555;
+    color: #fff;
+}
+
+.filter-btn.active {
+    background: #4fc3f7;
+    color: #000;
+    border-color: #4fc3f7;
+    font-weight: bold;
+}
+
+/* Turn details */
+.replay-turn-details {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.replay-action {
+    margin-bottom: 0.75rem;
+    font-size: 1.05rem;
+}
+
+.replay-action .draw-source {
+    background: #616161;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.knock-badge {
+    background: linear-gradient(135deg, #ffc107, #ff9800);
+    color: #000;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-weight: bold;
+    margin-left: 0.5rem;
+    animation: pulse-soft 1s infinite;
+}
+
+@keyframes pulse-soft {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.replay-deadwood {
+    font-size: 1rem;
+}
+
+.deadwood-change {
+    font-weight: bold;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+}
+
+.deadwood-change.improved {
+    background: rgba(76, 175, 80, 0.3);
+    color: #81c784;
+}
+
+.deadwood-change.worsened {
+    background: rgba(244, 67, 54, 0.3);
+    color: #ef5350;
+}
+
+/* Card display */
+.replay-card {
+    display: inline-block;
+    padding: 0.2rem 0.4rem;
+    margin: 0.1rem;
+    background: #fff;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.95rem;
+}
+
+.replay-card.red-card {
+    color: #c62828;
+}
+
+.replay-card.black-card {
+    color: #212121;
+}
+
+.replay-card.highlight-card {
+    box-shadow: 0 0 0 2px #4fc3f7;
+}
+
+.no-cards {
+    color: #888;
+    font-style: italic;
+}
+
+/* Hands display */
+.replay-hands {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.replay-hand-section {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.replay-hand-section h4 {
+    margin: 0 0 0.75rem 0;
+    color: #aaa;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+}
+
+.replay-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+/* Meld grouping in replay */
+.replay-meld-group {
+    display: inline-flex;
+    gap: 0.2rem;
+    padding: 0.2rem 0.4rem;
+    background: rgba(76, 175, 80, 0.15);
+    border-radius: 4px;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    margin-right: 0.3rem;
+}
+
+.replay-meld-group.meld-run {
+    background: rgba(33, 150, 243, 0.15);
+    border-color: rgba(33, 150, 243, 0.3);
+}
+
+.replay-meld-group.meld-set {
+    background: rgba(156, 39, 176, 0.15);
+    border-color: rgba(156, 39, 176, 0.3);
+}
+
+.replay-card.melded {
+    font-weight: 600;
+}
+
+.replay-card.deadwood {
+    opacity: 0.8;
+}
+
+/* Turn list */
+.replay-turn-list {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 1rem;
+}
+
+.replay-turn-list h4 {
+    margin: 0 0 0.75rem 0;
+    color: #aaa;
+    font-size: 0.9rem;
+}
+
+.turn-list-scroll {
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.turn-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 0.9rem;
+}
+
+.turn-list-item:hover {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.turn-list-item.active {
+    background: rgba(79, 195, 247, 0.2);
+    border: 1px solid #4fc3f7;
+}
+
+.turn-list-item.player1 .turn-player {
+    color: #4fc3f7;
+}
+
+.turn-list-item.player2 .turn-player {
+    color: #ffb74d;
+}
+
+.turn-number {
+    background: #424242;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    min-width: 30px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.turn-player {
+    font-weight: 500;
+    min-width: 80px;
+}
+
+.turn-deadwood {
+    color: #888;
+    font-weight: normal;
+    font-size: 0.85rem;
+    min-width: 28px;
+    text-align: right;
+}
+
+.turn-action {
+    color: #aaa;
+    flex: 1;
+}
+
+.turn-list-item.filtered-out {
+    opacity: 0.35;
+}
+
+.knock-indicator {
+    background: #ff9800;
+    color: #000;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-weight: bold;
+    font-size: 0.8rem;
+}
+
+/* Error and empty states */
+.replay-error, .replay-empty {
+    text-align: center;
+    padding: 2rem;
+}
+
+.replay-error h3 {
+    color: #ef5350;
+}
+
+.replay-empty h3 {
+    color: #aaa;
+}
+
+/* AI Reasoning Section */
+.ai-reasoning-section {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: rgba(255, 193, 7, 0.05);
+    border-radius: 8px;
+    border-left: 3px solid #ffc107;
+}
+
+.ai-reasoning-section h4 {
+    margin: 0 0 0.75rem 0;
+    color: #ffc107;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.ai-decisions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.ai-decision {
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.ai-decision-draw {
+    border-left: 3px solid #4fc3f7;
+}
+
+.ai-decision-discard {
+    border-left: 3px solid #ef5350;
+}
+
+.ai-decision-knock {
+    border-left: 3px solid #66bb6a;
+}
+
+.ai-decision-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.ai-decision-icon {
+    font-size: 1.1rem;
+}
+
+.ai-decision-type {
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.ai-decision-choice {
+    font-family: 'Courier New', monospace;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+}
+
+.ai-decision-reasoning {
+    color: #b0bec5;
+    line-height: 1.4;
+    padding-left: 1.6rem;
+}
+
+.ai-factors {
+    margin-top: 0.5rem;
+    padding-left: 1.6rem;
+    text-align: left;  /* Override modal's text-align: center */
+}
+
+.ai-factors summary {
+    cursor: pointer;
+    color: #78909c;
+    font-size: 0.85rem;
+    user-select: none;
+}
+
+.ai-factors summary:hover {
+    color: #90a4ae;
+}
+
+.ai-factors ul {
+    margin: 0.5rem 0 0 0;
+    padding-left: 1.2rem;
+    color: #78909c;
+    font-size: 0.85rem;
+    list-style-type: disc;  /* Ensure bullets show */
+    text-align: left;
+}
+
+.ai-factors li {
+    margin: 0.25rem 0;
+    font-family: 'Courier New', monospace;
+    display: list-item;  /* Ensure list item display */
+}
+
+/* Deadwood Graph */
+.deadwood-graph-section {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.deadwood-graph-section h4 {
+    margin: 0 0 0.75rem 0;
+    color: #e0e0e0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.deadwood-graph-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.deadwood-graph {
+    width: 100%;
+    max-width: 400px;
+    height: auto;
+}
+
+.graph-axis {
+    stroke: #555;
+    stroke-width: 1;
+}
+
+.graph-grid {
+    stroke: #333;
+    stroke-width: 0.5;
+    stroke-dasharray: 2, 2;
+}
+
+.graph-label {
+    fill: #888;
+    font-size: 10px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.graph-line {
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.player1-line {
+    stroke: #4fc3f7;
+}
+
+.player2-line {
+    stroke: #ef5350;
+}
+
+.graph-point {
+    stroke: none;
+}
+
+.player1-point {
+    fill: #4fc3f7;
+}
+
+.player2-point {
+    fill: #ef5350;
+}
+
+.graph-current-point {
+    fill: none;
+    stroke: #ffc107;
+    stroke-width: 2;
+}
+
+.graph-legend {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.85rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #b0bec5;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.player1-legend .legend-dot {
+    background: #4fc3f7;
+}
+
+.player2-legend .legend-dot {
+    background: #ef5350;
+}

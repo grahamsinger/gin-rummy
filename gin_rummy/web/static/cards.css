@@ -1,0 +1,59 @@
+/* The card itself: faces, red suits, backs, empty slots. */
+
+/* Card styling */
+.card {
+    width: 60px;
+    height: 84px;
+    background: #fff;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    user-select: none;
+    position: relative;
+}
+
+.card .rank {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.card .suit {
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+/* Red suits */
+.card.hearts .suit,
+.card.hearts .rank,
+.card.diamonds .suit,
+.card.diamonds .rank {
+    color: #d32f2f;
+}
+
+/* Card back */
+.card-back {
+    background: linear-gradient(135deg, #1565c0 25%, #0d47a1 25%, #0d47a1 50%, #1565c0 50%, #1565c0 75%, #0d47a1 75%);
+    background-size: 10px 10px;
+    border: 3px solid #fff;
+}
+
+.card-back .deck-count {
+    background: rgba(255, 255, 255, 0.9);
+    color: #0d47a1;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+/* Empty card slot */
+.card.empty {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    box-shadow: none;
+}
