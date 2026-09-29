@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from gin_rummy.models import Card
+from gin_rummy.models.melds import HandAnalysis
 
 
 def card_to_dict(card: Card) -> dict[str, str]:
@@ -35,3 +37,29 @@ class RoundResultData:
     opponent_hand: HandResultData
     layoff_cards: list[str] | None = None  # Cards laid off (formatted as strings)
     defender_deadwood_before: int = 0  # Defender's deadwood before layoff
+
+
+def melds_to_dicts(analysis: HandAnalysis) -> list[dict[str, Any]]:
+    """[{"type": "set" | "run", "cards": [codes]}] for a hand analysis."""
+    return [
+        {"type": "set" if meld.meld_type.name == "SET" else "run", "cards": [c.code for c in meld.cards]}
+        for meld in analysis.melds
+    ]
+
+
+def hand_result_to_dict(hd: HandResultData) -> dict[str, Any]:
+    return {"cards": hd.cards, "melds": hd.melds, "deadwood": hd.deadwood, "deadwood_cards": hd.deadwood_cards}
+
+
+def round_result_to_dict(rr: RoundResultData) -> dict[str, Any]:
+    return {
+        "winner": rr.winner,
+        "points": rr.points,
+        "is_gin": rr.is_gin,
+        "is_undercut": rr.is_undercut,
+        "is_draw": rr.is_draw,
+        "player_hand": hand_result_to_dict(rr.player_hand),
+        "opponent_hand": hand_result_to_dict(rr.opponent_hand),
+        "layoff_cards": rr.layoff_cards,
+        "defender_deadwood_before": rr.defender_deadwood_before,
+    }

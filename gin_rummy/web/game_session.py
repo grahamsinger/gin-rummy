@@ -13,7 +13,13 @@ from gin_rummy.models import Card, Player
 from gin_rummy.models.hand import CardNotInHandError
 from gin_rummy.tracking import TurnRecord, TurnRecorder, TurnSnapshot
 from gin_rummy.web.assist import calculate_card_helpfulness
-from gin_rummy.web.serializers import HandResultData, RoundResultData, card_to_dict
+from gin_rummy.web.serializers import (
+    HandResultData,
+    RoundResultData,
+    card_to_dict,
+    melds_to_dicts,
+    round_result_to_dict,
+)
 from gin_rummy.web.workers import get_worker_pool
 
 
@@ -312,16 +318,7 @@ class GameSession:
 
         # Analyze hand for melds
         analysis = human.hand.analyze()
-
-        # Build melds list
-        melds = []
-        for meld in analysis.melds:
-            melds.append(
-                {
-                    "type": "set" if meld.meld_type.name == "SET" else "run",
-                    "cards": [c.code for c in meld.cards],
-                }
-            )
+        melds = melds_to_dicts(analysis)
 
         # Determine phase string
         phase_map = {
@@ -384,7 +381,7 @@ class GameSession:
             "can_knock": self.game.can_knock and your_turn and phase == "discarding",
             "message": message,
             "round_over": self.game.phase == GamePhase.ROUND_OVER,
-            "round_result": self._round_result_to_dict() if self.last_round_result else None,
+            "round_result": round_result_to_dict(self.last_round_result) if self.last_round_result else None,
             "ai_action": self.last_ai_action,  # Structured AI action data for frontend
             "assist": {
                 "dead_cards": [str(c) for c in dead_cards],  # Use suit symbols
@@ -408,31 +405,6 @@ class GameSession:
         }
 
         return state
-
-    def _round_result_to_dict(self) -> dict[str, Any] | None:
-        """Convert round result to dict."""
-        if not self.last_round_result:
-            return None
-
-        def hand_data_to_dict(hd: HandResultData) -> dict:
-            return {
-                "cards": hd.cards,
-                "melds": hd.melds,
-                "deadwood": hd.deadwood,
-                "deadwood_cards": hd.deadwood_cards,
-            }
-
-        return {
-            "winner": self.last_round_result.winner,
-            "points": self.last_round_result.points,
-            "is_gin": self.last_round_result.is_gin,
-            "is_undercut": self.last_round_result.is_undercut,
-            "is_draw": self.last_round_result.is_draw,
-            "player_hand": hand_data_to_dict(self.last_round_result.player_hand),
-            "opponent_hand": hand_data_to_dict(self.last_round_result.opponent_hand),
-            "layoff_cards": self.last_round_result.layoff_cards,
-            "defender_deadwood_before": self.last_round_result.defender_deadwood_before,
-        }
 
     def draw(self, source: str) -> dict[str, Any]:
         """Draw a card from deck or discard."""
@@ -664,18 +636,9 @@ class GameSession:
         hand = self.game.players[player_idx].hand
         analysis = hand.analyze()
 
-        melds = []
-        for meld in analysis.melds:
-            melds.append(
-                {
-                    "type": "set" if meld.meld_type.name == "SET" else "run",
-                    "cards": [c.code for c in meld.cards],
-                }
-            )
-
         return HandResultData(
             cards=[card_to_dict(c) for c in hand],
-            melds=melds,
+            melds=melds_to_dicts(analysis),
             deadwood=analysis.deadwood_value,
             deadwood_cards=[c.code for c in analysis.deadwood_cards],
         )
