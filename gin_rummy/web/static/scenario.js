@@ -229,7 +229,7 @@ function render() {
     const stat = (label, value) =>
         `<div class="stat"><span class="stat-value">${value}</span><span class="stat-label">${label}</span></div>`;
     // How far through the hand this is: the deck only shrinks, and the hand
-    // is a draw once it is down to the last few cards
+    // ends with no winner once it is down to the last few cards
     const drawable = Math.max(state.deck_remaining - state.deck_min, 0);
     const span = state.deck_start - state.deck_min;
     const left = Math.round((100 * drawable) / span);
@@ -239,7 +239,7 @@ function render() {
             <div class="deck-bar" role="img" aria-label="${state.deck_remaining} of ${state.deck_start} cards left in the deck">
                 <div class="deck-bar-fill" style="width:${left}%"></div>
             </div>
-            <span class="stat-label">Cards left in deck · hand is a draw at ${state.deck_min}</span>
+            <span class="stat-label">Cards left in deck · nobody wins the hand if it gets down to ${state.deck_min}</span>
         </div>`;
 
     el('positionStats').innerHTML =
