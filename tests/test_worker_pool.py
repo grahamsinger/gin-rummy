@@ -132,7 +132,7 @@ class TestResetForNewHand:
 class TestPooledDecisions:
     def test_decisions_run_through_a_real_process_pool(self):
         """SimParams and the batch functions must pickle: every option is a pool task."""
-        from tests.helpers import make_context
+        from tests.helpers import cards, make_context
 
         pool = ProcessPoolExecutor(max_workers=2)
         try:
@@ -143,6 +143,11 @@ class TestPooledDecisions:
             assert ai.decide_draw(hand, top, ctx) in (DrawChoice.DECK, DrawChoice.DISCARD)
             eleven = Hand([*hand, top])
             assert ai.decide_discard(eleven, ctx) in list(eleven)
-            assert ai.should_knock(hand, ctx, pending_discard=Card.parse("KD")) in (True, False)
+            # A knockable hand with no matching turn plan, so the knock is simulated too
+            low = Hand(cards("AS 2S 3S 4H 5H 6H 7C 8C 9C 5D"))
+            ai._turn_plan = None
+            assert ai.should_knock(low, make_context(low), pending_discard=Card.parse("KD")) in (True, False)
+            assert ai.last_mc_thinking is not None and ai.last_mc_thinking.knock is not None
+            assert ai.last_mc_thinking.knock.knock_avg_points is not None  # came from simulation
         finally:
             pool.shutdown(wait=True)

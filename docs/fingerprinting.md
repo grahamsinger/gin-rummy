@@ -44,7 +44,7 @@ skips the two torch lines.
 | learning, greedy | An untrained, seeded LearningAI's draw, discard and knock on the 20 scenario positions | The learner's decision path: state encoding, context handling, network inference |
 
 The two learning lines depend on floating point, so they only compare on the
-same machine and torch build. The other three are exact everywhere.
+same machine and torch build. The other four are exact everywhere.
 
 ## The workflow
 
