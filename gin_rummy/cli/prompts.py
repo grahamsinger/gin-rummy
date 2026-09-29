@@ -22,6 +22,15 @@ from gin_rummy.models import Card, Hand, analyze_hand
 from gin_rummy.tracking import TurnRecord, TurnRecorder, TurnSnapshot
 
 
+def ask(prompt: str) -> str:
+    """Prompt for input, stripped and lower-cased. 'q' quits the game."""
+    answer = input(prompt).strip().lower()
+    if answer == "q":
+        print("Thanks for playing!")
+        sys.exit(0)
+    return answer
+
+
 def get_card_choice(hand: Hand, prompt: str) -> int:
     """Get a valid card index from user input.
 
@@ -35,11 +44,7 @@ def get_card_choice(hand: Hand, prompt: str) -> int:
     hand_size = len(hand)
     while True:
         try:
-            choice = input(prompt)
-            if choice.lower() == "q":
-                print("Thanks for playing!")
-                sys.exit(0)
-            idx = int(choice)
+            idx = int(ask(prompt))
             if 1 <= idx <= hand_size:
                 return idx - 1
             print(f"Please enter a number between 1 and {hand_size}")
@@ -90,10 +95,7 @@ def play_human_turn(
     card = None
 
     while True:
-        choice = input("\nYour choice: ").strip().lower()
-        if choice == "q":
-            print("Thanks for playing!")
-            sys.exit(0)
+        choice = ask("\nYour choice: ")
 
         if choice == "a":
             new_state = toggle_assist_values()
@@ -129,11 +131,7 @@ def play_human_turn(
 
     # Discard phase - select card first, then optionally knock
     while True:
-        choice = input("\nCard # to discard: ").strip().lower()
-
-        if choice == "q":
-            print("Thanks for playing!")
-            sys.exit(0)
+        choice = ask("\nCard # to discard: ")
 
         if choice == "a":
             new_state = toggle_assist_values()
