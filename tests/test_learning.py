@@ -4,6 +4,7 @@ Note: These tests require the optional 'learning' dependencies.
 Run with: uv sync --extra learning && uv run pytest tests/test_learning.py
 """
 
+import dataclasses
 import random
 
 import pytest
@@ -396,8 +397,8 @@ class TestLearningReasoning:
             a, b = self._pair()
             assert a.decide_draw(hand, top, ctx) == b.decide_draw_with_reasoning(hand, top, ctx).choice
             a, b = self._pair()
-            a._drawn_card = b._drawn_card = eleven[-1]
-            assert a.decide_discard(eleven, ctx) == b.decide_discard_with_reasoning(eleven, ctx).card
+            drawn_ctx = dataclasses.replace(ctx, drawn_card=eleven[-1])
+            assert a.decide_discard(eleven, drawn_ctx) == b.decide_discard_with_reasoning(eleven, drawn_ctx).card
             a, b = self._pair()
             assert a.should_knock(hand, ctx) == b.should_knock_with_reasoning(hand, ctx).should_knock
 

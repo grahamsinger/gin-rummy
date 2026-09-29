@@ -11,7 +11,6 @@ All AIs share the BasicAI interface (context is optional everywhere):
 - decide_draw(hand, discard_top, context=None) -> DrawChoice
 - decide_discard(hand, context=None) -> Card
 - should_knock(hand, context=None, pending_discard=None) -> bool
-- make_turn_decision(hand, discard_top, drawn_card, context=None) -> (Card, bool)
 - record_opponent_pickup / record_opponent_discard / reset_for_new_hand
   (BasicAI records but ignores them; the others use them)
 

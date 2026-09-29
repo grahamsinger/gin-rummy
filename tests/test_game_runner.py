@@ -5,6 +5,8 @@ from __future__ import annotations
 import random
 from typing import ClassVar
 
+import pytest
+
 import gin_rummy.config as config_module
 from gin_rummy.ai import BasicAI
 from gin_rummy.config import Config
@@ -90,6 +92,26 @@ class TestDiscardGetsTheContext:
 
         game, ai = self._dealt()
         cli.play_ai_first_discard(game, ai)
+        assert len(ai.discard_contexts) == 1 and ai.discard_contexts[0] is not None
+
+    def test_opening_discard_through_the_web_session(self, isolated_db):
+        from gin_rummy.game import GamePhase
+        from gin_rummy.web.game_session import GameSession
+
+        session = GameSession()
+        for seed in range(50):  # find a deal where the AI is the non-dealer
+            random.seed(seed)
+            session.new_game(player_name="T", ai_difficulty="easy")
+            game = session.game
+            assert game is not None
+            if game.phase == GamePhase.FIRST_DISCARD and game.current_player_idx != session.human_idx:
+                break
+        else:
+            pytest.fail("no deal with the AI opening in 50 seeds")
+        ai = ContextSpyAI()
+        session.ai = ai
+        session.ai_turn()
+        assert game.phase == GamePhase.DRAWING
         assert len(ai.discard_contexts) == 1 and ai.discard_contexts[0] is not None
 
     def test_turn_discard_with_and_without_reasoning(self):

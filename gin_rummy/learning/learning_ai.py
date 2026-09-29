@@ -92,20 +92,12 @@ class LearningAI(BasicAI):
         self.discard_net = self.discard_net.to(self.device)
         self.knock_net = self.knock_net.to(self.device)
 
-        # Track drawn card for discard decision
-        self._drawn_card: Card | None = None
-
     def _init_random_networks(self) -> None:
         """Initialize networks with random weights."""
         self.draw_net = DrawNet()
         self.discard_net = DiscardNet()
         self.knock_net = KnockNet()
         self.metadata: dict = {}
-
-    def reset_for_new_hand(self) -> None:
-        """Reset tracking for a new hand."""
-        super().reset_for_new_hand()
-        self._drawn_card = None
 
     # Each decision has one implementation (`_evaluate_*`) that returns the
     # choice plus a description of what drove it (Q-values, exploration or
@@ -184,9 +176,9 @@ class LearningAI(BasicAI):
             logger.debug("Discard decision: %s (exploration)", choice)
             return choice, f"Discarded {choice}: random exploration", ["Exploration"], []
 
-        # The context carries the drawn card on the runner path; the legacy
-        # make_turn_decision sets _drawn_card instead
-        drawn_card = (context.drawn_card if context else None) or self._drawn_card
+        # The context carries the card drawn this turn (execute_ai_turn builds
+        # it after the draw); without one this is the opening discard
+        drawn_card = context.drawn_card if context else None
         if drawn_card is None:
             # This happens for the initial discard (before first draw):
             # fall back to BasicAI logic for this case
@@ -279,51 +271,6 @@ class LearningAI(BasicAI):
             f"{'Knocked' if choice else 'No knock'}: KnockNet Q(knock)={q_yes:.3f} vs Q(continue)={q_no:.3f}",
             factors + [f"Q(knock) = {q_yes:.3f}", f"Q(continue) = {q_no:.3f}"],
         )
-
-    def make_turn_decision(
-        self,
-        hand: Hand,
-        discard_top: Card | None,
-        drawn_card: Card,
-        context: GameContext | None = None,
-    ) -> tuple[Card, bool]:
-        """Make discard and knock decisions after drawing.
-
-        Args:
-            hand: Hand after drawing (11 cards).
-            discard_top: What was on top of discard (for context).
-            drawn_card: The card that was drawn.
-
-        Returns:
-            Tuple of (card to discard, whether to knock).
-        """
-        logger.debug("--- LearningAI Turn Start ---")
-        logger.debug("Drew: %s", drawn_card)
-
-        # Store drawn card for discard decision
-        self._drawn_card = drawn_card
-
-        # Get discard decision
-        discard = self.decide_discard(hand, context)
-
-        # Check if we can knock after discarding
-        from gin_rummy.models import Hand as HandClass
-        from gin_rummy.models import analyze_hand
-
-        test_cards = [c for c in hand if c != discard]
-        test_analysis = analyze_hand(test_cards)
-        can_knock = test_analysis.deadwood_value <= self._knock_threshold_for(context)
-
-        # Get knock decision
-        should_knock = can_knock and self.should_knock(HandClass(test_cards), context)
-
-        logger.debug(
-            "--- LearningAI Turn End --- (discard=%s, knock=%s)",
-            discard,
-            should_knock,
-        )
-
-        return discard, should_knock
 
     def set_exploration_rate(self, rate: float) -> None:
         """Set the exploration rate.

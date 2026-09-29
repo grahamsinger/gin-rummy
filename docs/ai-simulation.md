@@ -259,7 +259,6 @@ Subclass `BasicAI` and override methods to customize behavior.
 | [`decide_draw`](#decide_draw) | Choose deck or discard pile | `DrawChoice` |
 | [`decide_discard`](#decide_discard) | Choose card to discard | `Card` |
 | [`should_knock`](#should_knock) | Decide whether to knock | `bool` |
-| [`make_turn_decision`](#make_turn_decision) | Combined discard + knock logic | `tuple[Card, bool]` |
 | [`_card_helps_hand`](#_card_helps_hand) | Evaluate if a card helps | `tuple[bool, str]` |
 
 ### Configuration Properties
@@ -386,41 +385,6 @@ class KnockAt5(BasicAI):
         super().__init__()
         self.knock_strategy = "conservative"
         self.conservative_knock_threshold = 5
-```
-
----
-
-### make_turn_decision
-
-Combined decision for discard and knock after drawing. Override for complex logic that considers both together.
-
-```python
-def make_turn_decision(
-    self, hand: Hand, discard_top: Card | None, drawn_card: Card
-) -> tuple[Card, bool]
-```
-
-**Parameters:**
-- `hand` - Current hand (11 cards after drawing)
-- `discard_top` - What was on top of discard pile (for context)
-- `drawn_card` - The card that was just drawn
-
-**Returns:** Tuple of `(card_to_discard, should_knock)`
-
-**Example:**
-```python
-class SmartKnock(BasicAI):
-    def make_turn_decision(self, hand, discard_top, drawn_card):
-        discard = self.decide_discard(hand)
-
-        from gin_rummy.melds import analyze_hand
-        remaining = [c for c in hand if c != discard]
-        post_deadwood = analyze_hand(remaining).deadwood_value
-
-        # Custom logic: knock at 5, or at 8 if hand is small
-        should_knock = post_deadwood <= 5
-
-        return discard, should_knock
 ```
 
 ---

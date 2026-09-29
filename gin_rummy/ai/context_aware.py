@@ -186,52 +186,6 @@ class ContextAwareAI(BasicAI):
 
         return should_pursue, gin_probability
 
-    def make_turn_decision(
-        self,
-        hand: Hand,
-        discard_top: Card | None,
-        drawn_card: Card,
-        context: GameContext | None = None,
-    ) -> tuple[Card, bool]:
-        """Make discard and knock decisions after drawing.
-
-        Extends BasicAI to pass context to should_knock.
-
-        Args:
-            hand: Hand after drawing (11 cards).
-            discard_top: What was on top of discard (for context).
-            drawn_card: The card that was drawn.
-            context: Optional game context.
-
-        Returns:
-            Tuple of (card to discard, whether to knock).
-        """
-        logger.debug("--- ContextAwareAI Turn Start ---")
-        logger.debug("Drew: %s", drawn_card)
-
-        # Use provided context or stored context
-        ctx = context
-
-        discard = self.decide_discard(hand, ctx)
-
-        # Check if we can knock after discarding
-        test_cards = [c for c in hand if c != discard]
-        test_hand = Hand(test_cards)
-        test_analysis = test_hand.analyze()
-        threshold = ctx.knock_threshold if ctx else self.knock_threshold
-        can_knock = test_analysis.deadwood_value <= threshold
-
-        # Use context-aware knock decision
-        should_knock = can_knock and self.should_knock(test_hand, ctx, pending_discard=discard)
-
-        logger.debug(
-            "--- ContextAwareAI Turn End --- (discard=%s, knock=%s)",
-            discard,
-            should_knock,
-        )
-
-        return discard, should_knock
-
     def decide_draw_with_reasoning(
         self,
         hand: Hand,
@@ -271,9 +225,8 @@ class ContextAwareAI(BasicAI):
 
         # Get context for unavailable cards calculation (buried discards
         # plus cards known to be in opponent's hand - neither can be drawn)
-        ctx = context
-        dead_cards = ctx.unavailable_cards if ctx else set()
-        deck_position = ctx.deck_position_pct if ctx else 0.0
+        dead_cards = context.unavailable_cards if context else set()
+        deck_position = context.deck_position_pct if context else 0.0
 
         # Find cards in melds
         current_analysis = hand.analyze()
@@ -403,11 +356,8 @@ class ContextAwareAI(BasicAI):
                 factors=factors,
             )
 
-        # Use stored context if not provided
-        ctx = context
-
         # Can't knock if deadwood over threshold (dynamic under Oklahoma)
-        threshold = ctx.knock_threshold if ctx else self.knock_threshold
+        threshold = context.knock_threshold if context else self.knock_threshold
         if deadwood > threshold:
             factors.append(f"Cannot knock: deadwood > {threshold}")
             return KnockReasoning(
@@ -418,16 +368,16 @@ class ContextAwareAI(BasicAI):
             )
 
         # Fall back to BasicAI if no context or context-knock disabled
-        if ctx is None or not self.context_config.use_context_knock:
+        if context is None or not self.context_config.use_context_knock:
             logger.debug("Knock decision: falling back to BasicAI")
-            return super().should_knock_with_reasoning(hand, ctx)
+            return super().should_knock_with_reasoning(hand, context)
 
         # Edge case 2: Always knock if deck nearly empty (avoid draw)
-        if ctx.deck_remaining <= 4:
-            factors.append(f"Deck nearly empty: {ctx.deck_remaining} cards")
+        if context.deck_remaining <= 4:
+            factors.append(f"Deck nearly empty: {context.deck_remaining} cards")
             return KnockReasoning(
                 should_knock=True,
-                reasoning=f"Knocked: deck nearly empty ({ctx.deck_remaining} cards remain)",
+                reasoning=f"Knocked: deck nearly empty ({context.deck_remaining} cards remain)",
                 score=1.0,
                 factors=factors,
             )
@@ -436,7 +386,7 @@ class ContextAwareAI(BasicAI):
         # can be negative on an undercut); handled as a score bonus instead.
 
         # Calculate knock score with detailed factor tracking
-        knock_score, score_factors = self._calculate_knock_score_with_factors(hand, ctx)
+        knock_score, score_factors = self._calculate_knock_score_with_factors(hand, context)
         factors.extend(score_factors)
 
         # Make decision

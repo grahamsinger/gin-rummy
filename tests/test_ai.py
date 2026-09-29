@@ -100,24 +100,6 @@ class TestBasicAI:
         )  # 20 deadwood
         assert not ai.should_knock(hand)
 
-    def test_make_turn_decision(self):
-        ai = BasicAI()
-        hand = Hand(
-            [
-                Card(Rank.ACE, Suit.SPADES),
-                Card(Rank.ACE, Suit.HEARTS),
-                Card(Rank.ACE, Suit.CLUBS),
-                Card(Rank.KING, Suit.DIAMONDS),
-            ]
-        )
-        drawn = Card(Rank.KING, Suit.DIAMONDS)  # Already in hand conceptually
-
-        discard, should_knock = ai.make_turn_decision(hand, None, drawn)
-
-        assert discard in hand
-        # With a set of aces and one king, deadwood is 10 - can knock
-        assert isinstance(should_knock, bool)
-
     def test_never_pickup_and_immediately_discard(self):
         """Regression test for bug: AI picking up card and immediately discarding it.
 
@@ -740,15 +722,13 @@ class TestKnockThresholdFromContext:
         ai = make_ai(kind, cfg)
         assert ai.should_knock_with_reasoning(h, oklahoma).should_knock is False
 
-    def test_make_turn_decision_respects_context_threshold(self):
+    def test_should_knock_respects_context_threshold(self):
         from dataclasses import replace
 
-        from tests.helpers import card, hand, make_context
+        from tests.helpers import hand, make_context
 
-        eleven = hand(self.SEVEN_DEADWOOD + " KD")
+        ten = hand(self.SEVEN_DEADWOOD)
         ai = BasicAI(make_test_config("always"))
-        _, knock = ai.make_turn_decision(eleven, None, card("KD"), make_context(eleven))
-        assert knock is True
-        oklahoma = replace(make_context(eleven), knock_threshold=5)
-        _, knock = ai.make_turn_decision(eleven, None, card("KD"), oklahoma)
-        assert knock is False
+        assert ai.should_knock(ten, make_context(ten)) is True
+        oklahoma = replace(make_context(ten), knock_threshold=5)
+        assert ai.should_knock(ten, oklahoma) is False
