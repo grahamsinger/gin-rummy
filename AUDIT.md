@@ -1,6 +1,35 @@
 # Codebase Audit
 
-> ## Latest review: discard-context nits (`4988234`, `8bfc84d`), 2026-09-29
+> ## Latest review: §3 batch 1 of 4, `monte_carlo.py` split (`7ef5618`…`0034c27`), 2026-09-29
+>
+> **Verdict: verified.** The pure move is byte-for-byte identical, and both cleanups preserve behaviour on every path I could reach. Nothing blocking; three small nits.
+>
+> **Checks at `0034c27`:**
+> - **Tests:** 363 pass.
+> - **Lint:** `ruff check` and `ruff format --check` are clean, and eslint shows 0 warnings.
+> - **`ty`:** 43 → **37**.
+> - **Size:** `ai/mc/` totals 1375 lines, with `ai.py` at 744.
+> - **Old path:** nothing outside `AUDIT.md` history still refers to `ai.monte_carlo`.
+>
+> **Fingerprints** (six lines, scratch worktrees, now removed). Every commit gives the same six hashes: `1dac7619151ab161` 72-78, `e871d8e2b56ac099` 132-18, `458764989f15a853`, **monte_carlo `00812a7579abd075`**, `5727b2291609a143` buffer 86, `9c27f019e9aee7f5`.
+> - **Monte Carlo baseline:** `66bb1f9`'s script, run on the pre-batch code (`8bfc84d`), gives the same `00812a7579abd075`. So the new line pins the original behaviour.
+>
+> | Commit | Verified |
+> |---|---|
+> | `7ef5618` docs | ✅ `docs/fingerprinting.md` claims checked: `-n`/`-s` flags, BasicAI and ContextAwareAI make no `random` calls, workers reseed from pid and clock. One wording nit below |
+> | `66bb1f9` MC fingerprint line | ✅ Script only. Sequential (`max_workers=1`), 40 simulations, hashes each choice plus its expected values |
+> | `aebced6` pure move | ✅ **Checked with the AST:** all 14 top-level definitions in the old `monte_carlo.py` (including `MonteCarloAI`, the three `_*_sim_batch` functions, `worker_init`, `_sample_state`, `rollout`, `score_knock`, and the constants) have **identical source text** in their new modules. The only new definition is `__all__` in `mc/__init__.py`. `worker_init` and the batch functions share `workers.py`, so the pool's per-process state stayed together |
+> | `d22c02f` SimParams | ✅ **The tuples map field for field:** each of the 16-element tuples maps onto `SimParams` with the same values (`max_rollout_turns`, the local `knock_threshold`, `_gin_bonus`, `_undercut_bonus`, `_min_deck_cards`, `_defensive_rollout`, `weights`, and paired or independent inputs), for draw, discard (`joint and knock_eligible[card]`) and knock (`pending_discard`). **The batch bodies are unchanged:** the same order of `sample(i)`, then `decide_discard`/`knock_points`, then `rollout`. The only difference is that `rollout` now copies the knock-continue pile, which was already a fresh list each iteration |
+> | `b9c228a` typed thinking | ✅ **Compared empirically:** I played 12 seeded MC-vs-Basic rounds (77 MC turns, sequential, 40 sims) at `d22c02f` and at `b9c228a`, and compared the web payload (`last_mc_thinking` vs `.to_dict()`) plus every draw/discard/knock reasoning string, factor and option. They're **identical** apart from 556 discard candidates that gain `knock_avg_points`/`continue_avg_points: None`. The other knock branches (gin, deck-nearly-empty, simulated) weren't reached, so I compared them by reading the code: the old and new formatters match line for line. `game.js` reads `k.reason` first and then `k.knock_avg_points !== null`, so the extra keys render identically |
+>
+> **Nits (optional):**
+> 1. **The pool test misses the knock batch.** `TestPooledDecisions` is meant to prove every batch pickles through a real pool, but its knock hand has 59 deadwood, so `should_knock` returns before any simulation. I counted submissions with a wrapped executor: `_draw_sim_batch` ×2 and `_discard_sim_batch` ×7, but `_knock_sim_batch` ×0. Use a knockable hand (deadwood ≤ 10) with no matching turn plan, and assert that the result came from simulation, e.g. that `last_mc_thinking.knock.knock_avg_points is not None`.
+> 2. **Two statements are slightly inaccurate:**
+>    - `b9c228a`'s message says the candidate keys are "the only shape difference". The gin, deck-nearly-empty and simulated knock dicts also always carry `advantage`/`fallback`/`reason` now, as `None`/`False`. That's harmless, since `game.js` doesn't distinguish them.
+>    - `docs/fingerprinting.md` says "the other three are exact everywhere", but there are four non-torch lines.
+> 3. **The §3 table row for `ai/monte_carlo.py` keeps the old plan text** ("collapsed to one", "`ai.py` (~300 lines)") after the Done note. Trim it, or note that the three batch functions stayed separate on purpose (`d22c02f`) and that `ai.py` is 744 lines.
+
+> ## Earlier review: discard-context nits (`4988234`, `8bfc84d`), 2026-09-29
 >
 > **Verdict: verified. All four nits are resolved, and there are no new findings.** "Next up" C is closed. The next step is §3 (file splits).
 >
