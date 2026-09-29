@@ -20,7 +20,7 @@ from gin_rummy.scenario_quiz import (
     panel_draw_choices,
     panel_knock_choices,
 )
-from gin_rummy.web.game_session import card_to_dict
+from gin_rummy.web.serializers import card_to_dict
 
 # Web defaults: ~2-4s per reveal (see experiments/mc_timing.py)
 WEB_MC_SIMS = 500

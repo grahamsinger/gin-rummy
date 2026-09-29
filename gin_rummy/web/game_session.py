@@ -3,143 +3,18 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
 from typing import Any
 
 from gin_rummy.ai import DIFFICULTY_TO_AI, BasicAI, DrawChoice, MonteCarloAI, make_ai
 from gin_rummy.db import GameTracker, get_connection, get_resumable_game
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
 from gin_rummy.game_runner import TurnResult, execute_ai_turn, get_ai_context
-from gin_rummy.models import Card, Player, Rank, Suit, analyze_hand
+from gin_rummy.models import Card, Player
 from gin_rummy.models.hand import CardNotInHandError
 from gin_rummy.tracking import TurnRecord, TurnRecorder, TurnSnapshot
+from gin_rummy.web.assist import calculate_card_helpfulness
+from gin_rummy.web.serializers import HandResultData, RoundResultData, card_to_dict
 from gin_rummy.web.workers import get_worker_pool
-
-
-def card_to_dict(card: Card) -> dict[str, str]:
-    """Convert a Card to a JSON-serializable dict ({"id": "7H", "rank": "7", "suit": "hearts"})."""
-    return {"id": card.code, "rank": card.rank.short_name, "suit": card.suit.value}
-
-
-def calculate_card_helpfulness(hand: list[Card], dead_cards: frozenset[Card]) -> dict[str, Any]:
-    """Calculate how helpful each non-hand card would be.
-
-    Simulates drawing a card and then discarding optimally to see if deadwood improves.
-
-    Args:
-        hand: Current cards in hand
-        dead_cards: Cards that are known dead (in discard pile)
-
-    Returns:
-        Dict with:
-        - helpful_cards: List of {card, reduction, is_dead} sorted by reduction (descending)
-        - total_helpful: Count of all cards that would help
-        - live_helpful: Count of helpful cards that are not dead
-    """
-    # Calculate current deadwood
-    current_analysis = analyze_hand(hand)
-    current_deadwood = current_analysis.deadwood_value
-
-    helpful_cards = []
-
-    # Check every card not in hand
-    for suit in Suit:
-        for rank in Rank:
-            card = Card(rank, suit)
-            if card in hand:
-                continue
-
-            # Simulate drawing this card (now have 11 cards)
-            test_hand_11 = hand + [card]
-            test_analysis_11 = analyze_hand(test_hand_11)
-
-            # Find the best card to discard (highest deadwood value from non-melded cards)
-            # After optimal discard, we'd have 10 cards again
-            used_cards = set()
-            for meld in test_analysis_11.melds:
-                used_cards.update(meld.cards)
-
-            # Deadwood cards are those not in any meld
-            deadwood_cards = [c for c in test_hand_11 if c not in used_cards]
-
-            if not deadwood_cards:
-                # Perfect hand - all cards melded (gin!)
-                # Discard the least valuable melded card
-                worst_card = min(test_hand_11, key=lambda c: c.deadwood_value)
-            else:
-                # Discard the worst deadwood card
-                worst_card = max(deadwood_cards, key=lambda c: c.deadwood_value)
-
-            # Calculate deadwood after optimal discard
-            final_hand = [c for c in test_hand_11 if c != worst_card]
-            final_analysis = analyze_hand(final_hand)
-            new_deadwood = final_analysis.deadwood_value
-
-            # Calculate reduction (positive = helpful)
-            reduction = current_deadwood - new_deadwood
-
-            # Only include cards that help (positive reduction)
-            if reduction > 0:
-                is_dead = card in dead_cards
-
-                # Check if this card completes a meld (not just reduces deadwood)
-                completes_meld = False
-                for meld in test_analysis_11.melds:
-                    if card in meld.cards:
-                        # Check if this meld is new (wasn't possible without this card)
-                        meld_cards_set = set(meld.cards)
-                        is_new_meld = not any(set(m.cards) == meld_cards_set for m in current_analysis.melds)
-                        if is_new_meld:
-                            completes_meld = True
-                            break
-
-                helpful_cards.append(
-                    {
-                        "card": str(card),  # Format with suit symbols
-                        "card_id": card.code,  # ASCII format for frontend
-                        "reduction": reduction,
-                        "is_dead": is_dead,
-                        "completes_meld": completes_meld,
-                    }
-                )
-
-    # Sort by reduction (most helpful first)
-    helpful_cards.sort(key=lambda x: x["reduction"], reverse=True)
-
-    # Count totals
-    total_helpful = len(helpful_cards)
-    live_helpful = sum(1 for c in helpful_cards if not c["is_dead"])
-
-    return {
-        "helpful_cards": helpful_cards,
-        "total_helpful": total_helpful,
-        "live_helpful": live_helpful,
-    }
-
-
-@dataclass
-class HandResultData:
-    """Hand data for round result display."""
-
-    cards: list[dict]
-    melds: list[dict]
-    deadwood: int
-    deadwood_cards: list[str]
-
-
-@dataclass
-class RoundResultData:
-    """Round result data for JSON serialization."""
-
-    winner: str | None
-    points: int
-    is_gin: bool
-    is_undercut: bool
-    is_draw: bool
-    player_hand: HandResultData
-    opponent_hand: HandResultData
-    layoff_cards: list[str] | None = None  # Cards laid off (formatted as strings)
-    defender_deadwood_before: int = 0  # Defender's deadwood before layoff
 
 
 class GameSession:
