@@ -13,7 +13,7 @@ from gin_rummy.ai.basic import BasicAI
 from gin_rummy.ai.context_aware import ContextAwareAI
 from gin_rummy.ai.mc.rollout import ALL_CARDS
 from gin_rummy.ai.mc.sampling import _sample_state
-from gin_rummy.ai.mc.workers import _discard_sim_batch, _draw_sim_batch, _knock_sim_batch, worker_init
+from gin_rummy.ai.mc.workers import SimParams, _discard_sim_batch, _draw_sim_batch, _knock_sim_batch, worker_init
 from gin_rummy.ai.types import (
     DiscardReasoning,
     DrawChoice,
@@ -191,6 +191,36 @@ class MonteCarloAI(ContextAwareAI):
 
         return {card: max(self._W_MIN, min(self._W_MAX, w)) for card, w in weights.items()}
 
+    def _sim_params(
+        self,
+        n_sims: int,
+        unknown: list[Card],
+        opponent_known: set[Card],
+        knock_threshold: int,
+    ) -> SimParams:
+        """Sampling and rollout settings for one decision.
+
+        Paired mode pre-draws the samples here so every option is scored
+        against the same hidden states; independent mode lets each
+        simulation draw its own.
+        """
+        weights = self._build_sample_weights()
+        paired = self._sample_strategy == "paired"
+        return SimParams(
+            rollout_ai=self._rollout_ai,
+            n_sims=n_sims,
+            max_turns=self.max_rollout_turns,
+            knock_threshold=knock_threshold,
+            gin_bonus=self._gin_bonus,
+            undercut_bonus=self._undercut_bonus,
+            min_deck_cards=self._min_deck_cards,
+            defensive=self._defensive_rollout,
+            samples=self._generate_samples(n_sims, unknown, opponent_known, weights) if paired else None,
+            unknown=None if paired else unknown,
+            opponent_known=None if paired else list(opponent_known),
+            weights=weights,
+        )
+
     def _run_parallel(
         self,
         tasks: list[tuple[Any, ...]],
@@ -331,63 +361,11 @@ class MonteCarloAI(ContextAwareAI):
         sim_discard_base = [discard_top] if discard_top else []
 
         my_hand_list = list(hand)
-        opp_known_list = list(opponent_known)
-        weights = self._build_sample_weights()
-
-        # Build samples and tasks
-        if self._sample_strategy == "paired":
-            samples = self._generate_samples(
-                self.draw_simulations,
-                unknown,
-                opponent_known,
-                weights,
-            )
-            ind_unknown = None
-            ind_opp_known = None
-        else:
-            samples = None
-            ind_unknown = unknown
-            ind_opp_known = opp_known_list
+        params = self._sim_params(self.draw_simulations, unknown, opponent_known, knock_threshold)
 
         tasks: list[tuple[Any, ...]] = [
-            (
-                _draw_sim_batch,
-                "discard",
-                my_hand_list,
-                discard_top,
-                sim_discard_base,
-                self._rollout_ai,
-                self.max_rollout_turns,
-                knock_threshold,
-                self._gin_bonus,
-                self._undercut_bonus,
-                self.draw_simulations,
-                samples,
-                ind_unknown,
-                ind_opp_known,
-                self._min_deck_cards,
-                weights,
-                self._defensive_rollout,
-            ),
-            (
-                _draw_sim_batch,
-                "deck",
-                my_hand_list,
-                discard_top,
-                sim_discard_base,
-                self._rollout_ai,
-                self.max_rollout_turns,
-                knock_threshold,
-                self._gin_bonus,
-                self._undercut_bonus,
-                self.draw_simulations,
-                samples,
-                ind_unknown,
-                ind_opp_known,
-                self._min_deck_cards,
-                weights,
-                self._defensive_rollout,
-            ),
+            (_draw_sim_batch, params, "discard", my_hand_list, discard_top, sim_discard_base),
+            (_draw_sim_batch, params, "deck", my_hand_list, discard_top, sim_discard_base),
         ]
 
         results = self._run_parallel(tasks)
@@ -479,23 +457,7 @@ class MonteCarloAI(ContextAwareAI):
         if ctx and hasattr(ctx, "knock_threshold"):
             knock_threshold = ctx.knock_threshold
 
-        opp_known_list = list(opponent_known)
-        weights = self._build_sample_weights()
-
-        # Build samples and tasks
-        if self._sample_strategy == "paired":
-            samples = self._generate_samples(
-                self.discard_simulations,
-                unknown,
-                opponent_known,
-                weights,
-            )
-            ind_unknown = None
-            ind_opp_known = None
-        else:
-            samples = None
-            ind_unknown = unknown
-            ind_opp_known = opp_known_list
+        params = self._sim_params(self.discard_simulations, unknown, opponent_known, knock_threshold)
 
         # Joint turn evaluation: for candidates that would leave a knockable
         # hand, also score "discard and knock now" against the same samples
@@ -504,28 +466,9 @@ class MonteCarloAI(ContextAwareAI):
         joint = self._joint_turn_evaluation and not self._in_hypothetical
         knock_eligible = {card: (immediate_dw <= knock_threshold) for card, immediate_dw in top_candidates}
 
-        tasks: list[tuple[Any, ...]] = []
-        for card, _immediate_dw in top_candidates:
-            tasks.append(
-                (
-                    _discard_sim_batch,
-                    cards,
-                    card,
-                    self._rollout_ai,
-                    self.max_rollout_turns,
-                    knock_threshold,
-                    self._gin_bonus,
-                    self._undercut_bonus,
-                    self.discard_simulations,
-                    samples,
-                    ind_unknown,
-                    ind_opp_known,
-                    self._min_deck_cards,
-                    weights,
-                    joint and knock_eligible[card],
-                    self._defensive_rollout,
-                )
-            )
+        tasks: list[tuple[Any, ...]] = [
+            (_discard_sim_batch, params, cards, card, joint and knock_eligible[card]) for card, _ in top_candidates
+        ]
 
         totals = self._run_parallel(tasks)
 
@@ -734,61 +677,11 @@ class MonteCarloAI(ContextAwareAI):
             knock_threshold = ctx.knock_threshold
 
         my_hand_list = list(hand)
-        opp_known_list = list(opponent_known)
-        weights = self._build_sample_weights()
-
-        # Build samples and tasks
-        if self._sample_strategy == "paired":
-            samples = self._generate_samples(
-                self.knock_simulations,
-                unknown,
-                opponent_known,
-                weights,
-            )
-            ind_unknown = None
-            ind_opp_known = None
-        else:
-            samples = None
-            ind_unknown = unknown
-            ind_opp_known = opp_known_list
+        params = self._sim_params(self.knock_simulations, unknown, opponent_known, knock_threshold)
 
         tasks: list[tuple[Any, ...]] = [
-            (
-                _knock_sim_batch,
-                "knock",
-                my_hand_list,
-                self._rollout_ai,
-                self.max_rollout_turns,
-                knock_threshold,
-                self._gin_bonus,
-                self._undercut_bonus,
-                self.knock_simulations,
-                samples,
-                ind_unknown,
-                ind_opp_known,
-                pending_discard,
-                self._min_deck_cards,
-                weights,
-                self._defensive_rollout,
-            ),
-            (
-                _knock_sim_batch,
-                "continue",
-                my_hand_list,
-                self._rollout_ai,
-                self.max_rollout_turns,
-                knock_threshold,
-                self._gin_bonus,
-                self._undercut_bonus,
-                self.knock_simulations,
-                samples,
-                ind_unknown,
-                ind_opp_known,
-                pending_discard,
-                self._min_deck_cards,
-                weights,
-                self._defensive_rollout,
-            ),
+            (_knock_sim_batch, params, "knock", my_hand_list, pending_discard),
+            (_knock_sim_batch, params, "continue", my_hand_list, pending_discard),
         ]
 
         results = self._run_parallel(tasks)

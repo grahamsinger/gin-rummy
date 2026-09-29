@@ -16,8 +16,9 @@ import pytest
 
 import gin_rummy.config as config_module
 import gin_rummy.web.workers as workers
-from gin_rummy.ai import MonteCarloAI
+from gin_rummy.ai import DrawChoice, MonteCarloAI
 from gin_rummy.config import Config
+from gin_rummy.models import Card, Hand
 from gin_rummy.web.session_store import SessionStore
 from tests.helpers import make_mc_config
 
@@ -125,3 +126,22 @@ class TestResetForNewHand:
         ai.last_mc_thinking = {"draw": {"x": 1}, "discard": None, "knock": None}
         ai.reset_for_new_hand()
         assert ai._turn_plan is None and ai.last_mc_thinking is None
+
+
+class TestPooledDecisions:
+    def test_decisions_run_through_a_real_process_pool(self):
+        """SimParams and the batch functions must pickle: every option is a pool task."""
+        from tests.helpers import make_context
+
+        pool = ProcessPoolExecutor(max_workers=2)
+        try:
+            ai = MonteCarloAI(make_mc_config(max_workers=2), pool=pool)
+            hand = Hand([Card.parse(c) for c in ["AS", "2S", "3S", "7H", "8H", "9D", "JC", "QC", "KD", "5C"]])
+            top = Card.parse("4S")
+            ctx = make_context(hand)
+            assert ai.decide_draw(hand, top, ctx) in (DrawChoice.DECK, DrawChoice.DISCARD)
+            eleven = Hand([*hand, top])
+            assert ai.decide_discard(eleven, ctx) in list(eleven)
+            assert ai.should_knock(hand, ctx, pending_discard=Card.parse("KD")) in (True, False)
+        finally:
+            pool.shutdown(wait=True)

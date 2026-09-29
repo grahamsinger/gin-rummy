@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from gin_rummy.ai.basic import BasicAI
 from gin_rummy.ai.types import (
@@ -12,10 +11,6 @@ from gin_rummy.ai.types import (
 )
 from gin_rummy.models import Card, Hand, Rank, Suit, analyze_hand
 from gin_rummy.models.melds import calculate_layoff
-
-if TYPE_CHECKING:
-    pass
-
 
 logger = logging.getLogger(__name__)
 
