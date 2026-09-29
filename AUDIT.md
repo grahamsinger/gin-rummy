@@ -1,6 +1,22 @@
 # Codebase Audit
 
-> ## Latest review: discard context, "Next up" C (`a3e2191`…`c4f594f`), 2026-09-29
+> ## Latest review: discard-context nits (`4988234`, `8bfc84d`), 2026-09-29
+>
+> **Verdict: verified. All four nits are resolved, and there are no new findings.** "Next up" C is closed. The next step is §3 (file splits).
+>
+> **Checks at `8bfc84d`:**
+> - **Tests:** 361 pass. That's the same count as before, because the `make_turn_decision` test was removed and the web opening-discard test was added.
+> - **Lint and types:** `ruff check` and `ruff format --check` are clean, eslint shows 0 warnings, and `ty` reports 43.
+> - **Fingerprint:** all five lines are unchanged from the current baselines (`1dac7619151ab161` 72-78, `e871d8e2b56ac099` 132-18, `458764989f15a853`, `5727b2291609a143` buffer 86, `9c27f019e9aee7f5`).
+>
+> | Nit | Resolution | Verified |
+> |---|---|---|
+> | 1. `make_turn_decision` dead code | Removed from all 3 AIs, `ai/__init__.py`, `docs/ai-simulation.md` and the tests. `LearningAI._drawn_card` and its `reset_for_new_hand` override are gone, and the discard reads only `context.drawn_card` | ✅ `grep` finds no reference outside `AUDIT.md`'s history. The knock-threshold test now calls `should_knock` directly (10 deadwood: knocks at threshold 10, doesn't at 5). The reasoning-agreement test passes the drawn card through `dataclasses.replace(ctx, drawn_card=…)` |
+> | 2. Stale "stored context" comments | Both comments and the `ctx = context` aliases are removed | ✅ This was a pure rename (`ctx` → `context`) in `decide_discard_with_reasoning` and `should_knock_with_reasoning`, with no logic change |
+> | 3. Web opening-discard test | `test_opening_discard_through_the_web_session` | ✅ **Mutation-checked** in a scratch worktree (now removed): reverting `game_session.py:370` to `decide_discard(hand)` makes it fail with `discard_contexts == [None]`, and restoring the line makes it pass |
+> | 4. Duplicate "### C." heading | The old entry is deleted | ✅ |
+
+> ## Earlier review: discard context, "Next up" C (`a3e2191`…`c4f594f`), 2026-09-29
 >
 > **Verdict: verified.** Every fingerprint and win-rate claim reproduces exactly. The fix is correct, and the implementing agent found the bigger bug that my finding missed (LearningAI never used DiscardNet). Nothing blocking. Four small nits.
 >
@@ -420,7 +436,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 |---|---|---|
 | `web/static/style.css` | 2109 | `base.css` (reset + `:root` tokens), `cards.css`, `board.css`, `modals.css`, `replay.css` (`:1399-2007`), plus `history.css` / `memory.css` / `scenario.css` extracted from the inline `<style>` blocks |
 | `web/static/game.js` | 2058 | `state.js`, `api.js`, `settings.js`, `render/board.js`, `render/assist.js` (`:863-1056`), `render/modals.js`, `ai-playback.js`, `main.js`. Move to **ES modules** (`<script type="module">`, eslint `sourceType: "module"`) to drop the IIFEs; no bundler needed |
-| `ai/monte_carlo.py` | 1311 | Package `ai/mc/`: `rollout.py` (1-274), `sampling.py` (288-323, 554-629), `workers.py` (pool + `_*_sim_batch`, collapsed to one), `thinking.py` (typed dataclasses in place of `dict[str, Any]`, plus formatters), `ai.py` (~300 lines of decision logic). Replace the 16-element positional task tuples with a frozen `SimParams` dataclass |
+| ~~`ai/monte_carlo.py`~~ | 1311 | _Done 2026-09-29 (`66bb1f9` MC fingerprint line, `aebced6` pure move, `d22c02f` SimParams, then typed thinking): `ai/mc/` with `rollout.py`, `sampling.py`, `workers.py`, `thinking.py`, `ai.py` (744 lines)._ Package `ai/mc/`: `rollout.py` (1-274), `sampling.py` (288-323, 554-629), `workers.py` (pool + `_*_sim_batch`, collapsed to one), `thinking.py` (typed dataclasses in place of `dict[str, Any]`, plus formatters), `ai.py` (~300 lines of decision logic). Replace the 16-element positional task tuples with a frozen `SimParams` dataclass |
 | `web/game_session.py` | 1072 | `web/serializers.py`, `web/assist.py` (`calculate_card_helpfulness`, `:71-165`), recording → shared recorder (§2.2), `GameSession` keeps only flow |
 | `cli.py` | 965 | `cli/render.py` (display, ANSI), `cli/prompts.py` (input loops; the `q` handling is copied at `:347, 414, 454`), `cli/app.py` (`main`); the round loop moves to `engine/round_runner.py` |
 | `database.py` | 951 | `db/schema.py` + `db/migrations.py` (numbered list), `db/tracker.py` (`GameTracker`), `db/queries.py`; serialization → `models/` |
@@ -569,7 +585,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 4. ~~**Consolidate the core:** card codec (§2.5), `AIPlayer` protocol + factory (§2.3), shared recorder (§2.2), reasoning twins (§2.4).~~ Done 2026-09-28, one commit per step, each verified against `scripts/fingerprint.py` (seeded per-game hashes, unchanged throughout) and the twin-agreement test.
 5. ~~**Expand the ruff rules** ("Next up" 0 at the top)~~ Done 2026-09-28.
 6. ~~**MC worker-pool lifecycle and blocking web routes** ("Next up" A at the top).~~ Done 2026-09-28.
-7. **Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.
-8. **Split the large files (§3):** `monte_carlo.py`, `game_session.py`/`app.py`, `database.py`, `cli.py`, `context.py`.
+7. ~~**Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.~~ Done 2026-09-28 ("Next up" B).
+8. **Split the large files (§3):** ~~`monte_carlo.py`~~ (done 2026-09-29), then `context.py` + `database.py`, `cli.py` + `simulator.py` + trainer glue, `game_session.py`/`app.py`. One batch per review; pure-move commit first, cleanups after, every fingerprint line unchanged.
 9. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
 10. **Docs and TODO cleanup.**
