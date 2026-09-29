@@ -58,9 +58,7 @@ uv run gin-scenario   # scenario quiz in the terminal (--count N --seed S)
    - `[1]` The deck (face down)
    - `[2]` The discard pile (face up, top card visible)
 
-2. **Discard or Knock**:
-   - `[D]` Discard a card to end your turn
-   - `[K]` Knock (only available when deadwood ≤ 10)
+2. **Discard or Knock**: enter the number of the card to discard. When the discard would leave you at or under the knock threshold, the game asks `Knock? (y/n)`.
 
 ### Deadwood & Melds
 - **Melds** are sets (3-4 of same rank) or runs (3+ consecutive same suit)
@@ -83,12 +81,10 @@ uv run gin-scenario   # scenario quiz in the terminal (--count N --seed S)
 |-------|--------|
 | `1` | Draw from deck |
 | `2` | Draw from discard pile |
-| `D` | Discard a card |
-| `K` | Knock (when available) |
+| `1`-`11` | At the discard prompt: the number of the card to discard |
+| `y` / `n` | Answer the `Knock?` prompt (asked when the discard leaves you able to knock) |
 | `a` | Assist mode: toggle between card counts and the actual cards |
 | `q` | Quit game |
-
-When selecting a card to discard, enter the card number shown (1-11).
 
 ## AI Simulator
 

@@ -100,7 +100,7 @@ Where:
 
 ## Configuration Reference
 
-All parameters are in `config.toml` under `[context_aware_ai]`. Here's the complete reference with types, defaults, and tuning guidance:
+All parameters are in `config/context-ai.toml` under `[context_aware_ai]` (a single `config.toml` is only the fallback when there is no `config/` directory). Here's the complete reference with types, defaults, and tuning guidance:
 
 ### Base Threshold
 

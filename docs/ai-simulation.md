@@ -252,6 +252,8 @@ print(metrics.summary())
 
 Subclass `BasicAI` and override methods to customize behavior.
 
+Overriding `decide_draw`, `decide_discard` or `should_knock` changes the simulator, which calls the plain methods. The web UI and the CLI with database tracking call the `*_with_reasoning` twins instead (`execute_ai_turn(capture_reasoning=True)`), and `BasicAI` implements those with its own logic, so an AI meant for those surfaces must override the twins too (`decide_draw_with_reasoning`, `decide_discard_with_reasoning`, `should_knock_with_reasoning`; see `gin_rummy/ai/types.py` for what they return).
+
 Every decision method takes a `context` argument (a `GameContext` snapshot of the game from the AI's seat: deck size, dead cards, opponent pickups, score, the knock threshold in effect) and the runner passes it positionally, so overrides must accept it even if they ignore it. It is `None` unless the AI class sets `needs_context = True`; see `gin_rummy/models/game_context.py`.
 
 ### Overridable Methods

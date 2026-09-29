@@ -17,7 +17,8 @@ uv run gin-simulate -n 200 -s 42 \
   --ai2-type basic --ai2-config config/overrides/conservative-knock.toml
 
 # Monte Carlo A/B: upgrades on vs off at identical simulation counts
-uv run gin-simulate -n 20 -s 101 -t 50 \
+# (both files pin max_workers = 1, so expect several minutes per game)
+uv run gin-simulate -n 5 -s 101 -t 50 \
   --ai1-type montecarlo --ai1-config config/overrides/mc-bench-new.toml \
   --ai2-type montecarlo --ai2-config config/overrides/mc-bench-legacy.toml
 ```
