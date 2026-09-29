@@ -1,5 +1,10 @@
 /* scenario.html: styles for this page only. */
 
+:root {
+    /* Secondary text on the green felt: light enough to read at a glance */
+    --quiz-label: #d3e2d3;
+}
+
 .quiz-container {
     max-width: 900px;
     margin: 0 auto;
@@ -43,6 +48,18 @@
 .quiz-btn.primary { background: #1b5e20; border-color: #2e7d32; }
 .quiz-btn.primary:hover:not(:disabled) { background: #2e7d32; }
 
+/* The next step once a scenario is finished */
+.quiz-btn.next {
+    background: #fdd835;
+    border-color: #fbc02d;
+    color: #1b1b1b;
+    font-weight: 600;
+}
+.quiz-btn.next:hover:not(:disabled) { background: #ffee58; }
+
+/* In the decision panel it sits on the right, under the playing area */
+.decision-buttons .quiz-btn.next { margin: 0.5rem 0 0 auto; }
+
 .position-panel, .decision-panel, .reveal-panel, .scoreboard-panel {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -51,19 +68,148 @@
     margin-bottom: 1rem;
 }
 
-.position-info {
+.scenario-num { color: var(--quiz-label); font-size: 1rem; }
+
+.position-panel h2 {
+    margin: 0 0 0.75rem;
+    color: #fff;
+    font-size: 1.1rem;
+}
+
+.position-stats {
     display: flex;
     flex-wrap: wrap;
-    gap: 1.5rem;
-    margin-bottom: 0.75rem;
-    color: #ccc;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    min-width: 7rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.stat-value { color: #fff; font-size: 1.25rem; font-weight: 600; }
+.stat-label { color: var(--quiz-label); font-size: 0.8rem; }
+.stat-of { color: var(--quiz-label); font-size: 0.85rem; font-weight: 400; }
+
+.deck-stat { flex: 1; min-width: 14rem; }
+
+.deck-bar {
+    height: 0.5rem;
+    margin: 0.3rem 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.15);
+    overflow: hidden;
+}
+
+.deck-bar-fill { height: 100%; border-radius: 999px; background: #64b5f6; }
+
+/* Label column, then the cards for that label */
+.position-rows {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.6rem 1rem;
+    align-items: center;
+    color: #fff;
     font-size: 0.95rem;
 }
 
-.position-info .label { color: #888; margin-right: 0.35rem; }
+/* The playing area: deck and discard pile side by side, centred on
+   a darker patch of felt */
+.table-piles {
+    display: flex;
+    justify-content: center;
+    gap: 3rem;
+    margin: 0.5rem 0 0.25rem;
+    padding: 1.5rem 1rem 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.22);
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.35);
+}
 
-.hand-area { margin-top: 0.5rem; }
-.hand-label { color: #888; font-size: 0.85rem; margin-bottom: 0.4rem; }
+.table-piles:empty { display: none; }
+
+.pile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+}
+
+.pile-label { color: var(--quiz-label); font-size: 0.85rem; }
+
+.pile-card {
+    position: relative;
+    width: 4.5rem;
+    height: 6.3rem;
+    border-radius: 8px;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.pile-card.back {
+    background: linear-gradient(135deg, #1565c0 25%, #0d47a1 25%, #0d47a1 50%, #1565c0 50%, #1565c0 75%, #0d47a1 75%);
+    background-size: 10px 10px;
+    border: 3px solid #fff;
+    /* Offset copies underneath give the deck its thickness */
+    box-shadow: 2px 2px 0 #cfd8dc, 4px 4px 0 #b0bec5, 6px 6px 0 #90a4ae;
+}
+
+.pile-card.face {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    box-shadow: 2px 2px 0 #cfd8dc, 4px 4px 0 #b0bec5;
+}
+
+.pile-card.face.red { color: #c62828; }
+.pile-card.face.black { color: #212121; }
+
+.pile-card.empty { border: 2px dashed rgba(255, 255, 255, 0.4); }
+
+.pile-corner {
+    position: absolute;
+    top: 0.3rem;
+    left: 0.4rem;
+    font-size: 0.95rem;
+    font-weight: bold;
+    line-height: 1;
+    text-align: center;
+}
+
+.pile-suit { font-size: 2.4rem; line-height: 1; }
+
+button.pile { cursor: pointer; }
+button.pile:hover:not(:disabled) .pile-card,
+button.pile:focus-visible .pile-card {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 14px rgba(255, 235, 59, 0.55);
+}
+button.pile:focus-visible { outline: 2px solid #fdd835; outline-offset: 4px; }
+button.pile:disabled { opacity: 0.5; cursor: default; }
+
+.position-label { color: var(--quiz-label); font-weight: 500; }
+.position-note { color: var(--quiz-label); font-size: 0.8rem; margin-left: 0.6rem; }
+.none { color: var(--quiz-label); font-style: italic; }
+
+.hand-area {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;  /* lines up under the piles */
+}
+
+.hand-label { color: var(--quiz-label); font-size: 0.9rem; margin-bottom: 0.4rem; }
 
 .quiz-card {
     display: inline-block;
@@ -94,6 +240,13 @@
 }
 
 .quiz-card.drawn { border-color: #fdd835; box-shadow: 0 0 8px rgba(253, 216, 53, 0.6); }
+/* Opponent pickup that has since been thrown back */
+.quiz-card.returned {
+    background: rgba(255, 255, 255, 0.55);
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+}
+
 .quiz-card.small { font-size: 0.85rem; padding: 0.2rem 0.35rem; min-width: 1.7rem; }
 
 .quiz-meld {
@@ -114,7 +267,8 @@
 
 .decision-buttons { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 
-.decision-prompt { color: #ccc; margin-bottom: 0.75rem; }
+.decision-prompt { color: #fff; margin-bottom: 0.75rem; }
+.decision-prompt:empty { display: none; }
 
 .thinking { color: #fdd835; font-style: italic; }
 
@@ -145,17 +299,61 @@
 .reveal-row.disagrees .reveal-marker { color: var(--danger); }
 
 .reveal-name { color: #fff; font-weight: 600; min-width: 9.5rem; }
-.reveal-text { color: #bbb; flex: 1; }
+.reveal-text { color: #e6e6e6; flex: 1; }
 
 .mc-evs { margin: 0.2rem 0 0.4rem 2.4rem; color: #90caf9; font-size: 0.85rem; }
 
-.scoreboard-table { width: 100%; border-collapse: collapse; color: #ccc; font-size: 0.92rem; }
+.scoreboard-table { width: 100%; border-collapse: collapse; color: #fff; font-size: 0.92rem; }
 .scoreboard-table th, .scoreboard-table td {
     text-align: left;
     padding: 0.35rem 0.75rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
-.scoreboard-table th { color: #888; font-weight: 500; }
-.scoreboard-table td.num { text-align: right; }
+.scoreboard-table th { color: var(--quiz-label); font-weight: 500; }
+.scoreboard-table td.num, .scoreboard-table th.num { text-align: right; }
 
-.status-line { color: #888; font-size: 0.85rem; margin-top: 0.4rem; }
+.status-line { color: var(--quiz-label); font-size: 0.85rem; margin-top: 0.4rem; }
+
+/* Verdict for the scenario just judged */
+.verdict {
+    display: inline-block;
+    margin: 0 0.5rem 0.4rem 0;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.verdict.all { background: rgba(76, 175, 80, 0.3); }
+.verdict.some { background: rgba(253, 216, 53, 0.25); }
+.verdict.nobody { background: rgba(244, 67, 54, 0.3); }
+.verdict-hint { color: var(--quiz-label); font-size: 0.85rem; }
+
+.judging-chip {
+    margin-left: 0.5rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    vertical-align: middle;
+}
+
+.judging-chip:empty { display: none; }
+.judging-chip.waiting { background: rgba(253, 216, 53, 0.25); color: #fff59d; }
+.judging-chip.updated { background: rgba(76, 175, 80, 0.3); color: #c8e6c9; }
+
+.latest { margin-right: 0.4rem; font-weight: bold; }
+.latest.agrees { color: #81c784; }
+.latest.disagrees { color: #ef9a9a; }
+
+/* The analysis has just arrived */
+.just-landed { animation: landed 1.6s ease-out; }
+
+@keyframes landed {
+    0% { box-shadow: 0 0 0 3px rgba(253, 216, 53, 0.9); background: rgba(253, 216, 53, 0.18); }
+    100% { box-shadow: 0 0 0 3px rgba(253, 216, 53, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .just-landed { animation: none; }
+}

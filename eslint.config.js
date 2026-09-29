@@ -13,6 +13,7 @@ export default [
                 alert: "readonly",
                 confirm: "readonly",
                 setTimeout: "readonly",
+                clearTimeout: "readonly",
                 setInterval: "readonly",
                 clearInterval: "readonly",
                 HTMLElement: "readonly",

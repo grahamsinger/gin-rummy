@@ -16,7 +16,7 @@
 <body>
     <div class="quiz-container">
         <div class="quiz-header">
-            <h1>🃏 Scenario Quiz <span id="scenarioNum" style="color:#888; font-size:1rem;"></span></h1>
+            <h1>🃏 Scenario Quiz <span id="scenarioNum" class="scenario-num"></span></h1>
             <div class="header-buttons">
                 <button id="newScenarioBtn" class="quiz-btn primary">New Scenario</button>
                 <a href="/" class="quiz-btn">Back to Game</a>
@@ -24,17 +24,20 @@
         </div>
 
         <div class="position-panel">
-            <div class="position-info" id="positionInfo"></div>
-            <div class="hand-area">
-                <div class="hand-label" id="handLabel">Your hand</div>
-                <div id="handDisplay"></div>
-            </div>
+            <h2>What you know</h2>
+            <div class="position-stats" id="positionStats"></div>
+            <div class="position-rows" id="positionInfo"></div>
         </div>
 
         <div class="decision-panel" id="decisionPanel">
             <h2 id="decisionTitle">Loading…</h2>
             <div class="decision-prompt" id="decisionPrompt"></div>
+            <div class="table-piles" id="tablePiles"></div>
             <div class="decision-buttons" id="decisionButtons"></div>
+            <div class="hand-area">
+                <div class="hand-label" id="handLabel">Your hand</div>
+                <div id="handDisplay"></div>
+            </div>
         </div>
 
         <div class="reveal-panel" id="revealPanel" style="display:none;">
@@ -42,8 +45,8 @@
             <div id="revealContent"></div>
         </div>
 
-        <div class="scoreboard-panel">
-            <h2>Agreement Scoreboard</h2>
+        <div class="scoreboard-panel" id="scoreboardPanel">
+            <h2>Agreement Scoreboard <span class="judging-chip" id="judgingChip"></span></h2>
             <table class="scoreboard-table" id="scoreboard"></table>
             <div class="status-line" id="statusLine"></div>
         </div>
