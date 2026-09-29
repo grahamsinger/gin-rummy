@@ -69,7 +69,8 @@ async function init() {
         if (e.target === elements.deleteModal) hideDeleteModal();
     });
     elements.replayModal.addEventListener('click', (e) => {
-        if (e.target === elements.replayModal) closeReplay();
+        // Go through the replay so it drops its keydown listener (it calls closeReplay via onClose)
+        if (e.target === elements.replayModal) (handReplay ? handReplay.close() : closeReplay());
     });
 }
 
