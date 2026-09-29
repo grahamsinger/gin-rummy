@@ -1,6 +1,33 @@
 # Codebase Audit
 
-> ## Latest review: §3 batch 2 of 4, `context.py` + `database.py` splits (`6088cd8`…`c0ff576`), 2026-09-29
+> ## Latest review: §3 batch 3 of 4, `cli.py` + `simulator.py` + trainer glue (`c41f81f`…`6f154e3`), 2026-09-29
+>
+> **Verdict: verified.** All three moves are byte-for-byte, `ask()` changes only what its message says, and last batch's nits are fixed. Nothing blocking; two small nits.
+>
+> **Checks at `6f154e3`:**
+> - **Tests:** 366 pass, including the CLI golden rows.
+> - **Lint and types:** `ruff check` and `ruff format --check` are clean, eslint shows 0 warnings, and `ty` reports 37.
+> - **Fingerprints:** all six lines are unchanged at `94c507d`, `48066ba` and HEAD. Scratch worktrees are removed.
+> - **Entry points:** `gin-simulate --help`, `gin-train --help` and `python -m gin_rummy.simulator --help` all run, and `gin-rummy` resolves to `gin_rummy.cli.app.main`.
+>
+> | Commit | Verified |
+> |---|---|
+> | `c41f81f` review nits | ✅ The migration test now builds a real v2 database by `DROP COLUMN`-ing every column that `MIGRATIONS` adds. It asserts they're absent before and that `after == before ∪ migrated` afterwards. No empty `TYPE_CHECKING` blocks remain anywhere in `gin_rummy/` |
+> | `d777252` audit repoints | ✅ The §2 and §4 items now name `db/queries.py`, `db/tracker.py`, `ai/outs.py`, `ai/opponent_model.py` and `models/game_context.py`, with function names instead of line numbers |
+> | `94c507d` `cli.py` split | ✅ **Checked with the AST:** all 25 definitions are identical across `render.py`, `prompts.py`, `round.py` and `app.py`. The old module's only other top-level code was `if __name__ == "__main__": main()` (see nit 1) |
+> | `48066ba` `simulator.py` split | ✅ **Checked with the AST:** all 12 definitions are identical. The old `__main__` block became `simulator/__main__.py`, and `__init__` re-exports the public names so the fingerprint script and the experiments are unchanged |
+> | `e815b5f` trainer glue | ✅ `main` moved to `train_cli.py`, and its AST diff against the old `main` is exactly the one added line, `logging.getLogger(__name__).setLevel(logging.INFO)`, as the message says. `trainer.py` is 646 lines. The `gin-train` entry point is updated |
+> | `80304e0` `ask()` | ✅ The two `play_human_turn` loops already stripped and lower-cased their input, so the only behaviour change is in `get_card_choice`, where `" q"` now quits instead of being rejected. `int()` already accepted surrounding whitespace, so card numbers are unaffected. The y/n prompts (meld confirm, knock) still use `input` directly, which is unchanged |
+>
+> **Nits (optional):**
+> 1. **Two `python -m` invocations stopped working.** Neither is documented, but they worked before this batch:
+>    - `python -m gin_rummy.cli` now fails with "'gin_rummy.cli' is a package and cannot be directly executed", because the package has no `__main__.py`.
+>    - `python -m gin_rummy.learning.trainer` now imports and exits silently, because its `__main__` guard moved to `train_cli.py`.
+>
+>    Adding `cli/__main__.py`, matching the new `simulator/__main__.py`, fixes the first. The second is fine to drop.
+> 2. **`gin_rummy/READING_ORDER.md` still lists `context.py`, `cli.py`, `simulator.py` and `database.py`** (lines 27–47), and all four files are now packages or gone. This probably belongs to step 10 (docs), but it's the file a newcomer reads first.
+
+> ## Earlier review: §3 batch 2 of 4, `context.py` + `database.py` splits (`6088cd8`…`c0ff576`), 2026-09-29
 >
 > **Verdict: verified.** Both splits are byte-for-byte moves, the migrations list behaves identically on real upgrades, and last batch's nits are fixed. Nothing blocking; three small nits.
 >
