@@ -737,7 +737,7 @@ All done 2026-09-29 (step 10):
 - ~~**`gin_rummy/READING_ORDER.md`:** it never mentions MC, the scenario quiz or `web/`. Update it and move it to `docs/`.~~ Now `docs/reading-order.md` with `scenario/`, `learning/` and the full `web/` layout (`1b08e6a`).
 - ~~**`config/overrides/README.md`:** documents only 5 of the 10 overrides.~~ All ten (`1f6c548`).
 - ~~**Overlapping result docs:** consolidate into SIMULATION_HISTORY and archive the plan. Mark `docs/web_ui_spec.md` as historical.~~ The tournament is the first section of `SIMULATION_HISTORY.md` (`8ff4101`); the plan, the web UI spec and the session-management note are in `docs/archive/` with banners (`1b08e6a`).
-- ~~**TODO.md** (384 lines, 101 checked vs 23 open): delete the completed sections and the changelog.~~ 47 lines of open items (`e1d91bb` amended). Moving them to GitHub issues is left to the owner.
+- ~~**TODO.md** (384 lines, 101 checked vs 23 open): delete the completed sections and the changelog.~~ 47 lines of open items (`f6f6c8f`). Moving them to GitHub issues is left to the owner.
 
 ---
 
@@ -752,4 +752,4 @@ All done 2026-09-29 (step 10):
 7. ~~**Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.~~ Done 2026-09-28 ("Next up" B).
 8. **Split the large files (§3):** ~~`monte_carlo.py`~~ (done 2026-09-29), ~~`context.py` + `database.py`~~ (done 2026-09-29), ~~`cli.py` + `simulator.py` + trainer glue~~ (done 2026-09-29), ~~`game_session.py`/`app.py`~~ (done 2026-09-29). Remaining §3 rows are the frontend files (step 9). One batch per review; pure-move commit first, cleanups after, every fingerprint line unchanged.
 9. ~~**Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.~~ Done 2026-09-29 (`8684d42`…`init` split); `replay.js` render/control split done in the follow-up batch (`be9efbf` regression fix, then the split). Also done in the step-9 batch: `scenario_quiz.py` → `scenario/` (`d604345`), so the web app no longer imports `cli/`.
-10. ~~**Docs and TODO cleanup.**~~ Done 2026-09-29 (`c20c3dc`…TODO commit): see §6 Docs. This closes the suggested order of work; the open follow-ups are in `TODO.md` and the unstruck §5/§6 items above.
+10. ~~**Docs and TODO cleanup.**~~ Done 2026-09-29 (`c20c3dc`…`f6f6c8f`): see §6 Docs. This closes the suggested order of work; the open follow-ups are in `TODO.md` and the unstruck §5/§6 items above.
