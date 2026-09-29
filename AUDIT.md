@@ -728,17 +728,16 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 - **Layout:**
   - `scripts/stress_test_db.py` uses a `sys.path` hack and writes `stress_test.db` to the repo root (now git-ignored as of `2c8224b`).
   - `experiments/` (ad-hoc benchmarks that read private attributes like `ai._turn_plan`) and `gin_rummy/learning/experiment.py` (a CLI) have confusingly similar names. Consider renaming `experiments/` to `benchmarks/` and adding a short README.
-- **Generated artifacts in git:** `docs/learning-ai.pdf` and `gin_rummy/READING_ORDER.pdf` duplicate their `.md` sources, and the second one ships inside the wheel. Remove both and generate on demand. Decide whether `models/statistical_ai_backup.json` (tracked) or `statistical_ai.json` (ignored) is the canonical one.
+- **Generated artifacts in git:** ~~`docs/learning-ai.pdf` and `gin_rummy/READING_ORDER.pdf` duplicate their `.md` sources, and the second one ships inside the wheel. Remove both and generate on demand.~~ Done 2026-09-29 (`1b08e6a`). Still to decide whether `models/statistical_ai_backup.json` (tracked) or `statistical_ai.json` (ignored) is the canonical one.
 - **Local clutter** (ignored, but worth cleaning): `game.log` (43 MB), `.coverage`, `gin_rummy/game_history.db`, `models/experiments/` (3.6 MB).
 
 ### Docs
-- **README:**
-  - Missing `gin-scenario`, `gin-experiment` and the scenario page.
-  - The "AI Types" list omits `statistical` and `montecarlo`.
-- **`gin_rummy/READING_ORDER.md`:** it never mentions MC, the scenario quiz or `web/`. Update it and move it to `docs/`.
-- **`config/overrides/README.md`:** documents only 5 of the 10 overrides.
-- **Overlapping result docs:** `docs/context-ai-improvement-plan.md` (outdated ~53% figure), `docs/ai-tournament.md`, `SIMULATION_HISTORY.md` and the TODO roadmap all track results. Consolidate them into SIMULATION_HISTORY and archive the plan. Mark `docs/web_ui_spec.md` as historical.
-- **TODO.md** (384 lines, 101 checked vs 23 open): delete the completed sections and the changelog (git already has them). Consider moving the open items to GitHub issues.
+All done 2026-09-29 (step 10):
+- ~~**README:** missing `gin-scenario`, `gin-experiment` and the scenario page; the "AI Types" list omits `statistical` and `montecarlo`.~~ Rewritten (`f64cf1d`): every entry point, page, AI type, the config layout and a documentation index. Also fixed `docs/ai-simulation.md`, whose custom-AI signatures lacked the `context` argument the runner passes (`8ff4101`).
+- ~~**`gin_rummy/READING_ORDER.md`:** it never mentions MC, the scenario quiz or `web/`. Update it and move it to `docs/`.~~ Now `docs/reading-order.md` with `scenario/`, `learning/` and the full `web/` layout (`1b08e6a`).
+- ~~**`config/overrides/README.md`:** documents only 5 of the 10 overrides.~~ All ten (`1f6c548`).
+- ~~**Overlapping result docs:** consolidate into SIMULATION_HISTORY and archive the plan. Mark `docs/web_ui_spec.md` as historical.~~ The tournament is the first section of `SIMULATION_HISTORY.md` (`8ff4101`); the plan, the web UI spec and the session-management note are in `docs/archive/` with banners (`1b08e6a`).
+- ~~**TODO.md** (384 lines, 101 checked vs 23 open): delete the completed sections and the changelog.~~ 47 lines of open items (`e1d91bb` amended). Moving them to GitHub issues is left to the owner.
 
 ---
 
@@ -753,4 +752,4 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 7. ~~**Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.~~ Done 2026-09-28 ("Next up" B).
 8. **Split the large files (§3):** ~~`monte_carlo.py`~~ (done 2026-09-29), ~~`context.py` + `database.py`~~ (done 2026-09-29), ~~`cli.py` + `simulator.py` + trainer glue~~ (done 2026-09-29), ~~`game_session.py`/`app.py`~~ (done 2026-09-29). Remaining §3 rows are the frontend files (step 9). One batch per review; pure-move commit first, cleanups after, every fingerprint line unchanged.
 9. ~~**Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.~~ Done 2026-09-29 (`8684d42`…`init` split); `replay.js` render/control split done in the follow-up batch (`be9efbf` regression fix, then the split). Also done in the step-9 batch: `scenario_quiz.py` → `scenario/` (`d604345`), so the web app no longer imports `cli/`.
-10. **Docs and TODO cleanup.**
+10. ~~**Docs and TODO cleanup.**~~ Done 2026-09-29 (`c20c3dc`…TODO commit): see §6 Docs. This closes the suggested order of work; the open follow-ups are in `TODO.md` and the unstruck §5/§6 items above.
