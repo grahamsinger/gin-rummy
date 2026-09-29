@@ -494,12 +494,12 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 | `web/static/game.js` | 2058 | `state.js`, `api.js`, `settings.js`, `render/board.js`, `render/assist.js` (`:863-1056`), `render/modals.js`, `ai-playback.js`, `main.js`. Move to **ES modules** (`<script type="module">`, eslint `sourceType: "module"`) to drop the IIFEs; no bundler needed |
 | ~~`ai/monte_carlo.py`~~ | 1311 | _Done 2026-09-29 (`66bb1f9` MC fingerprint line, `aebced6` pure move, `d22c02f` SimParams, `b9c228a` typed thinking): `ai/mc/` with `rollout.py`, `sampling.py`, `workers.py`, `thinking.py`, `ai.py` (744 lines). The three batch functions stayed separate on purpose; what they shared is in `SimParams`. Note: `b9c228a`'s message understates the shape change: every knock dict now carries `advantage`/`fallback`/`reason` too, as `None`/`False`, which `game.js` handles._
 | `web/game_session.py` | 1072 | `web/serializers.py`, `web/assist.py` (`calculate_card_helpfulness`, `:71-165`), recording → shared recorder (§2.2), `GameSession` keeps only flow |
-| `cli.py` | 965 | `cli/render.py` (display, ANSI), `cli/prompts.py` (input loops; the `q` handling is copied at `:347, 414, 454`), `cli/app.py` (`main`); the round loop moves to `engine/round_runner.py` |
+| ~~`cli.py`~~ | 965 | _Done 2026-09-29 (`94c507d` pure move, then `ask()` dedup): `cli/render.py` (349 lines), `cli/prompts.py`, `cli/round.py` (seats over `round_runner.py`), `cli/app.py`; the three copies of the `q` handling are one `ask()`._ |
 | ~~`database.py`~~ | 951 | _Done 2026-09-29 (`cf59da9` pure move, `6782ab9` migrations list): `db/schema.py`, `db/connection.py` (path, init_db, get_connection), `db/migrations.py` (numbered `MIGRATIONS` + tests), `db/tracker.py` (404 lines), `db/queries.py`; `gin_rummy.db` re-exports the public names. The card serialization had already moved to `Card.code`/`parse` in §2.5._ |
 | `ai/context_aware.py` | 870 | ~450 after §2.4 alone |
 | ~~`context.py`~~ | 804 | _Done 2026-09-29 (`85f447a`, pure move): `models/game_context.py` (`CardLocation`, `KnownCards`, `GameContext`), `models/outs.py` (`OutType`, `OutInfo`, `OutsAnalysis`), `ai/outs.py`, `ai/opponent_model.py` (`InferredMeld`, `OpponentModel`, 350 lines), `ai/thresholds.py`. `gin_rummy.context` is gone._ |
-| `learning/trainer.py` | 799 | Reuse the round runner with an experience hook; move CLI glue to `cli_utils.py` |
-| `simulator.py` | 644 | `simulator/metrics.py`, `simulator/runner.py`; the factory → `ai/factory.py` |
+| ~~`learning/trainer.py`~~ | 799 | _Done: `_LearnerSeat` over the round runner (`c386d82`); `main()` moved to `learning/train_cli.py` (`e815b5f`), `trainer.py` is 646 lines._ |
+| ~~`simulator.py`~~ | 644 | _Done 2026-09-29 (`48066ba`, pure move): `simulator/metrics.py`, `simulator/runner.py`, `simulator/cli.py` (`create_ai` is a thin wrapper over `make_ai` from §2.3); `__init__` re-exports, `__main__` keeps `python -m` working._ |
 | `web/app.py` | 606 | `APIRouter`s: `routes/game.py`, `history.py`, `stats.py`, `scenario.py`, `pages.py`, with session injected via `Depends(get_session)` |
 | `web/static/replay.js` | 651 | `HandReplay` is a single ~550-line class; split rendering from playback control |
 
@@ -642,6 +642,6 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 5. ~~**Expand the ruff rules** ("Next up" 0 at the top)~~ Done 2026-09-28.
 6. ~~**MC worker-pool lifecycle and blocking web routes** ("Next up" A at the top).~~ Done 2026-09-28.
 7. ~~**Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.~~ Done 2026-09-28 ("Next up" B).
-8. **Split the large files (§3):** ~~`monte_carlo.py`~~ (done 2026-09-29), ~~`context.py` + `database.py`~~ (done 2026-09-29), then `cli.py` + `simulator.py` + trainer glue, then `game_session.py`/`app.py`. One batch per review; pure-move commit first, cleanups after, every fingerprint line unchanged.
+8. **Split the large files (§3):** ~~`monte_carlo.py`~~ (done 2026-09-29), ~~`context.py` + `database.py`~~ (done 2026-09-29), ~~`cli.py` + `simulator.py` + trainer glue~~ (done 2026-09-29), then `game_session.py`/`app.py`. One batch per review; pure-move commit first, cleanups after, every fingerprint line unchanged.
 9. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
 10. **Docs and TODO cleanup.**
