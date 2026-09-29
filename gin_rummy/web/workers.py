@@ -9,6 +9,7 @@ shuts it down on exit.
 
 from __future__ import annotations
 
+import multiprocessing
 import os
 import threading
 from concurrent.futures import ProcessPoolExecutor
@@ -34,7 +35,15 @@ def get_worker_pool() -> ProcessPoolExecutor | None:
         return None
     with _lock:
         if _pool is None:
-            _pool = ProcessPoolExecutor(max_workers=workers, initializer=worker_init)
+            # Workers start lazily, from whichever thread submits first, while
+            # other threads (requests, the quiz analysis) hold locks. Forking
+            # then can leave a worker stuck on a lock nobody will release, so
+            # start fresh processes instead (already the default on macOS).
+            _pool = ProcessPoolExecutor(
+                max_workers=workers,
+                initializer=worker_init,
+                mp_context=multiprocessing.get_context("spawn"),
+            )
         return _pool
 
 
