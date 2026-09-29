@@ -1,6 +1,26 @@
 # Codebase Audit
 
-> ## Latest review: §3 batch 3 of 4, `cli.py` + `simulator.py` + trainer glue (`c41f81f`…`6f154e3`), 2026-09-29
+> ## Latest review: §3 batch 4 of 4, `game_session.py` + `app.py` splits (`e3ca9ce`…`1169e38`), 2026-09-29
+>
+> **Verdict: verified. §3's Python splits are complete.** Both moves are exact. The public API is unchanged: the route table and OpenAPI schema are byte-identical to the pre-batch commit. The serializer refactor produces byte-identical JSON over 3,208 real responses. Nothing blocking; one optional observation.
+>
+> **Checks at `1169e38`:**
+> - **Tests:** 367 pass.
+> - **Lint and types:** `ruff check` and `ruff format --check` are clean, eslint shows 0 warnings, and `ty` reports 37.
+> - **Fingerprints:** all six lines are unchanged. No game code moved, so HEAD alone suffices.
+> - **Size:** `web/app.py` is 50 lines and `web/game_session.py` is 746.
+>
+> | Commit | Verified |
+> |---|---|
+> | `e3ca9ce` review nits | ✅ `python -m gin_rummy.cli` starts the game again (`cli/__main__.py`). `READING_ORDER.md` now walks `ai/`, `ai/mc/`, `cli/`, `simulator/`, `db/` and `web/`, and every file it names exists |
+> | `2520239` `game_session.py` → `assist.py` + `serializers.py` | ✅ **Checked with the AST:** all 5 moved definitions are identical |
+> | `0abd6ab` `app.py` → routers | ✅ **Checked with the AST, ignoring decorators:** all 49 definitions are identical, apart from the documented `STATIC_DIR` (`parent.parent`, which resolves to `web/static` with `index.html` present). All 27 decorator changes are exactly `@app.` → `@router.` |
+> | `49bf145` `Depends` + `ok()` | ✅ **Public API unchanged:** I dumped `(methods, path, name)` for every route plus `app.openapi()` at `6f154e3`, before the batch, and at HEAD, and they're **identical**, static mount included. Each of the eight error checks becomes `ok(…)` with the same 400 and detail. It now raises inside `with session.lock`, which releases on raise. The cookie is still set on the injected `Response`, exactly as before. `ScenarioSession` is now imported eagerly, which doesn't pull in torch or `gin_rummy.learning` at app start (checked) |
+> | `aaba927` serializer functions | ✅ **Compared empirically:** I played 8 seeded web games through `GameSession` (a BasicAI drives the human side and knocks when it can; DB redirected to scratch) at `49bf145` and at HEAD. All **3,208 JSON responses are byte-identical** (`game_id` normalised). They include 144 round results covering knock, gin, undercut and a deck-out draw |
+>
+> **Observation (optional, not from this batch):** the web app imports terminal code. `web/scenario_session.py` → `scenario_quiz.py` → `cli/render.py` (for `display_hand_by_suit`), so `gin_rummy.cli.render` is loaded in the web server. `scenario_quiz.py` (416 lines) holds both the shared panel and position generation and the terminal quiz loop. Splitting it into, say, `scenario/core.py` and `scenario/cli.py` would stop the web layer depending on `cli/`. It's small, and could go with step 9 or 10.
+
+> ## Earlier review: §3 batch 3 of 4, `cli.py` + `simulator.py` + trainer glue (`c41f81f`…`6f154e3`), 2026-09-29
 >
 > **Verdict: verified.** All three moves are byte-for-byte, `ask()` changes only what its message says, and last batch's nits are fixed. Nothing blocking; two small nits.
 >
