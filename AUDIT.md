@@ -172,7 +172,7 @@
 > - **`gin_rummy/round_runner.py`:** `run_round(game, seats, stop_when=)` plays a dealt round: the non-dealer seat's opening discard, turns until a knock or the deck runs out, every opponent action relayed to the other seat. `Seat` decides (a prompt or an AI); `AISeat` is the plain AI seat with optional turn callbacks. Callers: simulator (`_TimedSeat`), scenario quiz (`stop_when` freezes the hand at the human seat), trainer (`_LearnerSeat` collects experiences), CLI (`CLIHumanSeat`, `CLIAISeat`). The web session stays request-driven.
 > - **`3e3542a` is the one behaviour change**, made before the runner so the runner could be uniform without per-caller flags: the scenario seat AIs learn the opening discard; the trainer's learner starts every game with a fresh opponent model and evaluation rounds track the opening discard; the CLI and web AIs now observe the human's opening discard, pickups and discards, and the CLI AI is reset each round. Only the learning fingerprint moved (`7427fe2bda5dd730` → `d14855bd28ce8d14`); CLI/web/scenario goldens are unchanged.
 > - **Safety net now in `scripts/fingerprint.py`:** four lines. `primary 49ebb018605bbae6`, `secondary 56c04fee7ecf6e24`, `scenario 458764989f15a853` (20 seeded positions + panel draw advice), `learning d14855bd28ce8d14` (4-episode seeded run, float-sensitive, `--no-learning` to skip). `tests/golden/scenarios_seed7.json` pins five positions; `TrainingConfig.seed` / `gin-train --seed` seed random, numpy and torch.
-> - **Next:** §3 file splits (the large modules), then the frontend, then docs/TODO cleanup.
+> - **Next:** see C below, then §3 file splits (the large modules), the frontend, and docs/TODO cleanup.
 >
 > Original design notes:
 >
@@ -186,6 +186,18 @@
 > ### C. Pass the game context to discard decisions: do before §3 (found 2026-09-29)
 >
 > `execute_ai_turn` passes `context` to draw and knock but not to discard, so ContextAwareAI, MonteCarloAI and LearningAI discard with `ctx=None` everywhere. The trainer used to paper over this with `update_context()`, until `c386d82` removed those calls. Details, measurements and the fix are in **Latest review → Finding**. It's a deliberate behaviour change: one commit, with new fingerprint baselines and win rates in the message.
+
+> ### C. ~~Discard decisions made without a context (review finding, 2026-09-29)~~ Done (2026-09-29)
+>
+> Commits, in order: `b52a8ac`-style fingerprint strengthening first (`scripts/fingerprint.py` only: the training line runs with exploration off and a new line hashes an untrained learner's greedy choices on the scenario positions), then `d8f7c4d`… see `git log 0be4081..52926fe`:
+>
+> 1. **Fingerprint strengthening** (script only): learning `d14855bd28ce8d14` → `4c76138a8b77a7b2`; new greedy line `4505a31a2f1b36d4`.
+> 2. **Context passed to every discard decision**, including the hypothetical discard inside draw evaluation and MonteCarloAI's heuristic fallbacks. Test: `TestDiscardGetsTheContext`. **No fingerprint moved, and the review's stated effects did not hold under the default config:** ContextAwareAI's discard reads the context only for live outs, and `live_outs_discard_weight` defaults to `0.0`; LearningAI's discard was falling back to BasicAI for a different reason (below). MonteCarloAI (web "hard", not fingerprinted) is the one AI whose discards change: it no longer samples opponent hands from cards visible in the pile.
+> 3. **New finding, fixed: LearningAI never used DiscardNet on the runner path.** Its discard needs the drawn card, which only the legacy `make_turn_decision` set, so every trainer/eval/simulator discard was the BasicAI fallback (the network was trained on experiences it never played from). `execute_ai_turn` now rebuilds the context after the draw, and `GameContext.drawn_card` carries the card for the player on turn. Test: `TestLearnerDiscardsWithItsNetwork`. Fingerprints: primary `49ebb018605bbae6` → `1dac7619151ab161`, secondary `56c04fee7ecf6e24` → `e871d8e2b56ac099`, scenario unchanged, learning → `5727b2291609a143`, greedy → `9c27f019e9aee7f5` (the script now sets `drawn_card` too). Only ContextAwareAI's knock reads the changed fields; its win rate is unchanged within noise (400 games: seed 42 223→213, seed 7 209→223 vs Basic; 364→355 and 363→362 vs Statistical).
+> 4. **`update_context` / `_current_context` removed** everywhere; decisions take the context explicitly. Fingerprints unchanged.
+> 5. **Nit 1:** the trainer's knock-experience gate uses `game.knock_threshold`. Nit 2 is item 1.
+>
+> Current baselines: primary `1dac7619151ab161` (72-78), secondary `e871d8e2b56ac099` (132-18), scenario `458764989f15a853`, learning `5727b2291609a143` (buffer 86), greedy `9c27f019e9aee7f5`.
 
 > ## Previous review: core consolidation (`6a033ee`…`9e76db6`), 2026-09-28
 >
