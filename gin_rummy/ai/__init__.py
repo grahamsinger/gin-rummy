@@ -12,8 +12,8 @@ All AIs share the BasicAI interface (context is optional everywhere):
 - decide_discard(hand, context=None) -> Card
 - should_knock(hand, context=None, pending_discard=None) -> bool
 - make_turn_decision(hand, discard_top, drawn_card, context=None) -> (Card, bool)
-- update_context / record_opponent_pickup / record_opponent_discard /
-  reset_for_new_hand (no-ops on BasicAI, real tracking on the others)
+- record_opponent_pickup / record_opponent_discard / reset_for_new_hand
+  (BasicAI records but ignores them; the others use them)
 
 Each decision method also has a `*_with_reasoning` variant that returns
 detailed reasoning for debugging and UI display. Use `make_ai(name)` to

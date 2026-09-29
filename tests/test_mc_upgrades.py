@@ -157,15 +157,15 @@ class TestJointTurnEvaluation:
         random.seed(99)
         ai = MonteCarloAI(make_test_config())
         hand = self._knockable_hand()
-        ai._current_context = make_context(hand)
+        context = make_context(hand)
 
-        discard = ai.decide_discard(hand)
+        discard = ai.decide_discard(hand, context)
         assert ai._turn_plan is not None
         assert ai._turn_plan["discard"] == discard
         assert ai._turn_plan["knock_avg"] is not None
 
         test_hand = Hand([c for c in hand if c != discard])
-        ai.should_knock(test_hand, ai._current_context, pending_discard=discard)
+        ai.should_knock(test_hand, context, pending_discard=discard)
         assert ai._turn_plan is None  # consumed
         assert ai.last_mc_thinking["knock"]["reason"] == "joint_plan"
 
@@ -173,14 +173,14 @@ class TestJointTurnEvaluation:
         random.seed(99)
         ai = MonteCarloAI(make_test_config())
         hand = self._knockable_hand()
-        ai._current_context = make_context(hand)
+        context = make_context(hand)
 
-        ai.decide_discard(hand)
+        ai.decide_discard(hand, context)
         plan_discard = ai._turn_plan["discard"]
         other_card = next(c for c in hand if c != plan_discard)
 
         test_hand = Hand([c for c in hand if c != other_card])
-        ai.should_knock(test_hand, ai._current_context, pending_discard=other_card)
+        ai.should_knock(test_hand, context, pending_discard=other_card)
         # Plan must not have been consumed for a mismatched discard
         # (should_knock ran its own evaluation / eligibility check instead)
         assert ai._turn_plan is not None
@@ -191,20 +191,20 @@ class TestJointTurnEvaluation:
         random.seed(99)
         ai = MonteCarloAI(make_test_config(joint_turn_evaluation=False))
         hand = self._knockable_hand()
-        ai._current_context = make_context(hand)
+        context = make_context(hand)
 
-        ai.decide_discard(hand)
+        ai.decide_discard(hand, context)
         assert ai._turn_plan is None
 
     def test_hypothetical_discard_does_not_set_plan(self):
         random.seed(99)
         ai = MonteCarloAI(make_test_config())
         hand = self._knockable_hand()
-        ai._current_context = make_context(hand)
+        context = make_context(hand)
 
         ai._in_hypothetical = True
         try:
-            ai.decide_discard(hand)
+            ai.decide_discard(hand, context)
         finally:
             ai._in_hypothetical = False
         assert ai._turn_plan is None

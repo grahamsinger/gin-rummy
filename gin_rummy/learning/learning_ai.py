@@ -130,7 +130,7 @@ class LearningAI(BasicAI):
     def _evaluate_learned_draw(
         self, hand: Hand, discard_top: Card | None, context: GameContext | None
     ) -> tuple[DrawChoice, str, list[str]]:
-        ctx = context or self._current_context
+        ctx = context
 
         # Must draw from deck if discard is empty
         if discard_top is None:
@@ -196,7 +196,7 @@ class LearningAI(BasicAI):
             return basic.card, reasoning, basic.factors, basic.options_considered
 
         # Encode state
-        ctx = context or self._current_context
+        ctx = context
         state = self.encoder.encode_discard_state(hand, drawn_card, ctx, self.opponent_model)
         state = state.unsqueeze(0).to(self.device).float()
 
@@ -256,7 +256,7 @@ class LearningAI(BasicAI):
             return choice, f"{'Knocked' if choice else 'No knock'}: random exploration", factors + ["Exploration"]
 
         # Encode state
-        state = self.encoder.encode_knock_state(hand, context or self._current_context, self.opponent_model)
+        state = self.encoder.encode_knock_state(hand, context, self.opponent_model)
         state = state.unsqueeze(0).to(self.device).float()
 
         with torch.no_grad():

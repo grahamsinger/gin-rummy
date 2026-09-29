@@ -236,8 +236,7 @@ class TestMonteCarloAI:
             ]
         )
         context = make_context(hand)
-        ai.update_context(context)
-        discard = ai.decide_discard(hand)
+        discard = ai.decide_discard(hand, context)
         assert discard in list(hand)
 
     def test_should_knock_returns_bool(self):
@@ -340,8 +339,7 @@ class TestMonteCarloAI:
 
         # 11-card hand for discard
         hand_11 = Hand(list(hand) + [discard_top])
-        ai.update_context(context)
-        discard_r = ai.decide_discard_with_reasoning(hand_11)
+        discard_r = ai.decide_discard_with_reasoning(hand_11, context)
         assert isinstance(discard_r, DiscardReasoning)
         assert discard_r.card in list(hand_11)
 
@@ -569,9 +567,8 @@ class TestConfidenceThresholdFallback:
             ]
         )
         context = make_context(hand)
-        ai.update_context(context)
 
-        ai.decide_discard(hand)
+        ai.decide_discard(hand, context)
 
         assert ai.last_mc_thinking is not None
         discard_data = ai.last_mc_thinking["discard"]
@@ -683,8 +680,7 @@ class TestPairedSamples:
             ]
         )
         context = make_context(hand)
-        ai.update_context(context)
-        discard = ai.decide_discard(hand)
+        discard = ai.decide_discard(hand, context)
         assert discard in list(hand)
 
     def test_paired_knock_produces_result(self):
@@ -775,8 +771,7 @@ class TestIndependentSamples:
             ]
         )
         context = make_context(hand)
-        ai.update_context(context)
-        discard = ai.decide_discard(hand)
+        discard = ai.decide_discard(hand, context)
         assert discard in list(hand)
 
     def test_independent_knock_produces_result(self):
@@ -881,9 +876,8 @@ class TestParallelMode:
             ]
         )
         context = make_context(hand)
-        ai.update_context(context)
         try:
-            discard = ai.decide_discard(hand)
+            discard = ai.decide_discard(hand, context)
             assert discard in list(hand)
         finally:
             ai.shutdown()

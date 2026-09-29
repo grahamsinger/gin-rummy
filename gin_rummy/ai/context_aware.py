@@ -210,7 +210,7 @@ class ContextAwareAI(BasicAI):
         logger.debug("Drew: %s", drawn_card)
 
         # Use provided context or stored context
-        ctx = context or self._current_context
+        ctx = context
 
         discard = self.decide_discard(hand, ctx)
 
@@ -271,7 +271,7 @@ class ContextAwareAI(BasicAI):
 
         # Get context for unavailable cards calculation (buried discards
         # plus cards known to be in opponent's hand - neither can be drawn)
-        ctx = context or self._current_context
+        ctx = context
         dead_cards = ctx.unavailable_cards if ctx else set()
         deck_position = ctx.deck_position_pct if ctx else 0.0
 
@@ -404,7 +404,7 @@ class ContextAwareAI(BasicAI):
             )
 
         # Use stored context if not provided
-        ctx = context or self._current_context
+        ctx = context
 
         # Can't knock if deadwood over threshold (dynamic under Oklahoma)
         threshold = ctx.knock_threshold if ctx else self.knock_threshold

@@ -237,7 +237,6 @@ def panel_draw_choices(panel: list[PanelMember], game: Game) -> list[dict]:
     ctx = game.get_game_context(HUMAN_SEAT)
     choices = []
     for member in panel:
-        member.ai.update_context(ctx)
         reasoning = member.ai.decide_draw_with_reasoning(hand, game.top_of_discard, ctx)
         choices.append(
             {
@@ -259,7 +258,6 @@ def panel_discard_choices(panel: list[PanelMember], game: Game) -> list[dict]:
     ctx = game.get_game_context(HUMAN_SEAT)
     choices = []
     for member in panel:
-        member.ai.update_context(ctx)
         reasoning = member.ai.decide_discard_with_reasoning(hand, ctx)
         mc_candidates = None
         if isinstance(member.ai, MonteCarloAI) and member.ai.last_mc_thinking:
@@ -285,7 +283,6 @@ def panel_knock_choices(panel: list[PanelMember], game: Game, post_hand: Hand, p
     ctx = game.get_game_context(HUMAN_SEAT)
     choices = []
     for member in panel:
-        member.ai.update_context(ctx)
         reasoning = member.ai.should_knock_with_reasoning(post_hand, ctx, pending_discard=pending)
         choices.append(
             {

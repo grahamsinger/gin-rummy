@@ -785,7 +785,7 @@ class MonteCarloAI(ContextAwareAI):
         if not self._in_hypothetical:
             self._turn_plan = None
 
-        ctx = context or self._current_context
+        ctx = context
 
         if discard_top is None:
             self._clear_thinking("draw")
@@ -920,7 +920,7 @@ class MonteCarloAI(ContextAwareAI):
         Analyzes hand to find deadwood cards (not in any meld), then runs
         rollouts for each to find the best discard.
         """
-        ctx = context or self._current_context
+        ctx = context
         known, unknown = self._get_known_and_unknown(hand, ctx)
 
         if len(unknown) < self.min_unknown_for_simulation:
@@ -1127,7 +1127,7 @@ class MonteCarloAI(ContextAwareAI):
             self.last_mc_thinking["knock"] = knock_thinking
             return True
 
-        ctx = context or self._current_context
+        ctx = context
 
         # Eligibility uses the live threshold (dynamic under Oklahoma)
         eligibility_threshold = ctx.knock_threshold if ctx else self._knock_threshold

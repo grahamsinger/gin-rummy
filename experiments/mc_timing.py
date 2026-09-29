@@ -115,7 +115,6 @@ def run_combo(sims: int, workers: int, reps: int) -> dict:
     hand11 = make_hand_11()
     hand10 = make_hand_10()
     ctx = make_context(hand11)
-    ai._current_context = ctx
     discard_top = Card(Rank.SIX, Suit.DIAMONDS)
 
     # Warmup: spins up the process pool so its startup cost isn't timed
@@ -126,7 +125,7 @@ def run_combo(sims: int, workers: int, reps: int) -> dict:
 
     def discard_fn():
         ai._turn_plan = None
-        ai.decide_discard(hand11)
+        ai.decide_discard(hand11, ctx)
 
     discard_times = time_decision(discard_fn, reps)
 

@@ -665,18 +665,14 @@ class TestSharedInterface:
 
     @pytest.mark.parametrize("kind", ALL_TYPES)
     def test_tracking_hooks_exist_and_are_safe(self, kind):
-        from tests.helpers import make_context
-
         ai = self._make(kind)
         card = Card(Rank.SEVEN, Suit.HEARTS)
-        hand = Hand([Card(Rank.ACE, Suit.SPADES), Card(Rank.TWO, Suit.HEARTS)])
-        ai.update_context(make_context(hand))
-        assert ai._current_context is not None
         ai.record_opponent_pickup(card)
         ai.record_opponent_discard(card)
+        assert ai.opponent_model.total_discards == 1
         ai.reset_for_new_hand()
-        assert ai._current_context is None
         assert ai.opponent_model.total_discards == 0
+        assert not hasattr(ai, "update_context")  # decisions take the context explicitly
 
     def test_needs_context_flags(self):
         from gin_rummy.ai import MonteCarloAI, StatisticalAI

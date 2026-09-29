@@ -29,9 +29,10 @@ class BasicAI:
     BasicAI is also the base class and *the* AI interface: every AI accepts
     the same arguments (an optional GameContext everywhere, plus
     pending_discard on should_knock) and supports opponent tracking via
-    update_context / record_opponent_* / reset_for_new_hand. Callers never
-    need to check the concrete class. Subclasses that actually read the
-    context set ``needs_context = True`` so the runner builds one for them.
+    record_opponent_* / reset_for_new_hand. Callers never need to check the
+    concrete class. Subclasses that actually read the context set
+    ``needs_context = True`` so the runner builds one for them; a decision
+    never falls back to a stored context, so a missing one is visible.
     """
 
     needs_context: ClassVar[bool] = False
@@ -56,13 +57,8 @@ class BasicAI:
         # Opponent tracking. BasicAI itself ignores both, but keeping them on
         # the base class means every AI can be fed the same events.
         self.opponent_model = OpponentModel()
-        self._current_context: GameContext | None = None
 
-    # ---- Shared interface: context and opponent tracking ----
-
-    def update_context(self, context: GameContext) -> None:
-        """Store the current game context (called at the start of each turn)."""
-        self._current_context = context
+    # ---- Shared interface: opponent tracking ----
 
     def record_opponent_discard(self, card: Card) -> None:
         """Record that the opponent discarded a card."""
@@ -75,7 +71,6 @@ class BasicAI:
     def reset_for_new_hand(self) -> None:
         """Forget per-hand tracking state."""
         self.opponent_model.reset()
-        self._current_context = None
 
     def shutdown(self) -> None:
         """Release external resources (worker pools). No-op for most AIs."""
