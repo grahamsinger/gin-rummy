@@ -1,3 +1,8 @@
+> **Archived 2026-09-29.** The original design spec for the web UI. The layout it describes
+> (`app.py`, `game_session.py`, `style.css`, `game.js`) has since been split into `web/routes/`,
+> `web/assist.py` + `web/serializers.py`, per-area stylesheets and the `static/game/` modules.
+> Kept for the API sketch and the drag-and-drop notes (`TODO.md`, "UI").
+
 # Gin Rummy Web UI Spec
 
 ## Overview

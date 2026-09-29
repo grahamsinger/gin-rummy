@@ -1,3 +1,8 @@
+> **Archived 2026-09-29.** The design note for per-browser sessions. `web/session_store.py` still
+> exists as described; the route-level changes listed under `app.py` now live in
+> `web/sessions.py` (`SessionDep`) and `web/routes/`, and the `game.js` changes in
+> `static/game/`.
+
 # Per-Browser Session Management
 
 ## Overview

@@ -1,3 +1,10 @@
+> **Archived 2026-09-29.** This plan was written when ContextAwareAI beat BasicAI about 53% of
+> the time. Parts of it were built (opponent meld inference, phased knock, the danger-card
+> penalty); the rest is tracked in `TODO.md` under "AI tuning", and measured results are in
+> `SIMULATION_HISTORY.md`. File names predate the 2026-09 splits: `gin_rummy/context.py` is now
+> `models/game_context.py` plus `ai/outs.py`, `ai/opponent_model.py` and `ai/thresholds.py`, and
+> `gin_rummy/simulator.py` is the `simulator/` package.
+
 # ContextAwareAI Improvement Plan
 
 ## Current State

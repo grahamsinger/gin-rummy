@@ -1,6 +1,6 @@
 # Gin Rummy Codebase Reading Order
 
-Recommended order for understanding this codebase. Each layer builds on the previous.
+Recommended order for understanding this codebase (paths are under `gin_rummy/`). Each layer builds on the previous. `docs/fingerprinting.md` explains how behaviour is checked when any of this is refactored.
 
 ## Layer 1: Data Models (Foundation) - `models/`
 
@@ -45,11 +45,15 @@ Recommended order for understanding this codebase. Each layer builds on the prev
 
 13. **`simulator/`** - AI vs AI with metrics collection (`runner.py`, `metrics.py`, `cli.py`). Good for testing AI changes; `scripts/fingerprint.py` builds on it.
 
-14. **`db/`** - SQLite game history: `schema.py`, `migrations.py`, `connection.py`, `tracker.py` (`GameTracker` records games as they are played), `queries.py` (the read side). `tracking.py` turns a turn's actions into the rows the tracker stores.
+14. **`scenario/`** - The scenario quiz: `core.py` freezes real AI-vs-AI positions and grades your draw, discard and knock against each AI (with Monte Carlo EVs); `cli.py` is `gin-scenario`, and the web `/scenario` page drives the same core.
 
-15. **`web/`** - The FastAPI app (`app.py`), one `GameSession` per browser session, and the scenario quiz session.
+15. **`learning/`** - The Deep Q-Learning AI: `learning_ai.py` (the player), `models.py` (DrawNet/DiscardNet/KnockNet), `state.py` (features), `rewards.py`, `replay.py` (experience buffer), `trainer.py`; `train_cli.py` is `gin-train` and `experiment.py` is `gin-experiment`.
 
-16. **`analyze_hand.py`** - CLI utility to analyze a hand's outs. Usage: `uv run python -m gin_rummy.analyze_hand "3S 8S 2H..."`
+16. **`db/`** - SQLite game history: `schema.py`, `migrations.py`, `connection.py`, `tracker.py` (`GameTracker` records games as they are played), `queries.py` (the read side). `tracking.py` turns a turn's actions into the rows the tracker stores.
+
+17. **`web/`** - The FastAPI app: `app.py` mounts `routes/` (pages, game, history, stats, scenario); `sessions.py` resolves the per-browser `GameSession` (`game_session.py`, with `assist.py` and `serializers.py`) from a cookie via `session_store.py`; `scenario_session.py` backs the quiz page; `workers.py` owns the Monte Carlo pool. `static/` holds the pages as ES modules: `game/` (the table), `history.js`, `memory.js`, `scenario.js`, and `replay.js` + `replay-render.js` shared by the game and history pages.
+
+18. **`analyze_hand.py`** - CLI utility to analyze a hand's outs. Usage: `uv run python -m gin_rummy.analyze_hand "3S 8S 2H..."`
 
 ## Dependency Graph (simplified)
 
