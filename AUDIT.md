@@ -468,9 +468,9 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 | ~~`ai/monte_carlo.py`~~ | 1311 | _Done 2026-09-29 (`66bb1f9` MC fingerprint line, `aebced6` pure move, `d22c02f` SimParams, `b9c228a` typed thinking): `ai/mc/` with `rollout.py`, `sampling.py`, `workers.py`, `thinking.py`, `ai.py` (744 lines). The three batch functions stayed separate on purpose; what they shared is in `SimParams`. Note: `b9c228a`'s message understates the shape change: every knock dict now carries `advantage`/`fallback`/`reason` too, as `None`/`False`, which `game.js` handles._
 | `web/game_session.py` | 1072 | `web/serializers.py`, `web/assist.py` (`calculate_card_helpfulness`, `:71-165`), recording → shared recorder (§2.2), `GameSession` keeps only flow |
 | `cli.py` | 965 | `cli/render.py` (display, ANSI), `cli/prompts.py` (input loops; the `q` handling is copied at `:347, 414, 454`), `cli/app.py` (`main`); the round loop moves to `engine/round_runner.py` |
-| `database.py` | 951 | `db/schema.py` + `db/migrations.py` (numbered list), `db/tracker.py` (`GameTracker`), `db/queries.py`; serialization → `models/` |
+| ~~`database.py`~~ | 951 | _Done 2026-09-29 (`cf59da9` pure move, `6782ab9` migrations list): `db/schema.py`, `db/connection.py` (path, init_db, get_connection), `db/migrations.py` (numbered `MIGRATIONS` + tests), `db/tracker.py` (404 lines), `db/queries.py`; `gin_rummy.db` re-exports the public names. The card serialization had already moved to `Card.code`/`parse` in §2.5._ |
 | `ai/context_aware.py` | 870 | ~450 after §2.4 alone |
-| `context.py` | 804 | `models/game_context.py` (`KnownCards`, `GameContext`), `ai/outs.py`, `ai/opponent_model.py`, `ai/thresholds.py`. This keeps AI heuristics out of the domain layer |
+| ~~`context.py`~~ | 804 | _Done 2026-09-29 (`85f447a`, pure move): `models/game_context.py` (`CardLocation`, `KnownCards`, `GameContext`), `models/outs.py` (`OutType`, `OutInfo`, `OutsAnalysis`), `ai/outs.py`, `ai/opponent_model.py` (`InferredMeld`, `OpponentModel`, 350 lines), `ai/thresholds.py`. `gin_rummy.context` is gone._ |
 | `learning/trainer.py` | 799 | Reuse the round runner with an experience hook; move CLI glue to `cli_utils.py` |
 | `simulator.py` | 644 | `simulator/metrics.py`, `simulator/runner.py`; the factory → `ai/factory.py` |
 | `web/app.py` | 606 | `APIRouter`s: `routes/game.py`, `history.py`, `stats.py`, `scenario.py`, `pages.py`, with session injected via `Depends(get_session)` |
@@ -615,6 +615,6 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 5. ~~**Expand the ruff rules** ("Next up" 0 at the top)~~ Done 2026-09-28.
 6. ~~**MC worker-pool lifecycle and blocking web routes** ("Next up" A at the top).~~ Done 2026-09-28.
 7. ~~**Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.~~ Done 2026-09-28 ("Next up" B).
-8. **Split the large files (§3):** ~~`monte_carlo.py`~~ (done 2026-09-29), then `context.py` + `database.py`, `cli.py` + `simulator.py` + trainer glue, `game_session.py`/`app.py`. One batch per review; pure-move commit first, cleanups after, every fingerprint line unchanged.
+8. **Split the large files (§3):** ~~`monte_carlo.py`~~ (done 2026-09-29), ~~`context.py` + `database.py`~~ (done 2026-09-29), then `cli.py` + `simulator.py` + trainer glue, then `game_session.py`/`app.py`. One batch per review; pure-move commit first, cleanups after, every fingerprint line unchanged.
 9. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
 10. **Docs and TODO cleanup.**
