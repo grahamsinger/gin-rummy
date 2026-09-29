@@ -1,6 +1,66 @@
 # Codebase Audit
 
-> ## Latest review: ruff expansion + worker pool (`defb186`…`94b8076`), 2026-09-28
+> ## Latest review: pool nits + round runner (`b5e7bd7`…`566663c`), 2026-09-29
+>
+> **Verdict: verified. The round runner is a faithful refactor and the pool nits are fixed.** One real finding. It's a long-standing bug rather than a regression of this round, but `c386d82` spread it to the trainer without saying so. See **Finding** below; I recommend fixing it next, before the §3 file splits.
+>
+> **Checks at `566663c`:**
+> - 356 tests pass.
+> - `ruff check` and `ruff format --check` are clean, and eslint shows 0 warnings.
+> - `ty` is back to **43**, so the 9 test diagnostics from last round are gone.
+>
+> **Fingerprints at every commit** (temporary scratchpad worktrees, now removed):
+>
+> | Commit | primary / secondary | scenario | learning |
+> |---|---|---|---|
+> | `94b8076` (before the round) | `49ebb018605bbae6` / `56c04fee7ecf6e24` | n/a | n/a |
+> | `7b4f715` safety net | same | `458764989f15a853` | `7427fe2bda5dd730` |
+> | `3e3542a` tracking alignment | same | same | `d14855bd28ce8d14` (intended) |
+> | `c386d82` runner | same | same | same |
+> | `8776d09` / HEAD | same | same | same |
+>
+> Every hash matches the commit messages. **The scenario baseline is independent:** I re-implemented the old retry loop and `describe_position` against `94b8076`'s code, before `generate_stable_scenario` existed, and got `458764989f15a853` with 20/20 positions generated. So the new line pins the original behaviour, not the refactored code's output.
+>
+> | Commit | Verified |
+> |---|---|
+> | `b5e7bd7` pool nits | ✅ `MonteCarloAI.reset_for_new_hand()` clears `_turn_plan` and `last_mc_thinking`. `_get_scenario_session` builds the session under `session.lock`. `mc_workers=worker_count()` means `max_workers = 1` now runs the panel inline, where it used to start 8 processes. Nits 1–4 and 6 are resolved; 5 was by design |
+> | `7b4f715` safety net | ✅ `generate_stable_scenario` is the old loop moved verbatim, and both callers use it. The scenario hash was checked independently (above). `--seed` seeds random, numpy and torch |
+> | `3e3542a` tracking alignment | ✅ The web AI now observes the human's opening discard, pickups and discards; the CLI AI does the same and resets each round. Primary, secondary and scenario are unchanged; learning moved, as the commit says |
+> | `c386d82` runner | ✅ with one exception (Finding). Read line by line: <ul><li>**Simulator:** the opening discard now fires `on_discard`, which is a no-op there.</li><li>**Scenario:** the `stop_when` predicate plus the `turns > max_total` check gives the same accept/reject results as the old loop.</li><li>**CLI vs AI:** the draw result on deck-out moved into `run_round`.</li><li>**PvP:** the prompt order is unchanged (opening discard, Enter, then Enter before each turn).</li><li>**Pickups:** the `draw_source` fallback to the deck on an empty pile can't happen in play.</li></ul> |
+> | `8776d09` drop `other_ai` | ✅ No callers are left. Opponent tracking now happens only in `AISeat`, `game_session.py` (3 sites) and the scenario panel feed |
+>
+> **Finding: AIs choose their discard without a game context (long-standing; spread to the trainer by `c386d82`)**
+>
+> - **The mechanism:**
+>   - `execute_ai_turn` builds `context` and passes it to the draw and knock decisions, but calls `ai.decide_discard(current.hand)` / `decide_discard_with_reasoning(current.hand)` **without it** (`game_runner.py:209, 212`).
+>   - The discard methods then fall back to `self._current_context`. Only `update_context()` sets that, and outside the scenario panel **only the trainer ever called it**. `git log -S update_context` shows the simulator, CLI, web and `game_runner` never have.
+> - **Measured** by patching the discard methods to record whether the effective context was `None`:
+>
+>   | Where | Before `c386d82` | After |
+>   |---|---|---|
+>   | Trainer: LearningAI discards | 26/26 with context | 0/20 |
+>   | Trainer: ContextAwareAI opponent | 27/28 with context | 0/22 |
+>   | Simulator: ContextAwareAI | 0/16 | 0/16 |
+>   | Monte Carlo via `execute_ai_turn` (web "hard" path) | none | none |
+>
+> - **Effect:**
+>   - **ContextAwareAI** discards ignore dead cards and deck position. This is web "medium", the CLI AI, and every simulator game.
+>   - **MonteCarloAI** (web "hard") samples opponent hands from cards that are visibly in the discard pile (`_get_known_and_unknown`) and uses its own knock threshold instead of the table's.
+>   - **In the trainer,** the learner now plays with `ctx=None` discard states, but the experiences it stores are encoded *with* the context (`_LearnerSeat`). The network is therefore trained on inputs it never sees at play time.
+>   - The commit message says "execute_ai_turn already passes the context explicitly". That's true for draw and knock, but not for discard.
+> - **Why no fingerprint caught it:** primary, secondary and scenario had the bug in their baselines too. The learning line didn't move, most likely because 4 short episodes are almost all ε-exploration. That reason is a guess I haven't checked.
+> - **Recommended fix** (a behaviour change, so do it as its own commit and accept the new fingerprints):
+>   1. Pass `context` into both discard calls in `execute_ai_turn`.
+>   2. Also pass it at the three opening-discard sites: `round_runner.py:69`, `cli.py:372` and `game_session.py:370`.
+>   3. Then consider deleting `update_context` / `_current_context`, so a missing context is visible instead of silently `None`. Only the scenario panel still uses it (`scenario_quiz.py:240, 262, 288`); convert those to explicit arguments.
+>   4. Add a test that the discard receives a non-`None` context.
+>   5. Expect primary, secondary, scenario and learning to all move, and ContextAwareAI's win rate to go up. Record the new baselines and win rates in the commit message.
+>
+> **Nits (optional):**
+> 1. **`_LearnerSeat` hard-codes the knock-experience gate** as `hand.deadwood_total <= 10` (`trainer.py:197`). The code was moved as-is, but it's the same kind of bug as B9. Use the game's `knock_threshold`.
+> 2. **The learning fingerprint is weak** at catching decision changes (see above). Consider a line with ε = 0, or one that hashes the learner's greedy choices on the scenario positions.
+
+> ## Earlier review: ruff expansion + worker pool (`defb186`…`94b8076`), 2026-09-28
 >
 > **Verdict: verified. Behaviour preserved everywhere it should be, and the pool fix works.** Nothing blocking; a few nits.
 >
@@ -122,6 +182,10 @@
 >   - **CLI:** covered by the golden `turns` rows in `tests/golden/`.
 >   - **Scenario quiz:** needs a seeded fingerprint of the generated scenarios.
 >   - **Trainer:** needs a `--seed` (including torch seeding, §4 Randomness) and a short seeded training-run fingerprint.
+
+> ### C. Pass the game context to discard decisions: do before §3 (found 2026-09-29)
+>
+> `execute_ai_turn` passes `context` to draw and knock but not to discard, so ContextAwareAI, MonteCarloAI and LearningAI discard with `ctx=None` everywhere. The trainer used to paper over this with `update_context()`, until `c386d82` removed those calls. Details, measurements and the fix are in **Latest review → Finding**. It's a deliberate behaviour change: one commit, with new fingerprint baselines and win rates in the message.
 
 > ## Previous review: core consolidation (`6a033ee`…`9e76db6`), 2026-09-28
 >
