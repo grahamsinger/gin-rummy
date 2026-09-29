@@ -24,6 +24,7 @@ from gin_rummy.scenario.core import (
     panel_discard_choices,
     panel_draw_choices,
     panel_knock_choices,
+    split_opponent_pickups,
 )
 
 
@@ -43,9 +44,11 @@ def show_position(game: Game) -> None:
     print(f"\nDiscard top:   {game.top_of_discard}")
     print(f"Deck remaining: {len(game.deck)}")
 
-    pickups = ctx.opponent_pickups
-    if pickups:
-        print(f"Opponent picked up: {' '.join(str(c) for c in pickups)}")
+    held, returned = split_opponent_pickups(ctx)
+    if held:
+        print(f"Opponent holds:     {' '.join(str(c) for c in held)}")
+    if returned:
+        print(f"Opponent threw back: {' '.join(str(c) for c in returned)}")
     buried = sorted(ctx.dead_cards)
     if buried:
         print(f"Buried discards:    {' '.join(str(c) for c in buried)}")

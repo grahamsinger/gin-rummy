@@ -316,6 +316,68 @@ class TestBuriedDiscardsExcludeOwnPickups:
         assert picked not in ctx.dead_cards
         assert picked not in ctx.known_cards.discard_buried
 
+    def test_rediscarded_top_card_not_buried(self):
+        """A card picked up and later thrown back is in the discard history
+        twice; while it is the top card it must not also count as buried."""
+        game = Game("Alice", "Bob")
+        _start_round(game)
+
+        picker_idx = game.current_player_idx
+        picked = game.draw_from_discard()
+        game.discard(next(c for c in game.current_player.hand if c != picked))
+
+        # Other player draws from the deck and discards
+        game.draw_from_deck()
+        game.discard(game.current_player.hand.cards[0])
+
+        # Picker throws the picked-up card back
+        assert game.current_player_idx == picker_idx
+        game.draw_from_deck()
+        game.discard(picked)
+
+        for idx in (0, 1):
+            ctx = game.get_game_context(idx)
+            known = ctx.known_cards
+            assert known is not None
+            assert known.discard_top == picked
+            assert picked not in known.discard_buried
+            assert picked not in ctx.dead_cards
+        # Thrown back, so no longer known to be in the picker's hand
+        watcher_known = game.get_game_context(1 - picker_idx).known_cards
+        assert watcher_known is not None
+        assert picked not in watcher_known.opponent_hand_known
+
+    def test_pickups_split_into_held_and_thrown_back(self):
+        from gin_rummy.scenario.core import split_opponent_pickups
+
+        game = Game("Alice", "Bob")
+        _start_round(game)
+
+        picker_idx = game.current_player_idx
+        watcher_idx = 1 - picker_idx
+        first = game.draw_from_discard()
+        game.discard(next(c for c in game.current_player.hand if c != first))
+        assert split_opponent_pickups(game.get_game_context(watcher_idx)) == ([first], [])
+
+        # Watcher discards a card, picker takes that too, then throws the first one back
+        game.draw_from_deck()
+        game.discard(game.current_player.hand.cards[0])
+        second = game.draw_from_discard()
+        game.discard(first)
+        assert split_opponent_pickups(game.get_game_context(watcher_idx)) == ([second], [first])
+
+        # Watcher takes it, throws it back a turn later, and the picker takes
+        # it again: held once more, not thrown back
+        assert game.draw_from_discard() == first
+        game.discard(next(c for c in game.current_player.hand.cards if c != first))
+        game.draw_from_deck()
+        game.discard(next(c for c in game.current_player.hand.cards if c not in (first, second)))
+        game.draw_from_deck()
+        game.discard(first)
+        assert game.draw_from_discard() == first
+        game.discard(next(c for c in game.current_player.hand.cards if c not in (first, second)))
+        assert split_opponent_pickups(game.get_game_context(watcher_idx)) == ([first, second], [])
+
 
 class TestKnockThresholdPropagation:
     """A7: GameContext carries the live (possibly Oklahoma) knock threshold."""

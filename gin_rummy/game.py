@@ -179,9 +179,13 @@ class Game:
         target_score = config.game_rules.target_score
 
         # Build unified card location tracking
-        opponent_pickups = set(self._discard_pickups.get(opponent.name, []))
-        opponent_rediscards = set(self._discard_rediscards.get(opponent.name, []))
-        opponent_hand_known = opponent_pickups - opponent_rediscards
+        # Counted, not set difference: a card can be picked up, thrown back
+        # and picked up again, and is then held
+        opponent_pickups = self._discard_pickups.get(opponent.name, [])
+        opponent_rediscards = self._discard_rediscards.get(opponent.name, [])
+        opponent_hand_known = {
+            card for card in opponent_pickups if opponent_pickups.count(card) > opponent_rediscards.count(card)
+        }
 
         # Discard pile: top card is available, rest are buried
         # Exclude cards either player picked up from the pile - those are in
@@ -191,6 +195,10 @@ class Game:
         if len(self._discard_history) > 1:
             discard_buried_candidates = frozenset(self._discard_history[:-1])
         discard_buried = discard_buried_candidates - opponent_hand_known - frozenset(player.hand)
+        # A card that was picked up and thrown back is in the history twice;
+        # while it is the top card it is available, not buried
+        if discard_top is not None:
+            discard_buried -= {discard_top}
 
         known_cards = KnownCards(
             my_hand=frozenset(player.hand),

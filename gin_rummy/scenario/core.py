@@ -15,6 +15,7 @@ from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, MonteCarloAI
 from gin_rummy.config import get_config
 from gin_rummy.game import Game
 from gin_rummy.models import Card, Hand
+from gin_rummy.models.game_context import GameContext
 from gin_rummy.round_runner import AISeat, run_round
 
 HUMAN_SEAT = 0
@@ -130,6 +131,19 @@ def generate_stable_scenario(base_seed: int, panel: list[PanelMember]) -> Game |
         if game is not None:
             return game
     return None
+
+
+def split_opponent_pickups(ctx: GameContext) -> tuple[list[Card], list[Card]]:
+    """Split the opponent's discard-pile pickups into (still held, thrown back).
+
+    Both keep pickup order, each card once. A thrown-back card is on the
+    discard pile again, so it also shows as the top card or as buried.
+    """
+    held_known = ctx.known_cards.opponent_hand_known if ctx.known_cards else frozenset()
+    unique = list(dict.fromkeys(ctx.opponent_pickups))
+    held = [c for c in unique if c in held_known]
+    returned = [c for c in unique if c not in held_known]
+    return held, returned
 
 
 def describe_position(game: Game, panel: list[PanelMember]) -> dict:
