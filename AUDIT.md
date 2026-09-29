@@ -1,6 +1,39 @@
 # Codebase Audit
 
-> ## Latest review: replay fix + `replay.js` split (`be9efbf`…`35c39a4`), 2026-09-29
+> ## Latest review: step 10, docs and TODO (`c20c3dc`…`12bd9dd`), 2026-09-29
+>
+> **Verdict: verified. The suggested order of work is complete.** The docs are accurate where they were rewritten: links resolve, commands run, and names match the code. The TODO trim lost no open item. Four small doc nits, one of which (nit 1) points at a real subclassing pitfall worth a sentence.
+>
+> **Checks at `12bd9dd`:**
+> - **Tests:** 391 pass.
+> - **Lint:** `ruff check` and eslint are clean.
+> - **Links:** all relative links in the 14 tracked `.md` files resolve (`AUDIT.md` excluded).
+> - **Stale names:** no non-archive doc mentions a deleted module (`context.py`, `database.py`, `monte_carlo.py`, `cli.py`, `simulator.py`, `scenario_quiz`, `READING_ORDER`, `update_context`, `make_turn_decision`, `style.css`, `game.js`). Every backticked file path exists except one (nit 2).
+> - **Wheel:** `uv build --wheel` succeeds. It contains no PDFs and no `.md` files, and includes all 32 static assets.
+>
+> | Commit | Verified |
+> |---|---|
+> | `c20c3dc` backdrop close | ✅ The backdrop now calls `handReplay.close()`, which removes the keydown listener and runs `closeReplay` through `onClose`, falling back to `closeReplay()` before any replay exists. That's exactly last review's recommendation. Checked by reading the code, since last review already measured the mechanism |
+> | `1b08e6a` reading order, archive, PDFs | ✅ `docs/reading-order.md` names only existing files. The three archived notes carry banners. The PDFs are gone from git and the wheel, and nothing in `pyproject.toml` referenced them |
+> | `f64cf1d` README | ✅ except the terminal controls (nit 3). **Matches the code:** the entry points; the `gin-simulate` flags and defaults (100 games, `context` vs `basic`, `--ai1-config`, `--ai1-model`, `-v`); all five AI types; the difficulty mapping; the stats path `models/statistical_ai.json`; `npm run lint`; the pre-commit hooks (ruff and ruff-format); gin and undercut bonuses of 25; `min_deck_cards = 2`; targets 100/150/200/250; match play best of 3; `gin-experiment --preset fast --name` |
+> | `1f6c548` overrides README | ✅ It names all 10 override files, and each exists. **All three example commands run:** the two context and basic A/Bs at `-n 5`, and the MC A/B at `-n 1` (see nit 4) |
+> | `8ff4101` tournament → SIMULATION_HISTORY; signatures | ✅ The `ai-simulation.md` signatures now match `BasicAI` exactly (`decide_draw`, `decide_discard`, `should_knock` with `pending_discard`, and `_card_helps_hand`). Every runnable Python block compiles; the four that don't are signature-only reference lines |
+> | `f6f6c8f` TODO | ✅ **Nothing lost:** all 23 unchecked items in the old file are accounted for. They're either carried over (two knock-timing entries merged, and T4 became "Test gaps"), or dropped with a correct reason: T3, because CI runs `uv sync --all-extras`, and the web part of T4, because `tests/test_web_app.py` exists. **Spot-checked as still open:** A10's comparison is still `ev_gin > ev_knock` with `ev_gin = p*25 + (1-p)*ev_knock` (`context_aware.py:171-175`), no test imports `gin_rummy.simulator`, and there's no dealer badge in the game page |
+>
+> **Nits (optional, docs only):**
+> 1. **`docs/ai-simulation.md` custom AIs only apply their overrides when reasoning isn't captured.** The examples override the plain methods, but `execute_ai_turn(capture_reasoning=True)` (web games, and the CLI with DB tracking) calls `*_with_reasoning`, and `BasicAI` implements those with its own `_evaluate_*` cores. **Measured** with the doc's classes copied verbatim:
+>
+>    | Class | Plain path (simulator) | Reasoning captured |
+>    |---|---|---|
+>    | `DiscardHighest` | follows its rule on 239/239 turns | 217/236 |
+>    | `NeverKnock` | 0 non-gin knocks | 39 non-gin knocks |
+>
+>    The simulator examples in the doc are right. Add a sentence saying that overrides apply to the plain methods and that an AI meant for the web/CLI must also override the `*_with_reasoning` twins. Alternatively, have `BasicAI`'s twins defer to an overridden plain method. This isn't a regression; it's how the twins have always worked.
+> 2. **`docs/context-aware-ai.md:103` says the parameters are in `config.toml` under `[context_aware_ai]`.** The repo keeps them in `config/context-ai.toml`, and `config.toml` is only the fallback when there's no `config/` directory.
+> 3. **The README's terminal controls list `D` (discard) and `K` (knock), and "Turn Structure" shows `[D]`/`[K]`.** The CLI has no such keys: you enter the card number to discard, and knocking is a `Knock? (y/n)` prompt after the discard (`cli/prompts.py:134, 175`). The text predates this batch, but the rewrite kept it.
+> 4. **The MC A/B in the overrides README (`-n 20 -s 101 -t 50`) is slow.** One game took **6 minutes** here, because `mc-bench-*.toml` pin `max_workers = 1` (single core, 99% CPU), so `-n 20` is about 2 hours. A runtime hint, or `-n 5` in the example, would save someone a surprise.
+
+> ## Earlier review: replay fix + `replay.js` split (`be9efbf`…`35c39a4`), 2026-09-29
 >
 > **Verdict: verified.** The close-button regression and the older keyboard doubling are both fixed, checked in a real browser on both pages that host a replay. The new guard test catches the whole class of bug, and the split is a faithful move. §3 is complete. One small optional nit.
 >
