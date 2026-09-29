@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA = """
 -- Track schema version for future migrations
@@ -101,6 +101,18 @@ CREATE TABLE IF NOT EXISTS player_stats (
     knock_count INTEGER DEFAULT 0,             -- Number of times knocked (for avg)
     -- Metadata
     last_updated TEXT
+);
+
+-- Scenario quiz: one row per answered decision and panel AI
+CREATE TABLE IF NOT EXISTS scenario_answers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    answered_at TEXT NOT NULL,
+    seed INTEGER,
+    decision TEXT NOT NULL,       -- 'draw', 'discard', 'knock'
+    user_choice TEXT NOT NULL,
+    ai_name TEXT NOT NULL,
+    ai_choice TEXT NOT NULL,
+    agrees INTEGER NOT NULL
 );
 
 -- Indexes for common queries

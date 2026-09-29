@@ -26,6 +26,10 @@ MIGRATIONS: list[tuple[int, list[str]]] = [
         4,  # match_id on games
         ["ALTER TABLE games ADD COLUMN match_id INTEGER"],
     ),
+    (
+        5,  # scenario_answers table; init_db has already created it from SCHEMA
+        [],
+    ),
 ]
 
 
