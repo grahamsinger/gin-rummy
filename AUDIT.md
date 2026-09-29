@@ -263,7 +263,8 @@
 > - **Behaviour fingerprint at any commit:** `git worktree add <scratch>/<sha> <sha>`, then run `<repo>/.venv/bin/python <scratch>/<sha>/scripts/fingerprint.py` (the script re-execs with `PYTHONHASHSEED=0` and puts its own checkout first on `sys.path`). Check the import really comes from the checkout, e.g. `hasattr(Card, "code")` is false before `f6aeb6b`. Remove the worktrees afterwards.
 > - **Mechanical commits** (format, `ruff --fix`): check out the parent, apply the commit's `pyproject.toml`, re-run the tool, and `git diff <commit>` should be empty.
 > - **Recording changes:** `tests/golden/` holds the seeded CLI and web rows; `UPDATE_GOLDEN=1` accepts an intentional change.
-> - **Reviews are read-only:** never commit, merge or edit code while verifying. Findings go at the top of this file.
+> - **Frontend changes:** there are no JS tests. eslint runs with `no-undef` as an error under `sourceType: module`, so a missing import fails lint. CSS moves are checked with `scripts/css_computed_diff.js` in the browser console (every element's computed style, old build vs new, same session). Behaviour is smoke-tested by hand in Chrome on the four pages.
+- **Reviews are read-only:** never commit, merge or edit code while verifying. Findings go at the top of this file.
 
 > ## Earlier review: consolidation follow-ups (`8424e62`, `6bef1bc`), 2026-09-28
 >
@@ -537,8 +538,8 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 
 | File | Lines | Proposed split |
 |---|---|---|
-| `web/static/style.css` | 2109 | `base.css` (reset + `:root` tokens), `cards.css`, `board.css`, `modals.css`, `replay.css` (`:1399-2007`), plus `history.css` / `memory.css` / `scenario.css` extracted from the inline `<style>` blocks |
-| `web/static/game.js` | 2058 | `state.js`, `api.js`, `settings.js`, `render/board.js`, `render/assist.js` (`:863-1056`), `render/modals.js`, `ai-playback.js`, `main.js`. Move to **ES modules** (`<script type="module">`, eslint `sourceType: "module"`) to drop the IIFEs; no bundler needed |
+| ~~`web/static/style.css`~~ | 2109 | _Done 2026-09-29 (`e636bb0` split, `55c9dbf` tokens): `base.css` (reset, `:root` tokens), `cards.css`, `board.css`, `assist.css`, `modals.css`, `replay.css`, plus `history.css` / `memory.css` / `scenario.css` from the inline blocks. Verified by a rule-multiset check and by comparing every element's computed style in Chrome on all four pages (`scripts/css_computed_diff.js`, 0 differences)._ |
+| ~~`web/static/game.js`~~ | 2058 | _Done 2026-09-29 (`8684d42` ES modules everywhere with eslint `no-undef`; `823eef0` split into `game/` state, dom, cards, api, board, assist, ai-playback, modals, settings, stats, score-history, actions, main; `init()` split into bind functions after). The seven module-level `let`s became fields on one `ui` object. Smoke-tested in Chrome: play, modals, replay, memory, quiz._ |
 | ~~`ai/monte_carlo.py`~~ | 1311 | _Done 2026-09-29 (`66bb1f9` MC fingerprint line, `aebced6` pure move, `d22c02f` SimParams, `b9c228a` typed thinking): `ai/mc/` with `rollout.py`, `sampling.py`, `workers.py`, `thinking.py`, `ai.py` (744 lines). The three batch functions stayed separate on purpose; what they shared is in `SimParams`. Note: `b9c228a`'s message understates the shape change: every knock dict now carries `advantage`/`fallback`/`reason` too, as `None`/`False`, which `game.js` handles._
 | ~~`web/game_session.py`~~ | 1072 | _Done 2026-09-29 (`2520239` pure move, then serializer functions): `web/assist.py`, `web/serializers.py` (`card_to_dict`, `melds_to_dicts`, `round_result_to_dict`); recording went to `tracking.py` in §2.2; `GameSession` is the flow only._ |
 | ~~`cli.py`~~ | 965 | _Done 2026-09-29 (`94c507d` pure move, then `ask()` dedup): `cli/render.py` (349 lines), `cli/prompts.py`, `cli/round.py` (seats over `round_runner.py`), `cli/app.py`; the three copies of the `q` handling are one `ask()`._ |
@@ -548,7 +549,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 | ~~`learning/trainer.py`~~ | 799 | _Done: `_LearnerSeat` over the round runner (`c386d82`); `main()` moved to `learning/train_cli.py` (`e815b5f`), `trainer.py` is 646 lines._ |
 | ~~`simulator.py`~~ | 644 | _Done 2026-09-29 (`48066ba`, pure move): `simulator/metrics.py`, `simulator/runner.py`, `simulator/cli.py` (`create_ai` is a thin wrapper over `make_ai` from §2.3); `__init__` re-exports, `__main__` keeps `python -m` working._ |
 | ~~`web/app.py`~~ | 606 | _Done 2026-09-29 (`0abd6ab` pure move with the route table diffed before/after, then `Depends`): `web/sessions.py` (`SessionDep`, `ScenarioDep`), `web/routes/{pages,game,history,stats,scenario}.py`, `routes/common.py` (`ok()`); `app.py` is 50 lines._ |
-| `web/static/replay.js` | 651 | `HandReplay` is a single ~550-line class; split rendering from playback control |
+| `web/static/replay.js` | 651 | `HandReplay` is a single ~550-line class; split rendering from playback control. _Still open after the step-9 batch: it is an ES module exporting the class now (`8684d42`), but not split._ |
 
 **Longest functions**, in approximate lines:
 - `game.js init`: 255
@@ -690,5 +691,5 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 6. ~~**MC worker-pool lifecycle and blocking web routes** ("Next up" A at the top).~~ Done 2026-09-28.
 7. ~~**Round runner (§2.1):** approach (b) from "Next up" B: a blocking runner for CLI, simulator, quiz and trainer, with the web staying request-driven. Add the quiz and trainer fingerprints first.~~ Done 2026-09-28 ("Next up" B).
 8. **Split the large files (§3):** ~~`monte_carlo.py`~~ (done 2026-09-29), ~~`context.py` + `database.py`~~ (done 2026-09-29), ~~`cli.py` + `simulator.py` + trainer glue~~ (done 2026-09-29), ~~`game_session.py`/`app.py`~~ (done 2026-09-29). Remaining §3 rows are the frontend files (step 9). One batch per review; pure-move commit first, cleanups after, every fingerprint line unchanged.
-9. **Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.
+9. ~~**Frontend:** shared JS modules + ES modules, split `game.js`, extract CSS with `:root` tokens.~~ Done 2026-09-29 (`8684d42`…`init` split); `replay.js` render/control split still open. Also done in this batch: `scenario_quiz.py` → `scenario/` (`d604345`), so the web app no longer imports `cli/`.
 10. **Docs and TODO cleanup.**
