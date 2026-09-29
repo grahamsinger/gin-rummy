@@ -1,6 +1,24 @@
 # Codebase Audit
 
-> ## Latest review: scenario split + frontend step 9 (`d604345`…`b1afcbd`), 2026-09-29
+> ## Latest review: replay fix + `replay.js` split (`be9efbf`…`35c39a4`), 2026-09-29
+>
+> **Verdict: verified.** The close-button regression and the older keyboard doubling are both fixed, checked in a real browser on both pages that host a replay. The new guard test catches the whole class of bug, and the split is a faithful move. §3 is complete. One small optional nit.
+>
+> **Checks at `35c39a4`:**
+> - **Tests:** 391 pass: 367, plus 24 parametrised cases from `test_static_assets.py`, one per JS/HTML file.
+> - **Lint and types:** `ruff check`, `ruff format --check` and eslint are clean, and `ty` reports 37.
+> - **Fingerprints:** no Python game code changed.
+> - **Real DB untouched:** `game_history.db` had the same md5 before and after my browser session. The browser checks ran from a scratch worktree on a copy. Test game 244 from last round has been removed.
+>
+> | Commit | Verified |
+> |---|---|
+> | `be9efbf` close buttons + keydown | ✅ The three buttons now carry `data-action="close"`, and `attachEventListeners()` wires every `[data-action]` in the container, with `close` added to the switch. The only `data-action` elements in the replay markup are first/prev/next/last/close, so widening the selector attaches nothing new. The error and no-turns states now call `attachEventListeners()` too. The keydown handler is bound once (`this._onKeydown`), added in `loadHand()` (re-adding the same reference is a no-op) and removed in `close()`. **Browser, `/history`:** → presses step **1→2→3→4→5**, where they used to go 1→2→4→8→13. × and Escape both close the modal with no errors, and after ×, Home/→ are no longer intercepted. **Browser, game page:** I resumed a 2-hand game on the DB copy and opened Score History → round 1 replay. A **real mouse click on ×** hides the replay and brings Score History back, with no console errors |
+> | `be9efbf` guard test | ✅ **Mutation-checked** in a scratch worktree: putting `onclick="handReplay.close()"` back in `replay-render.js`, and adding an `onclick` in `game/api.js` (a subdirectory), makes exactly those two cases fail. `rglob` covers `game/` |
+> | `85a45f6` `replay.js` → `replay.js` + `replay-render.js` | ✅ **Compared by parsing with espree:** 8 of the 11 moved functions are identical once the documented substitutions are applied (`this.` → `replay.`, `this.escapeHtml(` → `escapeHtml(`, `this.renderX()` → `renderX(replay)`, whitespace collapsed): `renderControls`, `renderTurnList`, `renderDeadwoodGraph`, `renderAIReasoning` and the 4 card helpers. The other 3 (`renderReplay`, `renderError`, `renderNoTurns`) differ only by returning the HTML instead of assigning `innerHTML` and calling `attachEventListeners()`, and by taking `showClose` in place of `this.options.onClose`. The new three-line class wrappers do exactly that assignment and call. 14 other class methods are unchanged. Only `escapeHtml` was removed, and it was a pure forwarder. **Whitespace:** the only `white-space: pre*` rule in the stylesheets is `#round-result-details` (the game's round-result modal, `pre-line`), which isn't in the replay, so whitespace-only HTML differences can't render differently |
+>
+> **Nit (optional):** closing the history replay by **clicking the backdrop** (`history.js:72`, `if (e.target === elements.replayModal) closeReplay()`) hides the modal without calling `handReplay.close()`, so the keydown listener stays attached. **Measured:** after a backdrop close, `Home` and `→` on the history page are still `preventDefault`ed and step the hidden replay. After closing with ×, neither is intercepted. It's a small annoyance, and much narrower than before `be9efbf`, when listeners were never removed at all. **Fix:** have the backdrop handler call `handReplay.close()` (which runs `closeReplay` through `onClose`). The game page has no backdrop close for the replay, so it isn't affected.
+
+> ## Earlier review: scenario split + frontend step 9 (`d604345`…`b1afcbd`), 2026-09-29
 >
 > **Verdict: one regression to fix. Everything else is verified.** The replay's **× and Close buttons no longer work** on the history page or in the game page's score-history replay. That's a real user-facing break from `8684d42`, so please fix it before this batch counts as done. Everything else is exact: the scenario and JS moves, the CSS split and tokens, and `init()`.
 >
