@@ -212,7 +212,7 @@ class ContextAwareAI(BasicAI):
         # Use provided context or stored context
         ctx = context or self._current_context
 
-        discard = self.decide_discard(hand)
+        discard = self.decide_discard(hand, ctx)
 
         # Check if we can knock after discarding
         test_cards = [c for c in hand if c != discard]

@@ -9,7 +9,7 @@ from typing import Any
 from gin_rummy.ai import DIFFICULTY_TO_AI, BasicAI, DrawChoice, MonteCarloAI, make_ai
 from gin_rummy.database import GameTracker, get_connection, get_resumable_game
 from gin_rummy.game import Game, GamePhase, InvalidActionError, RoundResult
-from gin_rummy.game_runner import TurnResult, execute_ai_turn
+from gin_rummy.game_runner import TurnResult, execute_ai_turn, get_ai_context
 from gin_rummy.models import Card, Player, Rank, Suit, analyze_hand
 from gin_rummy.models.hand import CardNotInHandError
 from gin_rummy.tracking import TurnRecord, TurnRecorder, TurnSnapshot
@@ -367,7 +367,8 @@ class GameSession:
         if self.game is None or self.ai is None:
             return
 
-        discard = self.ai.decide_discard(self.game.current_player.hand)
+        context = get_ai_context(self.game, self.ai, self.game.current_player_idx)
+        discard = self.ai.decide_discard(self.game.current_player.hand, context)
         self.game.discard_to_start(discard)
         self.last_ai_action = {
             "type": "first_discard",

@@ -206,10 +206,10 @@ def execute_ai_turn(
     # AI decides what to discard (with optional reasoning capture)
     discard_reasoning: DiscardReasoning | None = None
     if capture_reasoning:
-        discard_reasoning = ai.decide_discard_with_reasoning(current.hand)
+        discard_reasoning = ai.decide_discard_with_reasoning(current.hand, context)
         discard = discard_reasoning.card
     else:
-        discard = ai.decide_discard(current.hand)
+        discard = ai.decide_discard(current.hand, context)
 
     # Rule: cannot discard the card just taken from the discard pile.
     # If the AI chose it anyway, substitute the best legal alternative.

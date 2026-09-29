@@ -96,15 +96,17 @@ class StatisticalAI(BasicAI):
 
     def decide_draw(self, hand: Hand, discard_top: Card | None, context: GameContext | None = None) -> DrawChoice:
         """Use statistics to decide draw, with BasicAI fallback."""
-        return self._evaluate_stats_draw(hand, discard_top)[0]
+        return self._evaluate_stats_draw(hand, discard_top, context)[0]
 
     def decide_draw_with_reasoning(
         self, hand: Hand, discard_top: Card | None, context: GameContext | None = None
     ) -> DrawReasoning:
-        choice, reasoning, factors = self._evaluate_stats_draw(hand, discard_top)
+        choice, reasoning, factors = self._evaluate_stats_draw(hand, discard_top, context)
         return DrawReasoning(choice=choice, reasoning=reasoning, factors=factors)
 
-    def _evaluate_stats_draw(self, hand: Hand, discard_top: Card | None) -> tuple[DrawChoice, str, list[str]]:
+    def _evaluate_stats_draw(
+        self, hand: Hand, discard_top: Card | None, context: GameContext | None = None
+    ) -> tuple[DrawChoice, str, list[str]]:
         if discard_top is None:
             return DrawChoice.DECK, "Drew from DECK: discard pile empty", []
 
@@ -115,7 +117,7 @@ class StatisticalAI(BasicAI):
 
         if stats is None or samples < self.MIN_SAMPLES:
             # Fall back to BasicAI
-            choice, _, reason = self._evaluate_draw(hand, discard_top)
+            choice, _, reason = self._evaluate_draw(hand, discard_top, context)
             factors += [f"Samples: {samples} < {self.MIN_SAMPLES} (BasicAI fallback)", reason]
             where = f"{discard_top} from DISCARD" if choice == DrawChoice.DISCARD else "from DECK"
             reasoning = f"Drew {where}: too few samples, BasicAI fallback ({reason})"

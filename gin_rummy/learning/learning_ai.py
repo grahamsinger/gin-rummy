@@ -303,7 +303,7 @@ class LearningAI(BasicAI):
         self._drawn_card = drawn_card
 
         # Get discard decision
-        discard = self.decide_discard(hand)
+        discard = self.decide_discard(hand, context)
 
         # Check if we can knock after discarding
         from gin_rummy.models import Hand as HandClass

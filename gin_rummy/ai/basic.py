@@ -95,13 +95,13 @@ class BasicAI:
 
     def decide_draw(self, hand: Hand, discard_top: Card | None, context: GameContext | None = None) -> DrawChoice:
         """Decide whether to draw from deck or discard pile."""
-        return self._evaluate_draw(hand, discard_top)[0]
+        return self._evaluate_draw(hand, discard_top, context)[0]
 
     def decide_draw_with_reasoning(
         self, hand: Hand, discard_top: Card | None, context: GameContext | None = None
     ) -> DrawReasoning:
         """Draw decision with the reasoning behind it."""
-        choice, current_deadwood, reason = self._evaluate_draw(hand, discard_top)
+        choice, current_deadwood, reason = self._evaluate_draw(hand, discard_top, context)
         factors = [f"Current deadwood: {current_deadwood}"]
         if discard_top is None:
             return DrawReasoning(choice=choice, reasoning="Drew from DECK: discard pile empty", factors=factors)
@@ -112,7 +112,9 @@ class BasicAI:
             choice=choice, reasoning=f"Drew from DECK: {discard_top} doesn't help ({reason})", factors=factors
         )
 
-    def _evaluate_draw(self, hand: Hand, discard_top: Card | None) -> tuple[DrawChoice, int, str]:
+    def _evaluate_draw(
+        self, hand: Hand, discard_top: Card | None, context: GameContext | None = None
+    ) -> tuple[DrawChoice, int, str]:
         """Returns (choice, current deadwood, one-line reason)."""
         current_deadwood = hand.deadwood_total
         if logger.isEnabledFor(logging.DEBUG):
@@ -122,14 +124,14 @@ class BasicAI:
             logger.info("Draw decision: DECK (discard pile empty)")
             return DrawChoice.DECK, current_deadwood, "discard pile empty"
 
-        helps, reason = self._card_helps_hand(hand, discard_top)
+        helps, reason = self._card_helps_hand(hand, discard_top, context)
         if helps:
             logger.info("Draw decision: DISCARD - taking %s (%s)", discard_top, reason)
             return DrawChoice.DISCARD, current_deadwood, reason
         logger.info("Draw decision: DECK - %s doesn't help (%s)", discard_top, reason)
         return DrawChoice.DECK, current_deadwood, reason
 
-    def _card_helps_hand(self, hand: Hand, card: Card) -> tuple[bool, str]:
+    def _card_helps_hand(self, hand: Hand, card: Card, context: GameContext | None = None) -> tuple[bool, str]:
         """Check if a card would help the hand form melds.
 
         Coordinates with decide_discard so we never pick up a card only to
@@ -145,7 +147,7 @@ class BasicAI:
         test_hand = Hand(list(hand) + [card])
         self._in_hypothetical = True
         try:
-            would_discard = self.decide_discard(test_hand)
+            would_discard = self.decide_discard(test_hand, context)
         finally:
             self._in_hypothetical = False
 
@@ -282,7 +284,7 @@ class BasicAI:
         logger.debug("--- AI Turn Start ---")
         logger.debug("Drew: %s", drawn_card)
 
-        discard = self.decide_discard(hand)
+        discard = self.decide_discard(hand, context)
 
         # Check if we can knock after discarding
         test_cards = [c for c in hand if c != discard]

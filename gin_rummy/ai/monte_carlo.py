@@ -925,7 +925,7 @@ class MonteCarloAI(ContextAwareAI):
 
         if len(unknown) < self.min_unknown_for_simulation:
             self._clear_thinking("discard")
-            return super().decide_discard(hand)
+            return super().decide_discard(hand, ctx)
 
         cards = list(hand)
 
@@ -1052,7 +1052,7 @@ class MonteCarloAI(ContextAwareAI):
         fallback = False
         if len(candidate_results) >= 2:
             best_to_second = candidate_results[0]["avg_points"] - candidate_results[1]["avg_points"]
-            heuristic_choice = super().decide_discard(hand)
+            heuristic_choice = super().decide_discard(hand, ctx)
             if best_to_second < self.discard_min_advantage and best_card != heuristic_choice:
                 fallback = True
                 best_card = heuristic_choice

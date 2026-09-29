@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+import random
+from typing import ClassVar
+
+import gin_rummy.config as config_module
 from gin_rummy.ai import BasicAI
+from gin_rummy.config import Config
+from gin_rummy.game import Game
+from gin_rummy.game_runner import execute_ai_turn
 from gin_rummy.models import Card, Rank, Suit
 from gin_rummy.round_runner import AISeat
 
@@ -40,3 +47,54 @@ class TestOpponentTrackingForwarding:
         seat.observe_pickup(card)
         seat.observe_discard(card)
         assert seat.ai.opponent_model.total_discards == 1
+
+
+class ContextSpyAI(BasicAI):
+    """Records the context every discard decision receives."""
+
+    needs_context: ClassVar[bool] = True
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.discard_contexts: list = []
+
+    def decide_discard(self, hand, context=None):
+        self.discard_contexts.append(context)
+        return super().decide_discard(hand, context)
+
+    def decide_discard_with_reasoning(self, hand, context=None):
+        self.discard_contexts.append(context)
+        return super().decide_discard_with_reasoning(hand, context)
+
+
+class TestDiscardGetsTheContext:
+    """Discard decisions used to be made without a game context (audit finding, 2026-09-29)."""
+
+    @staticmethod
+    def _dealt() -> tuple[Game, ContextSpyAI]:
+        random.seed(5)
+        game = Game("Spy", "Other")
+        game.deal()
+        return game, ContextSpyAI()
+
+    def test_opening_discard_through_the_seat(self):
+        game, ai = self._dealt()
+        AISeat(ai).opening_discard(game)
+        assert len(ai.discard_contexts) == 1 and ai.discard_contexts[0] is not None
+
+    def test_opening_discard_through_the_cli(self, monkeypatch):
+        cfg = Config()
+        cfg.display.ai_turn_delay = 0.0
+        monkeypatch.setattr(config_module, "_config", cfg)
+        from gin_rummy import cli
+
+        game, ai = self._dealt()
+        cli.play_ai_first_discard(game, ai)
+        assert len(ai.discard_contexts) == 1 and ai.discard_contexts[0] is not None
+
+    def test_turn_discard_with_and_without_reasoning(self):
+        for capture in (False, True):
+            game, ai = self._dealt()
+            game.discard_to_start(game.current_player.hand[0])
+            execute_ai_turn(game, ai, capture_reasoning=capture)
+            assert ai.discard_contexts and all(c is not None for c in ai.discard_contexts)

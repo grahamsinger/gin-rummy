@@ -21,7 +21,7 @@ from typing import Protocol
 
 from gin_rummy.ai import BasicAI, DrawChoice
 from gin_rummy.game import Game, GamePhase, RoundResult
-from gin_rummy.game_runner import TurnActions, TurnCallbacks, TurnResult, execute_ai_turn
+from gin_rummy.game_runner import TurnActions, TurnCallbacks, TurnResult, execute_ai_turn, get_ai_context
 from gin_rummy.models import Card
 
 
@@ -66,7 +66,8 @@ class AISeat:
         self.ai.reset_for_new_hand()
 
     def opening_discard(self, game: Game) -> Card:
-        card = self.ai.decide_discard(game.current_player.hand)
+        context = get_ai_context(game, self.ai, game.current_player_idx)
+        card = self.ai.decide_discard(game.current_player.hand, context)
         if self.callbacks is not None:
             self.callbacks.on_discard(game.current_player, card)
         return card

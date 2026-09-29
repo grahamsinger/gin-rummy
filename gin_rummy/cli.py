@@ -15,6 +15,7 @@ from gin_rummy.game_runner import (
     TurnActions,
     TurnResult,
     execute_ai_turn,
+    get_ai_context,
 )
 from gin_rummy.models import Card, Hand, MeldType, Player, Suit, analyze_hand
 from gin_rummy.round_runner import AISeat, Seat, run_round
@@ -369,7 +370,8 @@ def play_ai_first_discard(game: Game, ai: BasicAI) -> Card:
     print(f"\n{ai_name} is choosing a card to discard...")
     time.sleep(delay * 2)  # Slightly longer for first discard
 
-    discard = ai.decide_discard(game.current_player.hand)
+    context = get_ai_context(game, ai, game.current_player_idx)
+    discard = ai.decide_discard(game.current_player.hand, context)
     print(f"{ai_name} discarded {discard}")
     time.sleep(delay)
     return discard
