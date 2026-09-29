@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from gin_rummy.cli import finish_round
+from gin_rummy.cli.round import finish_round
 from gin_rummy.db import GameTracker
 from gin_rummy.game import Game
 from gin_rummy.game_runner import TurnResult

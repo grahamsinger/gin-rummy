@@ -106,7 +106,7 @@ class TestRunRound:
 
 class TestCliSeats:
     def test_player_vs_player_round_runs_on_scripted_input(self, monkeypatch: pytest.MonkeyPatch, capsys):
-        from gin_rummy import cli
+        from gin_rummy.cli.round import play_round_pvp
 
         cfg = Config()
         cfg.display.clear_screen = False
@@ -131,7 +131,7 @@ class TestCliSeats:
 
         random.seed(11)
         game = Game("P1", "P2")
-        cli.play_round_pvp(game, tracker=None)
+        play_round_pvp(game, tracker=None)
 
         assert game.phase in (GamePhase.KNOCKED, GamePhase.ROUND_OVER)
         hand_overs = [p for p in prompts if "next player's turn" in p]

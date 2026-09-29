@@ -105,7 +105,7 @@ def quiet_config(monkeypatch: pytest.MonkeyPatch) -> Config:
 
 class TestCliRecording:
     def test_seeded_round_writes_consistent_turn_rows(self, quiet_config, isolated_db, monkeypatch, capsys):
-        from gin_rummy import cli
+        from gin_rummy.cli.round import play_round_vs_ai
 
         def scripted_input(prompt: str = "") -> str:
             """Answer by prompt text, so the script never depends on the deal."""
@@ -125,7 +125,7 @@ class TestCliRecording:
         game = Game("Human", "Computer")
         tracker = GameTracker(isolated_db)
         tracker.start_game("Human", "Computer")
-        cli.play_round_vs_ai(game, BasicAI(quiet_config), human_player_idx=0, tracker=tracker)
+        play_round_vs_ai(game, BasicAI(quiet_config), human_player_idx=0, tracker=tracker)
 
         rows = _turn_rows(isolated_db)
         _check_turn_rows(rows, "Human", "Computer")

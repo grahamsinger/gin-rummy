@@ -21,7 +21,7 @@ from concurrent.futures import Executor
 from dataclasses import dataclass, replace
 
 from gin_rummy.ai import BasicAI, ContextAwareAI, DrawChoice, MonteCarloAI
-from gin_rummy.cli import display_hand_by_suit
+from gin_rummy.cli.render import display_hand_by_suit
 from gin_rummy.config import get_config
 from gin_rummy.game import Game
 from gin_rummy.game_runner import calculate_post_discard_deadwood

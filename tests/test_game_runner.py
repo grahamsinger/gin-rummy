@@ -88,10 +88,10 @@ class TestDiscardGetsTheContext:
         cfg = Config()
         cfg.display.ai_turn_delay = 0.0
         monkeypatch.setattr(config_module, "_config", cfg)
-        from gin_rummy import cli
+        from gin_rummy.cli.round import play_ai_first_discard
 
         game, ai = self._dealt()
-        cli.play_ai_first_discard(game, ai)
+        play_ai_first_discard(game, ai)
         assert len(ai.discard_contexts) == 1 and ai.discard_contexts[0] is not None
 
     def test_opening_discard_through_the_web_session(self, isolated_db):
