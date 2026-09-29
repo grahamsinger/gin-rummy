@@ -1,6 +1,49 @@
 # Codebase Audit
 
-> ## Latest review: §3 batch 4 of 4, `game_session.py` + `app.py` splits (`e3ca9ce`…`1169e38`), 2026-09-29
+> ## Latest review: scenario split + frontend step 9 (`d604345`…`b1afcbd`), 2026-09-29
+>
+> **Verdict: one regression to fix. Everything else is verified.** The replay's **× and Close buttons no longer work** on the history page or in the game page's score-history replay. That's a real user-facing break from `8684d42`, so please fix it before this batch counts as done. Everything else is exact: the scenario and JS moves, the CSS split and tokens, and `init()`.
+>
+> **Checks at `b1afcbd`:**
+> - **Tests:** 367 pass.
+> - **Lint and types:** `ruff check`, `ruff format --check` and eslint (now `no-undef` as an error) are clean, and `ty` reports 37.
+> - **Fingerprints:** all six lines are unchanged.
+> - **Browser, loaded from a scratch worktree:** the game, memory and scenario pages load with no console errors. The server ran from a worktree whose `config/database.toml` pointed at a *copy* of `game_history.db`, so nothing was written to the real one.
+>
+> **Regression: the replay close buttons throw `ReferenceError: handReplay is not defined`**
+> - `replay.js:262, 542, 555` render `<button onclick="handReplay.close()">`.
+>   - **Before `8684d42`**, the pages were classic scripts, so `let handReplay` at the top of `history.js`/`game.js` sat in the global lexical scope, which inline handlers can see.
+>   - **As ES modules**, it's module-scoped: `history.js`'s `handReplay`, and `ui.handReplay` in `game/score-history.js`. So the inline handler can't find it.
+> - **Measured, same method on both builds:** open a hand replay on `/history`, then click `.replay-close-btn`.
+>
+>   | Build | Result |
+>   |---|---|
+>   | `d604345` (before) | Modal hides |
+>   | HEAD | `ReferenceError`, modal stays open |
+>
+>   A real mouse click on HEAD gives the same error. **Escape still closes it** (the keydown handler calls `this.close()`), which is why it's easy to miss. The game page has no global `handReplay` either (`typeof handReplay === "undefined"`), and uses the same markup, so the score-history replay is affected the same way.
+> - **Why no check caught it:**
+>   - `no-undef` can't see a name inside an HTML string.
+>   - The commit's Chrome check didn't click a replay close button.
+>   - `css_computed_diff.js` doesn't exercise behaviour.
+> - **Fix:**
+>   1. Drop the inline handlers. Render the buttons with a class or `data-action="close"`, and in `attachEventListeners()` add `btn.addEventListener('click', () => this.close())`. This also removes the hidden assumption that the caller's variable is named `handReplay`.
+>   2. Add a guard so this can't come back: e.g. a test that fails on ` on[a-z]+=` in `web/static/*.js` and `*.html`, or eslint `no-restricted-syntax` on template literals containing `onclick=`.
+>
+> | Commit | Verified |
+> |---|---|
+> | `d604345` `scenario_quiz.py` → `scenario/` | ✅ **Checked with the AST:** all 22 definitions are identical across `scenario/core.py` and `scenario/cli.py`. `gin-scenario` runs, and `scenario/cli.py` keeps a `__main__` guard. The web app no longer loads any `gin_rummy.cli*` module (checked via `sys.modules`). This resolves last review's observation |
+> | `8684d42` ES modules | ⚠️ `git show -w` shows only the intended changes: the `window.CardUtils` IIFE becomes named exports, `window.HandReplay` becomes `export class`, the two IIFE wrappers are removed, `window.CardUtils.*` reads become imports, eslint moves to `sourceType: module` with `no-undef: error`, and each page loads one `type="module"` script. **But it broke the inline `handReplay.close()` handlers (above)** |
+> | `823eef0` `game.js` → `game/` (13 modules) | ✅ **Compared by parsing with espree:** all 51 old top-level functions and constants are **identical** after mapping `ui.X` back to `X` for the seven moved `let`s. The rest are accounted for: the 7 `let`s now live on `ui` in `state.js` with the same initialisers (including `sortMode` from `localStorage`). `esc` became `import { escapeHtml as esc }`. The two old top-level statements, the thinking-toggle IIFE and `DOMContentLoaded → init`, are in `ai-playback.js` and `main.js`. **No shadowing:** no function in the old file had a parameter or local named after any of the seven, so the `ui.` rewrite couldn't have captured a local. `scoreHistoryPlayerNames` is exported with `let` but only ever mutated, never reassigned |
+> | `e636bb0` CSS split | ✅ **All 327 rule blocks in the old `style.css` appear exactly once** across the six shared files (comments and whitespace stripped). Page styles are still linked after the shared ones, as the inline `<style>` blocks were. **Order:** the new files regroup rules, so relative order changed (e.g. `base.css` takes rules from old positions 0–148 and `board.css` from 2–318). Order only matters when two equal-specificity rules set the same property on the same element. I checked every inverted pair: **none** has equal specificity, a shared final class/id *and* a shared property. That's consistent with the commit's computed-style diff (0 differences on all four pages) |
+> | `55c9dbf` colour tokens | ✅ **Checked by reversing it:** substituting every `var(--x)` back with its `:root` value reproduces the previous commit's stylesheets byte-for-byte, apart from one new comment in `base.css`. Each of the nine colours now appears as a literal only in its `:root` definition |
+> | `ec5a3c8` `init()` → ten `bind*` functions | ✅ `git show -w`: only the function wrappers change. The one reordering is that the three sort-button listeners now register inside `bindAssistAndSort`, a few statements earlier than before. They're the only listeners on those buttons, so there's no effect |
+>
+> **Older bug found while testing (optional, same class):** replay arrow-key navigation **doubles with every step**. `render()` runs on every turn change and calls `attachEventListeners()`, which does `document.addEventListener('keydown', this.handleKeydown.bind(this))` (`replay.js:594`). Each `.bind` creates a new function, so listeners pile up, and `close()`'s `removeEventListener(… .bind(this))` (`:634`) never removes any of them. **Measured:** opening a 13-turn replay and pressing → four times shows turn 1 → 2 → 4 → 8 → 13. **Fix:** bind once in the constructor (`this._onKeydown = this.handleKeydown.bind(this)`), add it once when the replay opens, and remove that same reference in `close()`. It's the same code as the close-button fix, so it could share a commit, and fits the still-open `replay.js` split.
+>
+> **Process note:** the real `game_history.db` has a new game, 244 (`Guest_5cb9` vs Computer, started 2026-09-29 13:06), from the implementing agent's browser check. It's harmless, but for future browser checks, run the server with `config/database.toml` pointing at a scratch copy (I did that from a scratch worktree), or delete the test game afterwards.
+
+> ## Earlier review: §3 batch 4 of 4, `game_session.py` + `app.py` splits (`e3ca9ce`…`1169e38`), 2026-09-29
 >
 > **Verdict: verified. §3's Python splits are complete.** Both moves are exact. The public API is unchanged: the route table and OpenAPI schema are byte-identical to the pre-batch commit. The serializer refactor produces byte-identical JSON over 3,208 real responses. Nothing blocking; one optional observation.
 >
