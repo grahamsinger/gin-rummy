@@ -1,6 +1,28 @@
 # Simulation History
 
-Tracking ContextAwareAI vs BasicAI performance across simulation runs.
+Results of AI-vs-AI simulation runs, oldest first. Reproduce a run with the seed and
+configs it names (`uv run gin-simulate -n N -s SEED ...`, overrides in `config/overrides/`).
+
+---
+
+## Round-robin tournament (2025-12-30)
+
+100 games per matchup, seed 42, between the three AIs of the time.
+
+| Rank | AI | Wins | Losses | Win Rate | Rounds Won | Total Points |
+|------|-----|------|--------|----------|------------|--------------|
+| 1 | **ContextAwareAI** | 141 | 59 | 70.5% | 997 | 19,096 |
+| 2 | BasicAI | 130 | 70 | 65.0% | 979 | 18,206 |
+| 3 | StatisticalAI | 29 | 171 | 14.5% | 586 | 9,821 |
+
+Head to head (games won): ContextAwareAI 52-48 BasicAI; BasicAI 82-18 StatisticalAI;
+ContextAwareAI 89-11 StatisticalAI.
+
+Observations: the two heuristic AIs were nearly even (same 7.1 average knock deadwood;
+BasicAI drew from the discard pile 25% of the time, ContextAwareAI 16%). StatisticalAI
+drew from the discard pile twice as often as either (32-33%), so its learned statistics
+were overvaluing pickups; it was learning from self-play at the time. Suggested fixes:
+train it against stronger opponents, reset and relearn, tune the selection temperature.
 
 ---
 
@@ -163,7 +185,7 @@ Context: same-day code review fixed three MC simulation-fidelity bugs
 (phantom extra turn in continue-rollouts, pending discard leaking into the
 sampling pool, rollout deck-exhaustion divergence), then added three
 upgrades behind config flags: `weighted_sampling`, `defensive_rollout`,
-`joint_turn_evaluation` (see TODO.md AI Tuning and tests/test_mc_upgrades.py).
+`joint_turn_evaluation` (tests in tests/test_mc_upgrades.py; the latency follow-ups are in TODO.md).
 
 ### Head-to-head: upgraded MC vs legacy MC
 20 games, seed 101, target 50, both at 150 sims / 1 worker

@@ -232,11 +232,11 @@ from gin_rummy.simulator import Simulator, SimulatorConfig
 from gin_rummy.ai import BasicAI
 
 class AggressiveAI(BasicAI):
-    def should_knock(self, hand):
+    def should_knock(self, hand, context=None, pending_discard=None):
         return hand.deadwood_total <= 10
 
 class ConservativeAI(BasicAI):
-    def should_knock(self, hand):
+    def should_knock(self, hand, context=None, pending_discard=None):
         return hand.deadwood_total <= 3
 
 config = SimulatorConfig(num_games=100, seed=42)
@@ -251,6 +251,8 @@ print(metrics.summary())
 ## Creating Custom AIs
 
 Subclass `BasicAI` and override methods to customize behavior.
+
+Every decision method takes a `context` argument (a `GameContext` snapshot of the game from the AI's seat: deck size, dead cards, opponent pickups, score, the knock threshold in effect) and the runner passes it positionally, so overrides must accept it even if they ignore it. It is `None` unless the AI class sets `needs_context = True`; see `gin_rummy/models/game_context.py`.
 
 ### Overridable Methods
 
@@ -296,7 +298,7 @@ class VeryConservative(BasicAI):
 Decide whether to draw from the deck or discard pile.
 
 ```python
-def decide_draw(self, hand: Hand, discard_top: Card | None) -> DrawChoice
+def decide_draw(self, hand: Hand, discard_top: Card | None, context: GameContext | None = None) -> DrawChoice
 ```
 
 **Parameters:**
@@ -310,7 +312,7 @@ def decide_draw(self, hand: Hand, discard_top: Card | None) -> DrawChoice
 from gin_rummy.ai import BasicAI, DrawChoice
 
 class AlwaysDrawFromDeck(BasicAI):
-    def decide_draw(self, hand, discard_top):
+    def decide_draw(self, hand, discard_top, context=None):
         return DrawChoice.DECK
 
 class GreedyDiscard(BasicAI):
@@ -326,7 +328,7 @@ class GreedyDiscard(BasicAI):
 Decide which card to discard after drawing.
 
 ```python
-def decide_discard(self, hand: Hand) -> Card
+def decide_discard(self, hand: Hand, context: GameContext | None = None) -> Card
 ```
 
 **Parameters:**
@@ -337,11 +339,11 @@ def decide_discard(self, hand: Hand) -> Card
 **Example:**
 ```python
 class DiscardHighest(BasicAI):
-    def decide_discard(self, hand):
+    def decide_discard(self, hand, context=None):
         return max(hand, key=lambda c: c.deadwood_value)
 
 class DiscardRandom(BasicAI):
-    def decide_discard(self, hand):
+    def decide_discard(self, hand, context=None):
         import random
         return random.choice(list(hand))
 ```
@@ -353,11 +355,12 @@ class DiscardRandom(BasicAI):
 Decide whether to knock (when legally allowed).
 
 ```python
-def should_knock(self, hand: Hand) -> bool
+def should_knock(self, hand: Hand, context: GameContext | None = None, pending_discard: Card | None = None) -> bool
 ```
 
 **Parameters:**
 - `hand` - Current hand (10 cards)
+- `pending_discard` - The card about to be discarded with the knock (Monte Carlo excludes it from sampling)
 
 **Returns:** `True` to knock, `False` to continue
 
@@ -369,11 +372,11 @@ def should_knock(self, hand: Hand) -> bool
 ```python
 class NeverKnock(BasicAI):
     """Only goes gin, never knocks."""
-    def should_knock(self, hand):
+    def should_knock(self, hand, context=None, pending_discard=None):
         return hand.deadwood_total == 0  # Ignores knock_strategy
 
 class KnockAt5(BasicAI):
-    def should_knock(self, hand):
+    def should_knock(self, hand, context=None, pending_discard=None):
         return hand.deadwood_total <= 5  # Ignores knock_strategy
 ```
 
@@ -394,7 +397,7 @@ class KnockAt5(BasicAI):
 Check if picking up a card would help the hand. Override for custom evaluation logic.
 
 ```python
-def _card_helps_hand(self, hand: Hand, card: Card) -> tuple[bool, str]
+def _card_helps_hand(self, hand: Hand, card: Card, context: GameContext | None = None) -> tuple[bool, str]
 ```
 
 **Parameters:**
@@ -408,7 +411,7 @@ def _card_helps_hand(self, hand: Hand, card: Card) -> tuple[bool, str]
 class SetFocused(BasicAI):
     """Prioritizes building sets over runs."""
 
-    def _card_helps_hand(self, hand, card):
+    def _card_helps_hand(self, hand, card, context=None):
         matching_ranks = sum(1 for c in hand if c.rank == card.rank)
 
         if matching_ranks >= 2:
@@ -416,7 +419,7 @@ class SetFocused(BasicAI):
         elif matching_ranks == 1:
             return True, f"pairs with existing {card.rank.name}"
 
-        return super()._card_helps_hand(hand, card)
+        return super()._card_helps_hand(hand, card, context)
 ```
 
 ---
