@@ -1,8 +1,11 @@
 """Browser sessions: the cookie, the store, and how a request finds its GameSession and ScenarioSession."""
 
-from fastapi import Request, Response
+from typing import Annotated
+
+from fastapi import Depends, Request, Response
 
 from gin_rummy.web.game_session import GameSession
+from gin_rummy.web.scenario_session import ScenarioSession
 from gin_rummy.web.session_store import SessionStore
 from gin_rummy.web.workers import get_worker_pool, worker_count
 
@@ -40,9 +43,8 @@ def get_or_create_session(request: Request, response: Response) -> GameSession:
     return session
 
 
-def _get_scenario_session(request: Request, response: Response):
-    from gin_rummy.web.scenario_session import ScenarioSession
-
+def get_or_create_scenario_session(request: Request, response: Response) -> ScenarioSession:
+    """The scenario quiz state that belongs to this browser's game session."""
     session = get_or_create_session(request, response)
     with session.lock:
         if session.scenario_session is None:
@@ -53,3 +55,8 @@ def _get_scenario_session(request: Request, response: Response):
             scenario.owner_lock = session.lock
             session.scenario_session = scenario
         return session.scenario_session
+
+
+# Route parameters: `session: SessionDep` gives a handler the caller's session
+SessionDep = Annotated[GameSession, Depends(get_or_create_session)]
+ScenarioDep = Annotated[ScenarioSession, Depends(get_or_create_scenario_session)]

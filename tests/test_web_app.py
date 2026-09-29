@@ -104,3 +104,18 @@ class TestCardIds:
         state = client.post("/api/game/new", json={"player_name": "Tester", "ai_difficulty": "easy"}).json()
         for card in state["hand"]:
             assert Card.parse(card["id"]).code == card["id"]
+
+
+class TestScenarioApi:
+    def test_new_then_draw_uses_the_same_session(self, client: TestClient, monkeypatch):
+        """The scenario session hangs off the browser's game session, found via the cookie."""
+        import gin_rummy.web.scenario_session as scenario_module
+
+        monkeypatch.setattr(scenario_module, "WEB_MC_SIMS", 5)  # keep the panel cheap
+        r = client.post("/api/scenario/new", json={"seed": 42})
+        assert r.status_code == 200 and r.json()["phase"] == "draw"
+        state = client.get("/api/scenario/state").json()
+        assert state["phase"] == "draw" and state["seed"] == 42
+        r = client.post("/api/scenario/draw", json={"source": "deck"})
+        assert r.status_code == 200 and r.json()["phase"] == "discard"
+        assert client.post("/api/scenario/draw", json={"source": "deck"}).status_code == 400

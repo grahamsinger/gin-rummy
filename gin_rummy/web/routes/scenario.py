@@ -2,10 +2,11 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter
 from pydantic import BaseModel
 
-from gin_rummy.web.sessions import _get_scenario_session
+from gin_rummy.web.routes.common import ok
+from gin_rummy.web.sessions import ScenarioDep
 
 router = APIRouter()
 
@@ -26,47 +27,36 @@ class ScenarioKnockRequest(BaseModel):
     knock: bool
 
 
-def _scenario_result(result: dict) -> dict:
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
-
-
 @router.post("/api/scenario/new")
-def scenario_new(req: NewScenarioRequest, request: Request, response: Response):
+def scenario_new(req: NewScenarioRequest, scenario: ScenarioDep):
     """Generate a fresh scenario position."""
-    scenario = _get_scenario_session(request, response)
     with scenario.owner_lock:
-        return _scenario_result(scenario.new_scenario(seed=req.seed))
+        return ok(scenario.new_scenario(seed=req.seed))
 
 
 @router.get("/api/scenario/state")
-def scenario_state(request: Request, response: Response):
+def scenario_state(scenario: ScenarioDep):
     """Current scenario state (for page reloads)."""
-    scenario = _get_scenario_session(request, response)
     with scenario.owner_lock:
         return scenario.get_state()
 
 
 @router.post("/api/scenario/draw")
-def scenario_draw(req: ScenarioDrawRequest, request: Request, response: Response):
+def scenario_draw(req: ScenarioDrawRequest, scenario: ScenarioDep):
     """Answer the draw decision; returns the panel reveal and drawn card."""
-    scenario = _get_scenario_session(request, response)
     with scenario.owner_lock:
-        return _scenario_result(scenario.answer_draw(req.source))
+        return ok(scenario.answer_draw(req.source))
 
 
 @router.post("/api/scenario/discard")
-def scenario_discard(req: ScenarioDiscardRequest, request: Request, response: Response):
+def scenario_discard(req: ScenarioDiscardRequest, scenario: ScenarioDep):
     """Answer the discard decision; returns the panel reveal."""
-    scenario = _get_scenario_session(request, response)
     with scenario.owner_lock:
-        return _scenario_result(scenario.answer_discard(req.card))
+        return ok(scenario.answer_discard(req.card))
 
 
 @router.post("/api/scenario/knock")
-def scenario_knock(req: ScenarioKnockRequest, request: Request, response: Response):
+def scenario_knock(req: ScenarioKnockRequest, scenario: ScenarioDep):
     """Answer the knock decision; returns the panel reveal."""
-    scenario = _get_scenario_session(request, response)
     with scenario.owner_lock:
-        return _scenario_result(scenario.answer_knock(req.knock))
+        return ok(scenario.answer_knock(req.knock))

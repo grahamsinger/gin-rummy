@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from gin_rummy.db import (
@@ -10,7 +10,8 @@ from gin_rummy.db import (
     get_game_hands,
 )
 from gin_rummy.web.game_session import GameSession
-from gin_rummy.web.sessions import get_or_create_session
+from gin_rummy.web.routes.common import ok
+from gin_rummy.web.sessions import SessionDep
 
 router = APIRouter()
 
@@ -40,9 +41,8 @@ class DiscardRequest(BaseModel):
 
 
 @router.post("/api/game/new")
-def new_game(request: Request, response: Response, game_request: NewGameRequest | None = None):
+def new_game(session: SessionDep, game_request: NewGameRequest | None = None):
     """Start a new game with optional settings."""
-    session = get_or_create_session(request, response)
     with session.lock:
         return _new_game(session, game_request)
 
@@ -62,84 +62,57 @@ def _new_game(session: GameSession, game_request: NewGameRequest | None):
 
 
 @router.get("/api/game/state")
-def get_state(request: Request, response: Response):
+def get_state(session: SessionDep):
     """Get current game state."""
-    session = get_or_create_session(request, response)
     with session.lock:
         return session.get_state()
 
 
 @router.post("/api/game/draw")
-def draw(request: Request, response: Response, draw_request: DrawRequest):
+def draw(session: SessionDep, draw_request: DrawRequest):
     """Draw a card from deck or discard pile."""
-    session = get_or_create_session(request, response)
     with session.lock:
-        result = session.draw(draw_request.source)
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+        return ok(session.draw(draw_request.source))
 
 
 @router.post("/api/game/discard")
-def discard(request: Request, response: Response, discard_request: DiscardRequest):
+def discard(session: SessionDep, discard_request: DiscardRequest):
     """Discard a card from hand, optionally knocking."""
-    session = get_or_create_session(request, response)
     with session.lock:
-        result = session.discard(discard_request.card, knock=discard_request.knock)
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+        return ok(session.discard(discard_request.card, knock=discard_request.knock))
 
 
 @router.post("/api/game/knock")
-def knock(request: Request, response: Response):
+def knock(session: SessionDep):
     """Knock to end the round."""
-    session = get_or_create_session(request, response)
     with session.lock:
-        result = session.knock()
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+        return ok(session.knock())
 
 
 @router.post("/api/game/ai-turn")
-def ai_turn(request: Request, response: Response):
+def ai_turn(session: SessionDep):
     """Execute AI's turn."""
-    session = get_or_create_session(request, response)
     with session.lock:
-        result = session.ai_turn()
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+        return ok(session.ai_turn())
 
 
 @router.post("/api/game/new-round")
-def new_round(request: Request, response: Response):
+def new_round(session: SessionDep):
     """Start a new round."""
-    session = get_or_create_session(request, response)
     with session.lock:
-        result = session.new_round()
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+        return ok(session.new_round())
 
 
 @router.post("/api/game/resume")
-def resume_game(request: Request, response: Response, resume_request: ResumeGameRequest):
+def resume_game(session: SessionDep, resume_request: ResumeGameRequest):
     """Resume an incomplete game by ID."""
-    session = get_or_create_session(request, response)
     with session.lock:
-        result = session.resume_game(resume_request.game_id)
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+        return ok(session.resume_game(resume_request.game_id))
 
 
 @router.get("/api/game/score-history")
-async def get_score_history(request: Request, response: Response):
+async def get_score_history(session: SessionDep):
     """Get round-by-round score history for current game."""
-    session = get_or_create_session(request, response)
-
     # Check if a game is in progress
     if not hasattr(session, "tracker") or session.tracker.game_id is None:
         return {"player1_name": "", "player2_name": "", "rounds": []}
