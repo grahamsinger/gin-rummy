@@ -1,6 +1,7 @@
 """Regression tests for bugs found in the 2026-07-12 code review.
 
-IDs (E1, E2, ...) refer to the Bugs section of TODO.md.
+IDs (E1, E2, ...) are the review's numbering; the fixed-bug list that explained them
+was removed from TODO.md on 2026-09-29 and is in its git history.
 """
 
 import pytest
