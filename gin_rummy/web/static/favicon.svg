@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Two fanned playing cards on green felt: a heart behind, a spade in front -->
+  <rect width="64" height="64" rx="14" fill="#1b5e20"/>
+  <g transform="rotate(-14 32 36)">
+    <rect x="12" y="12" width="30" height="42" rx="5" fill="#fff" stroke="#0d3311" stroke-width="2"/>
+    <path d="M20 22c-2.6-3.4-7-.6-5 2.800 1.200 2 3.200 3.600 5 5.200 1.800-1.600 3.800-3.200 5-5.200 2-3.400-2.400-6.200-5-2.800z" transform="translate(1 -2)" fill="#c62828"/>
+  </g>
+  <g transform="rotate(10 36 34)">
+    <rect x="23" y="11" width="30" height="42" rx="5" fill="#fff" stroke="#0d3311" stroke-width="2"/>
+    <path d="M38 19c-5 6.500-11 10-11 15.500 0 3.600 2.800 6 6 6 1.500 0 2.900-.6 3.900-1.600-.4 2.700-1.500 4.700-3.400 6.100h9c-1.900-1.400-3-3.400-3.400-6.100 1 1 2.400 1.600 3.900 1.600 3.200 0 6-2.400 6-6C49 29 43 25.500 38 19z" fill="#212121"/>
+  </g>
+</svg>
