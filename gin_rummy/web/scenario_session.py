@@ -134,7 +134,7 @@ class ScenarioSession:
             self.tallies[entry["name"]]["discard"] += agrees
             mc_evs = None
             if entry["mc_candidates"]:
-                mc_evs = [{"card": c["card"], "ev": c["avg_points"]} for c in entry["mc_candidates"][:5]]
+                mc_evs = [{"card": c.card, "ev": c.avg_points} for c in entry["mc_candidates"][:5]]
             reveal.append(
                 {
                     "name": entry["name"],

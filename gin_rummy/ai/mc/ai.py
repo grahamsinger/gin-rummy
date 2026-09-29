@@ -13,6 +13,16 @@ from gin_rummy.ai.basic import BasicAI
 from gin_rummy.ai.context_aware import ContextAwareAI
 from gin_rummy.ai.mc.rollout import ALL_CARDS
 from gin_rummy.ai.mc.sampling import _sample_state
+from gin_rummy.ai.mc.thinking import (
+    DiscardCandidate,
+    DiscardThinking,
+    DrawThinking,
+    KnockThinking,
+    MCThinking,
+    discard_reasoning,
+    draw_reasoning,
+    knock_reasoning,
+)
 from gin_rummy.ai.mc.workers import SimParams, _discard_sim_batch, _draw_sim_batch, _knock_sim_batch, worker_init
 from gin_rummy.ai.types import (
     DiscardReasoning,
@@ -95,7 +105,7 @@ class MonteCarloAI(ContextAwareAI):
         self._owns_pool = False
 
         # Last thinking data for UI display
-        self.last_mc_thinking: dict[str, Any] | None = None
+        self.last_mc_thinking: MCThinking | None = None
 
     def reset_for_new_hand(self) -> None:
         """Forget per-hand tracking plus the per-turn plan and thinking snapshot.
@@ -313,13 +323,14 @@ class MonteCarloAI(ContextAwareAI):
         return opp_hand, deck, list(discard_pile)
 
     def _clear_thinking(self, key: str) -> None:
-        """Forget the last MC numbers for one decision type.
-
-        Called on every early return that skips simulation, so the
-        `*_with_reasoning` wrappers never report the previous turn's data.
-        """
+        """Drop the previous turn's numbers for a decision that took an early exit."""
         if self.last_mc_thinking is not None:
-            self.last_mc_thinking[key] = None
+            self.last_mc_thinking.clear(key)
+
+    def _set_thinking(self, key: str, value: DrawThinking | DiscardThinking | KnockThinking) -> None:
+        if self.last_mc_thinking is None:
+            self.last_mc_thinking = MCThinking()
+        setattr(self.last_mc_thinking, key, value)
 
     def decide_draw(
         self,
@@ -387,19 +398,19 @@ class MonteCarloAI(ContextAwareAI):
             choice = DrawChoice.DECK
 
         # Store thinking data
-        draw_thinking = {
-            "deck_avg_points": round(deck_avg, 1),
-            "deck_sims": self.draw_simulations,
-            "discard_avg_points": round(discard_avg, 1),
-            "discard_sims": self.draw_simulations,
-            "discard_card": str(discard_top),
-            "choice": choice.name.lower(),
-            "advantage": round(advantage, 1),
-            "fallback": fallback,
-        }
+        draw_thinking = DrawThinking(
+            deck_avg_points=round(deck_avg, 1),
+            deck_sims=self.draw_simulations,
+            discard_avg_points=round(discard_avg, 1),
+            discard_sims=self.draw_simulations,
+            discard_card=str(discard_top),
+            choice=choice.name.lower(),
+            advantage=round(advantage, 1),
+            fallback=fallback,
+        )
 
-        # Initialize thinking dict for this turn
-        self.last_mc_thinking = {"draw": draw_thinking, "discard": None, "knock": None}
+        # The draw starts a fresh turn's thinking
+        self.last_mc_thinking = MCThinking(draw=draw_thinking)
 
         logger.info(
             "MC Draw: DECK avg=%.1f, DISCARD(%s) avg=%.1f, adv=%.1f%s -> %s",
@@ -473,7 +484,7 @@ class MonteCarloAI(ContextAwareAI):
         totals = self._run_parallel(tasks)
 
         # Process results
-        candidate_results: list[dict[str, Any]] = []
+        candidate_results: list[DiscardCandidate] = []
         best_card = top_candidates[0][0]
         best_avg = float("-inf")
         best_dw = top_candidates[0][1]
@@ -491,15 +502,15 @@ class MonteCarloAI(ContextAwareAI):
                 "knock_avg": knock_avg,
             }
 
-            entry = {
-                "card": str(card),
-                "avg_points": round(avg_points, 1),
-                "sims": self.discard_simulations,
-                "deadwood_after": immediate_dw,
-            }
+            entry = DiscardCandidate(
+                card=str(card),
+                avg_points=round(avg_points, 1),
+                sims=self.discard_simulations,
+                deadwood_after=immediate_dw,
+            )
             if knock_avg is not None:
-                entry["knock_avg_points"] = round(knock_avg, 1)
-                entry["continue_avg_points"] = round(continue_avg, 1)
+                entry.knock_avg_points = round(knock_avg, 1)
+                entry.continue_avg_points = round(continue_avg, 1)
             candidate_results.append(entry)
 
             # Tie-break equal averages toward the lower resulting deadwood
@@ -509,13 +520,13 @@ class MonteCarloAI(ContextAwareAI):
                 best_dw = immediate_dw
 
         # Sort results by avg_points descending for display
-        candidate_results.sort(key=lambda x: x["avg_points"], reverse=True)
+        candidate_results.sort(key=lambda x: x.avg_points, reverse=True)
 
         # Confidence threshold: if MC's best-to-second-best gap is small
         # AND MC disagrees with heuristic, defer to heuristic
         fallback = False
         if len(candidate_results) >= 2:
-            best_to_second = candidate_results[0]["avg_points"] - candidate_results[1]["avg_points"]
+            best_to_second = candidate_results[0].avg_points - candidate_results[1].avg_points
             heuristic_choice = super().decide_discard(hand, ctx)
             if best_to_second < self.discard_min_advantage and best_card != heuristic_choice:
                 fallback = True
@@ -535,19 +546,18 @@ class MonteCarloAI(ContextAwareAI):
             else:
                 self._turn_plan = None
 
-        discard_thinking = {
-            "candidates": candidate_results,
-            "chosen": str(best_card),
-            "hand_size": len(cards),
-            "deadwood_count": len(deadwood_cards),
-            "fallback": fallback,
-            "min_advantage": self.discard_min_advantage,
-            "joint_evaluation": joint,
-        }
-
-        if self.last_mc_thinking is None:
-            self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
-        self.last_mc_thinking["discard"] = discard_thinking
+        self._set_thinking(
+            "discard",
+            DiscardThinking(
+                candidates=candidate_results,
+                chosen=str(best_card),
+                hand_size=len(cards),
+                deadwood_count=len(deadwood_cards),
+                fallback=fallback,
+                min_advantage=self.discard_min_advantage,
+                joint_evaluation=joint,
+            ),
+        )
 
         logger.info(
             "MC Discard: chose %s (avg=%.1f) from %d candidates%s",
@@ -579,16 +589,7 @@ class MonteCarloAI(ContextAwareAI):
 
         # Always knock with gin
         if deadwood == 0:
-            knock_thinking = {
-                "knock_avg_points": None,
-                "continue_avg_points": None,
-                "chose_knock": True,
-                "deadwood": 0,
-                "reason": "gin",
-            }
-            if self.last_mc_thinking is None:
-                self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
-            self.last_mc_thinking["knock"] = knock_thinking
+            self._set_thinking("knock", KnockThinking(chose_knock=True, deadwood=0, reason="gin"))
             return True
 
         ctx = context
@@ -604,16 +605,7 @@ class MonteCarloAI(ContextAwareAI):
         # (threshold - deadwood) points, but a knock can be undercut for
         # negative points; the simulations below price that in correctly.
         if ctx and ctx.deck_remaining <= 4:
-            knock_thinking = {
-                "knock_avg_points": None,
-                "continue_avg_points": None,
-                "chose_knock": True,
-                "deadwood": deadwood,
-                "reason": "deck_nearly_empty",
-            }
-            if self.last_mc_thinking is None:
-                self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
-            self.last_mc_thinking["knock"] = knock_thinking
+            self._set_thinking("knock", KnockThinking(chose_knock=True, deadwood=deadwood, reason="deck_nearly_empty"))
             return True
 
         # Consume the jointly-planned decision from decide_discard: both
@@ -633,18 +625,18 @@ class MonteCarloAI(ContextAwareAI):
                 chose_knock = knock_avg > continue_avg
                 fallback = False
 
-            knock_thinking = {
-                "knock_avg_points": round(knock_avg, 1),
-                "continue_avg_points": round(continue_avg, 1),
-                "chose_knock": chose_knock,
-                "deadwood": deadwood,
-                "advantage": round(advantage, 1),
-                "fallback": fallback,
-                "reason": "joint_plan",
-            }
-            if self.last_mc_thinking is None:
-                self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
-            self.last_mc_thinking["knock"] = knock_thinking
+            self._set_thinking(
+                "knock",
+                KnockThinking(
+                    chose_knock=chose_knock,
+                    deadwood=deadwood,
+                    knock_avg_points=round(knock_avg, 1),
+                    continue_avg_points=round(continue_avg, 1),
+                    advantage=round(advantage, 1),
+                    fallback=fallback,
+                    reason="joint_plan",
+                ),
+            )
 
             logger.info(
                 "MC Knock (joint plan): knock_avg=%.1f, continue_avg=%.1f%s -> %s",
@@ -700,18 +692,17 @@ class MonteCarloAI(ContextAwareAI):
         else:
             chose_knock = knock_avg > continue_avg
 
-        knock_thinking = {
-            "knock_avg_points": round(knock_avg, 1),
-            "continue_avg_points": round(continue_avg, 1),
-            "chose_knock": chose_knock,
-            "deadwood": deadwood,
-            "advantage": round(advantage, 1),
-            "fallback": fallback,
-        }
-
-        if self.last_mc_thinking is None:
-            self.last_mc_thinking = {"draw": None, "discard": None, "knock": None}
-        self.last_mc_thinking["knock"] = knock_thinking
+        self._set_thinking(
+            "knock",
+            KnockThinking(
+                chose_knock=chose_knock,
+                deadwood=deadwood,
+                knock_avg_points=round(knock_avg, 1),
+                continue_avg_points=round(continue_avg, 1),
+                advantage=round(advantage, 1),
+                fallback=fallback,
+            ),
+        )
 
         logger.info(
             "MC Knock: knock_avg=%.1f, continue_avg=%.1f, adv=%.1f%s -> %s (deadwood=%d)",
@@ -735,56 +726,12 @@ class MonteCarloAI(ContextAwareAI):
     ) -> DrawReasoning:
         """Draw decision with MC reasoning data."""
         choice = self.decide_draw(hand, discard_top, context)
-
-        factors = []
-        reasoning_str = ""
-
-        if self.last_mc_thinking and self.last_mc_thinking.get("draw"):
-            dt = self.last_mc_thinking["draw"]
-            factors.append(f"MC draw sims: {dt['deck_sims']}")
-            factors.append(f"DECK avg: {dt['deck_avg_points']}")
-            factors.append(f"DISCARD avg: {dt['discard_avg_points']}")
-            if dt.get("discard_card"):
-                factors.append(f"Discard card: {dt['discard_card']}")
-            reasoning_str = (
-                f"MC: DECK avg={dt['deck_avg_points']}, "
-                f"DISCARD({dt.get('discard_card', '?')}) avg={dt['discard_avg_points']} "
-                f"-> {choice.name}"
-            )
-        else:
-            reasoning_str = f"Drew from {choice.name} (fallback)"
-
-        return DrawReasoning(
-            choice=choice,
-            reasoning=reasoning_str,
-            factors=factors,
-        )
+        return draw_reasoning(choice, self.last_mc_thinking)
 
     def decide_discard_with_reasoning(self, hand: Hand, context: GameContext | None = None) -> DiscardReasoning:
         """Discard decision with MC reasoning data."""
         card = self.decide_discard(hand, context)
-
-        factors = []
-        options_str: list[tuple[str, int]] = []
-        reasoning_str = ""
-
-        if self.last_mc_thinking and self.last_mc_thinking.get("discard"):
-            dd = self.last_mc_thinking["discard"]
-            factors.append(f"MC discard candidates: {len(dd['candidates'])}")
-            factors.append(f"Deadwood cards: {dd.get('deadwood_count', len(dd['candidates']))}")
-            for cand in dd["candidates"]:
-                options_str.append((cand["card"], cand["deadwood_after"]))
-                factors.append(f"{cand['card']}: avg={cand['avg_points']}, dw={cand['deadwood_after']}")
-            reasoning_str = f"MC: chose {dd['chosen']} from {len(dd['candidates'])} candidates"
-        else:
-            reasoning_str = f"Discarded {card} (fallback)"
-
-        return DiscardReasoning(
-            card=card,
-            reasoning=reasoning_str,
-            factors=factors,
-            options_considered=options_str,
-        )
+        return discard_reasoning(card, self.last_mc_thinking)
 
     def should_knock_with_reasoning(
         self,
@@ -794,37 +741,4 @@ class MonteCarloAI(ContextAwareAI):
     ) -> KnockReasoning:
         """Knock decision with MC reasoning data."""
         result = self.should_knock(hand, context, pending_discard=pending_discard)
-
-        factors = []
-        score_val = None
-        reasoning_str = ""
-
-        if self.last_mc_thinking and self.last_mc_thinking.get("knock"):
-            kt = self.last_mc_thinking["knock"]
-            factors.append(f"Deadwood: {kt['deadwood']}")
-
-            if kt.get("reason"):
-                factors.append(f"Reason: {kt['reason']}")
-                reasoning_str = f"Knock ({kt['reason']}): deadwood={kt['deadwood']}"
-            elif kt.get("knock_avg_points") is not None:
-                factors.append(f"MC knock avg: {kt['knock_avg_points']}")
-                factors.append(f"MC continue avg: {kt['continue_avg_points']}")
-                score_val = kt["knock_avg_points"]
-                reasoning_str = (
-                    f"MC: knock avg={kt['knock_avg_points']}, "
-                    f"continue avg={kt['continue_avg_points']} "
-                    f"-> {'KNOCK' if result else 'CONTINUE'}"
-                )
-            else:
-                reasoning_str = f"{'Knocked' if result else 'No knock'}: deadwood={kt['deadwood']}"
-        else:
-            deadwood = hand.deadwood_total
-            factors.append(f"Deadwood: {deadwood}")
-            reasoning_str = f"{'Knocked' if result else 'No knock'}: deadwood={deadwood} (fallback)"
-
-        return KnockReasoning(
-            should_knock=result,
-            reasoning=reasoning_str,
-            score=score_val,
-            factors=factors,
-        )
+        return knock_reasoning(result, hand.deadwood_total, self.last_mc_thinking)

@@ -13,7 +13,7 @@ import os
 import threading
 from concurrent.futures import ProcessPoolExecutor
 
-from gin_rummy.ai.monte_carlo import worker_init
+from gin_rummy.ai.mc import worker_init
 from gin_rummy.config import get_config
 
 _pool: ProcessPoolExecutor | None = None

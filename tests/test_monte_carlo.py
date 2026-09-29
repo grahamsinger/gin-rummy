@@ -12,6 +12,7 @@ from gin_rummy.ai.mc.rollout import (
     rollout,
     score_knock,
 )
+from gin_rummy.ai.mc.thinking import DrawThinking, KnockThinking, MCThinking
 from gin_rummy.config import Config, MonteCarloAIConfig
 from gin_rummy.models import Card, Hand, Rank, Suit
 from tests.helpers import cards, make_context
@@ -304,11 +305,11 @@ class TestMonteCarloAI:
         ai.decide_draw(hand, discard_top, context)
 
         assert ai.last_mc_thinking is not None
-        assert "draw" in ai.last_mc_thinking
-        draw_data = ai.last_mc_thinking["draw"]
-        assert "deck_avg_points" in draw_data
-        assert "discard_avg_points" in draw_data
-        assert "choice" in draw_data
+        draw_data = ai.last_mc_thinking.draw
+        assert draw_data is not None
+        assert isinstance(draw_data.deck_avg_points, float)
+        assert isinstance(draw_data.discard_avg_points, float)
+        assert hasattr(draw_data, "choice")
 
     def test_reasoning_methods_return_correct_types(self):
         """Reasoning methods should return proper reasoning objects."""
@@ -512,11 +513,10 @@ class TestConfidenceThresholdFallback:
         ai.decide_draw(hand, discard_top, context)
 
         assert ai.last_mc_thinking is not None
-        draw_data = ai.last_mc_thinking["draw"]
-        assert "fallback" in draw_data
-        assert "advantage" in draw_data
-        assert isinstance(draw_data["fallback"], bool)
-        assert isinstance(draw_data["advantage"], float)
+        draw_data = ai.last_mc_thinking.draw
+        assert draw_data is not None
+        assert isinstance(draw_data.fallback, bool)
+        assert isinstance(draw_data.advantage, float)
 
     def test_knock_fallback_data_in_thinking(self):
         """Knock thinking should include fallback and advantage data."""
@@ -541,11 +541,10 @@ class TestConfidenceThresholdFallback:
         ai.should_knock(hand, context)
 
         assert ai.last_mc_thinking is not None
-        knock_data = ai.last_mc_thinking["knock"]
-        assert "fallback" in knock_data
-        assert "advantage" in knock_data
-        assert isinstance(knock_data["fallback"], bool)
-        assert isinstance(knock_data["advantage"], float)
+        knock_data = ai.last_mc_thinking.knock
+        assert knock_data is not None
+        assert isinstance(knock_data.fallback, bool)
+        assert isinstance(knock_data.advantage, float)
 
     def test_discard_fallback_data_in_thinking(self):
         """Discard thinking should include fallback data."""
@@ -571,9 +570,9 @@ class TestConfidenceThresholdFallback:
         ai.decide_discard(hand, context)
 
         assert ai.last_mc_thinking is not None
-        discard_data = ai.last_mc_thinking["discard"]
-        assert "fallback" in discard_data
-        assert isinstance(discard_data["fallback"], bool)
+        discard_data = ai.last_mc_thinking.discard
+        assert discard_data is not None
+        assert isinstance(discard_data.fallback, bool)
 
     def test_rollout_ai_uses_conservative_knock(self):
         """Rollout AI should use conservative knock strategy."""
@@ -930,27 +929,36 @@ class TestParallelMode:
         assert ai._pool is None
 
 
+def _stale_draw() -> DrawThinking:
+    return DrawThinking(1.0, 99, 2.0, 99, "2D", "deck", 1.0, False)
+
+
+def _stale_knock() -> KnockThinking:
+    return KnockThinking(chose_knock=False, deadwood=9, knock_avg_points=1.0, continue_avg_points=2.0)
+
+
 class TestThinkingReset:
     """B7: early returns must not leave the previous turn's MC numbers behind."""
 
     def test_early_return_clears_stale_draw_thinking(self):
         ai = MonteCarloAI(config=make_test_config())
-        ai.last_mc_thinking = {"draw": {"deck_sims": 99}, "discard": None, "knock": {"x": 1}}
+        stale_knock = _stale_knock()
+        ai.last_mc_thinking = MCThinking(draw=_stale_draw(), knock=stale_knock)
         hand = Hand([Card(Rank.ACE, Suit.SPADES), Card(Rank.TWO, Suit.HEARTS)])
 
         # No discard top -> early return before any simulation
         assert ai.decide_draw(hand, None, make_context(hand)) == DrawChoice.DECK
-        assert ai.last_mc_thinking["draw"] is None
-        assert ai.last_mc_thinking["knock"] == {"x": 1}  # untouched
+        assert ai.last_mc_thinking.draw is None
+        assert ai.last_mc_thinking.knock is stale_knock  # untouched
 
     def test_gin_knock_keeps_its_own_reasoning(self):
         """Regression: clearing must not run after reasoning was just stored."""
         ai = MonteCarloAI(config=make_test_config())
-        ai.last_mc_thinking = {"draw": None, "discard": None, "knock": {"knock_sims": 99}}
+        ai.last_mc_thinking = MCThinking(knock=_stale_knock())
         gin = Hand(cards("AS 2S 3S 4S 5S 6S 7S 8S 9S 10S"))
 
         assert ai.should_knock(gin, make_context(gin)) is True
-        assert ai.last_mc_thinking["knock"]["reason"] == "gin"
+        assert ai.last_mc_thinking.knock is not None and ai.last_mc_thinking.knock.reason == "gin"
 
     def test_late_deck_knock_keeps_its_own_reasoning(self):
         ai = MonteCarloAI(config=make_test_config())
@@ -958,12 +966,20 @@ class TestThinkingReset:
         low = Hand(cards("AS 2S 3S 4H 5H 6H 7C 8C 9C 2D"))  # 2 deadwood
 
         assert ai.should_knock(low, make_context(low, deck_remaining=3)) is True
-        assert ai.last_mc_thinking["knock"]["reason"] == "deck_nearly_empty"
+        assert ai.last_mc_thinking is not None and ai.last_mc_thinking.knock is not None
+        assert ai.last_mc_thinking.knock.reason == "deck_nearly_empty"
 
     def test_early_return_clears_stale_knock_thinking(self):
         ai = MonteCarloAI(config=make_test_config())
-        ai.last_mc_thinking = {"draw": None, "discard": None, "knock": {"knock_sims": 99}}
+        ai.last_mc_thinking = MCThinking(knock=_stale_knock())
         high_deadwood = Hand([Card(Rank.KING, Suit.SPADES), Card(Rank.QUEEN, Suit.HEARTS)])
 
         assert ai.should_knock(high_deadwood, make_context(high_deadwood)) is False
-        assert ai.last_mc_thinking["knock"] is None
+        assert ai.last_mc_thinking.knock is None
+
+    def test_to_dict_keeps_the_web_shape(self):
+        t = MCThinking(draw=_stale_draw())
+        d = t.to_dict()
+        assert set(d) == {"draw", "discard", "knock"}
+        assert d["discard"] is None and d["knock"] is None
+        assert d["draw"]["deck_sims"] == 99 and d["draw"]["choice"] == "deck"

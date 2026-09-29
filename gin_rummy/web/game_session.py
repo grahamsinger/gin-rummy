@@ -763,7 +763,7 @@ class GameSession:
                 from gin_rummy.config import get_config
 
                 if get_config().monte_carlo_ai.show_web_thinking:
-                    self.last_ai_action["mc_thinking"] = self.ai.last_mc_thinking
+                    self.last_ai_action["mc_thinking"] = self.ai.last_mc_thinking.to_dict()
                 self.ai.last_mc_thinking = None  # Reset for next turn
 
             # Record the AI turn, or buffer it until the DB game has started

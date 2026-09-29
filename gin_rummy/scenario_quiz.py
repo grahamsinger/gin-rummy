@@ -252,7 +252,7 @@ def panel_discard_choices(panel: list[PanelMember], game: Game) -> list[dict]:
     """Ask each panel AI for its discard on the current 11-card hand.
 
     Returns one dict per AI: {name, card (Card), reasoning, mc_candidates}.
-    mc_candidates is MC's EV list (or None for other AIs).
+    mc_candidates is MC's DiscardCandidate list, best first (or None for other AIs).
     """
     hand = game.players[HUMAN_SEAT].hand
     ctx = game.get_game_context(HUMAN_SEAT)
@@ -261,9 +261,9 @@ def panel_discard_choices(panel: list[PanelMember], game: Game) -> list[dict]:
         reasoning = member.ai.decide_discard_with_reasoning(hand, ctx)
         mc_candidates = None
         if isinstance(member.ai, MonteCarloAI) and member.ai.last_mc_thinking:
-            thinking = member.ai.last_mc_thinking.get("discard")
+            thinking = member.ai.last_mc_thinking.discard
             if thinking:
-                mc_candidates = thinking["candidates"]
+                mc_candidates = thinking.candidates
         choices.append(
             {
                 "name": member.name,
@@ -315,7 +315,7 @@ def reveal_discard_choices(panel: list[PanelMember], game: Game, user_card: Card
         print(f"  [{marker}] {member.name:<16} {entry['reasoning']}")
         if entry["mc_candidates"]:
             top3 = entry["mc_candidates"][:3]
-            evs = ", ".join(f"{c['card']}: {c['avg_points']:+.1f}" for c in top3)
+            evs = ", ".join(f"{c.card}: {c.avg_points:+.1f}" for c in top3)
             print(f"        MC EVs (top 3): {evs}")
 
 

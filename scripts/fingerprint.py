@@ -134,13 +134,18 @@ def monte_carlo_fingerprint(positions: list[Position], seed: int, sims: int = 40
         post = Hand([c for c in hand11 if c != discard])
         can_knock = post.deadwood_total <= ctx.knock_threshold
         knock = ai.should_knock(post, ctx, pending_discard=discard) if can_knock else None
-        thinking = ai.last_mc_thinking or {}
-        d, c, k = thinking.get("draw") or {}, thinking.get("discard") or {}, thinking.get("knock") or {}
+        t = ai.last_mc_thinking
+        d, c, k = (t.draw, t.discard, t.knock) if t else (None, None, None)
         rows.append(
             {
-                "draw": (draw.name, d.get("deck_avg_points"), d.get("discard_avg_points")),
-                "discard": (discard.code, [(x["card"], x["avg_points"]) for x in c.get("candidates", [])]),
-                "knock": (knock, k.get("knock_avg_points"), k.get("continue_avg_points"), k.get("reason")),
+                "draw": (draw.name, d.deck_avg_points if d else None, d.discard_avg_points if d else None),
+                "discard": (discard.code, [(x.card, x.avg_points) for x in c.candidates] if c else []),
+                "knock": (
+                    knock,
+                    k.knock_avg_points if k else None,
+                    k.continue_avg_points if k else None,
+                    k.reason if k else None,
+                ),
             }
         )
     ai.shutdown()

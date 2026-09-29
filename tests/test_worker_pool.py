@@ -17,6 +17,7 @@ import pytest
 import gin_rummy.config as config_module
 import gin_rummy.web.workers as workers
 from gin_rummy.ai import DrawChoice, MonteCarloAI
+from gin_rummy.ai.mc import MCThinking
 from gin_rummy.config import Config
 from gin_rummy.models import Card, Hand
 from gin_rummy.web.session_store import SessionStore
@@ -123,7 +124,7 @@ class TestResetForNewHand:
     def test_monte_carlo_forgets_turn_plan_and_thinking(self):
         ai = MonteCarloAI(make_mc_config(max_workers=1))
         ai._turn_plan = {"discard": None, "knock": True}
-        ai.last_mc_thinking = {"draw": {"x": 1}, "discard": None, "knock": None}
+        ai.last_mc_thinking = MCThinking()
         ai.reset_for_new_hand()
         assert ai._turn_plan is None and ai.last_mc_thinking is None
 

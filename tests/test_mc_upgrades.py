@@ -168,7 +168,7 @@ class TestJointTurnEvaluation:
         test_hand = Hand([c for c in hand if c != discard])
         ai.should_knock(test_hand, context, pending_discard=discard)
         assert ai._turn_plan is None  # consumed
-        assert ai.last_mc_thinking["knock"]["reason"] == "joint_plan"
+        assert ai.last_mc_thinking.knock.reason == "joint_plan"
 
     def test_plan_ignored_for_different_discard(self):
         random.seed(99)
@@ -185,8 +185,8 @@ class TestJointTurnEvaluation:
         # Plan must not have been consumed for a mismatched discard
         # (should_knock ran its own evaluation / eligibility check instead)
         assert ai._turn_plan is not None
-        knock_thinking = ai.last_mc_thinking["knock"]
-        assert knock_thinking is None or knock_thinking.get("reason") != "joint_plan"
+        knock_thinking = ai.last_mc_thinking.knock
+        assert knock_thinking is None or knock_thinking.reason != "joint_plan"
 
     def test_no_plan_when_disabled(self):
         random.seed(99)
