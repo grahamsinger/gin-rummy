@@ -339,22 +339,21 @@ class TestTrainerResume:
         assert target._curriculum_idx == 1
         assert target._curriculum_episodes == 7
 
-    def test_execute_ai_turn_forwards_opponent_actions_to_learning_ai(self):
+    def test_round_runner_forwards_opponent_actions_to_learning_ai(self):
         """B4 end to end: LearningAI's opponent model fills up via the shared runner."""
         from gin_rummy.ai import BasicAI
         from gin_rummy.game import Game
-        from gin_rummy.game_runner import execute_ai_turn
         from gin_rummy.learning.learning_ai import LearningAI
+        from gin_rummy.round_runner import AISeat, run_round
 
         learner = LearningAI()
         opponent = BasicAI()
         game = Game("Learner", "Basic")
-        game.dealer_idx = 1  # dealer takes the first turn, so the opponent acts first
+        game.dealer_idx = 1  # the learner opens, then the opponent takes the first turn
         game.deal()
-        game.discard_to_start(game.current_player.hand[0])
-        assert game.current_player_idx == 1
 
-        execute_ai_turn(game, opponent, other_ai=learner)
+        outcome = run_round(game, [AISeat(learner), AISeat(opponent)], stop_when=lambda g, turns: turns == 1)
+        assert outcome.turns == 1
         assert learner.opponent_model.total_discards == 1
 
 

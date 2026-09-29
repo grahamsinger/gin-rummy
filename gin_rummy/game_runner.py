@@ -134,28 +134,6 @@ def execute_draw(game: Game, draw_choice: DrawChoice) -> Card | None:
             return None
 
 
-def record_opponent_pickup(other_ai: BasicAI | None, card: Card) -> None:
-    """Record that opponent picked up a card from discard.
-
-    Args:
-        other_ai: The other AI (opponent), or None.
-        card: The card that was picked up.
-    """
-    if other_ai is not None:
-        other_ai.record_opponent_pickup(card)
-
-
-def record_opponent_discard(other_ai: BasicAI | None, card: Card) -> None:
-    """Record that opponent discarded a card.
-
-    Args:
-        other_ai: The other AI (opponent), or None.
-        card: The card that was discarded.
-    """
-    if other_ai is not None:
-        other_ai.record_opponent_discard(card)
-
-
 def calculate_post_discard_deadwood(hand: Hand, discard: Card) -> int:
     """Calculate deadwood after discarding a card.
 
@@ -173,19 +151,19 @@ def calculate_post_discard_deadwood(hand: Hand, discard: Card) -> int:
 def execute_ai_turn(
     game: Game,
     ai: BasicAI,
-    other_ai: BasicAI | None = None,
     callbacks: TurnCallbacks | None = None,
     capture_reasoning: bool = False,
 ) -> tuple[TurnResult, TurnActions | None, RoundResult | None]:
     """Execute a full AI turn using shared game logic.
 
-    This is the single source of truth for AI turn execution.
-    Both CLI and Simulator should use this function.
+    This is the single source of truth for AI turn execution: the round
+    runner's AISeat and the web session both call it. Telling the opponent
+    what happened is the caller's job (round_runner relays the returned
+    TurnActions to the other seat; the web session tells its AI directly).
 
     Args:
         game: Current game state.
         ai: The AI making decisions this turn.
-        other_ai: The opponent AI (for tracking pickups/discards), or None.
         callbacks: Optional callbacks for side effects (UI, metrics, etc.).
         capture_reasoning: If True, capture detailed AI reasoning in actions.reasoning.
 
@@ -212,9 +190,8 @@ def execute_ai_turn(
     else:
         draw_choice = get_ai_draw_decision(ai, current.hand, game.top_of_discard, context)
 
-    # Track top of discard before draw (for opponent pickup tracking)
-    discard_top_before = game.top_of_discard
-    if draw_choice == DrawChoice.DISCARD and not discard_top_before:
+    # actions.draw_source must say where the card actually came from
+    if draw_choice == DrawChoice.DISCARD and not game.top_of_discard:
         draw_choice = DrawChoice.DECK  # nothing to pick up: execute_draw falls back to the deck
 
     # Execute draw
@@ -222,10 +199,6 @@ def execute_ai_turn(
     if card is None:
         # Deck exhausted
         return TurnResult.DRAW, None, None
-
-    # Record pickup for opponent tracking
-    if draw_choice == DrawChoice.DISCARD:
-        record_opponent_pickup(other_ai, card)
 
     # Callback: draw complete
     callbacks.on_draw(current, draw_choice, card)
@@ -321,9 +294,6 @@ def execute_ai_turn(
     else:
         # Execute discard
         game.discard(discard)
-
-        # Record discard for opponent tracking
-        record_opponent_discard(other_ai, discard)
 
         # Callback: discard
         callbacks.on_discard(current, discard)
