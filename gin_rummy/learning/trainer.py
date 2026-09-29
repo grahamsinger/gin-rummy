@@ -194,7 +194,7 @@ class _LearnerSeat(AISeat):
             )
 
             # Knock experience (if could have knocked)
-            if hand.deadwood_total <= 10:
+            if hand.deadwood_total <= game.knock_threshold:
                 knock_action = 1 if actions.did_knock else 0
                 self.experiences.append(
                     Experience(
