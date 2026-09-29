@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -10,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from gin_rummy.config import get_config
+from gin_rummy.db.migrations import apply_migrations
 from gin_rummy.db.schema import SCHEMA, SCHEMA_VERSION
 
 if TYPE_CHECKING:
@@ -36,26 +36,7 @@ def init_db(db_path: Path | None = None) -> None:
         if row is None:
             conn.execute("INSERT INTO schema_info (version) VALUES (?)", (SCHEMA_VERSION,))
         else:
-            current_version = row[0]
-            if current_version < 3:
-                # Migration: add game settings columns to games table
-                for col_sql in [
-                    "ALTER TABLE games ADD COLUMN oklahoma_gin INTEGER DEFAULT 0",
-                    "ALTER TABLE games ADD COLUMN spade_doubling INTEGER DEFAULT 0",
-                    "ALTER TABLE games ADD COLUMN game_mode TEXT",
-                    "ALTER TABLE games ADD COLUMN target_score INTEGER",
-                    "ALTER TABLE games ADD COLUMN ai_difficulty TEXT",
-                    "ALTER TABLE games ADD COLUMN match_mode INTEGER DEFAULT 0",
-                ]:
-                    with contextlib.suppress(sqlite3.OperationalError):  # column already exists
-                        conn.execute(col_sql)
-                conn.execute("UPDATE schema_info SET version = ?", (3,))
-                current_version = 3
-            if current_version < 4:
-                # Migration: add match_id column to games table
-                with contextlib.suppress(sqlite3.OperationalError):  # column already exists
-                    conn.execute("ALTER TABLE games ADD COLUMN match_id INTEGER")
-                conn.execute("UPDATE schema_info SET version = ?", (SCHEMA_VERSION,))
+            apply_migrations(conn, row[0])
         conn.commit()
 
 

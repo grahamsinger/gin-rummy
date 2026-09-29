@@ -123,3 +123,43 @@ class TestResumableGame:
         assert info["last_dealer_name"] == "Alice"
         assert info["p1_score"] == 0
         assert info["p2_score"] == 12
+
+
+class TestMigrations:
+    def test_migration_list_is_ordered_and_ends_at_the_schema_version(self):
+        from gin_rummy.db.migrations import MIGRATIONS
+        from gin_rummy.db.schema import SCHEMA_VERSION
+
+        versions = [v for v, _ in MIGRATIONS]
+        assert versions == sorted(versions) and len(set(versions)) == len(versions)
+        assert versions[-1] == SCHEMA_VERSION
+
+    def test_init_db_upgrades_an_old_database(self, tmp_path):
+        import sqlite3
+
+        from gin_rummy.db import SCHEMA, SCHEMA_VERSION, init_db
+
+        path = tmp_path / "old.db"
+        with sqlite3.connect(path) as conn:
+            conn.executescript(SCHEMA)
+            conn.execute("INSERT INTO schema_info (version) VALUES (2)")
+            conn.commit()
+
+        init_db(path)  # every migration runs; the ALTERs are skipped because SCHEMA already has the columns
+
+        with sqlite3.connect(path) as conn:
+            assert conn.execute("SELECT version FROM schema_info").fetchone()[0] == SCHEMA_VERSION
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(games)")}
+        assert {"oklahoma_gin", "match_mode", "match_id"} <= columns
+
+    def test_init_db_is_idempotent_on_a_current_database(self, tmp_path):
+        import sqlite3
+
+        from gin_rummy.db import SCHEMA_VERSION, init_db
+
+        path = tmp_path / "current.db"
+        init_db(path)
+        init_db(path)
+        with sqlite3.connect(path) as conn:
+            rows = conn.execute("SELECT version FROM schema_info").fetchall()
+        assert rows == [(SCHEMA_VERSION,)]
