@@ -111,6 +111,9 @@ export class HandReplay {
         this.player1Name = '';
         this.player2Name = '';
         this.playerFilter = 'all';  // 'all', 'player1', 'player2'
+
+        // One bound reference, so close() can remove exactly what loadHand() added
+        this._onKeydown = this.handleKeydown.bind(this);
     }
 
     /**
@@ -122,6 +125,7 @@ export class HandReplay {
         this.player2Name = player2Name;
         this.currentTurnIndex = 0;
         this.playerFilter = 'all';  // Reset filter on new hand
+        document.addEventListener('keydown', this._onKeydown);
 
         try {
             const response = await fetch(`/api/hands/${handId}/turns`);
@@ -259,7 +263,7 @@ export class HandReplay {
 
         this.container.innerHTML = `
             <div class="replay-container">
-                ${this.options.onClose ? `<button class="replay-close-btn" onclick="handReplay.close()">&times;</button>` : ''}
+                ${this.options.onClose ? `<button class="replay-close-btn" data-action="close">&times;</button>` : ''}
 
                 <div class="replay-header">
                     <h3>Hand #${this.handId} - Turn ${this.currentTurnIndex + 1} of ${this.turns.length}</h3>
@@ -539,9 +543,10 @@ export class HandReplay {
             <div class="replay-container replay-error">
                 <h3>Error Loading Replay</h3>
                 <p>${message}</p>
-                ${this.options.onClose ? `<button class="replay-btn" onclick="handReplay.close()">Close</button>` : ''}
+                ${this.options.onClose ? `<button class="replay-btn" data-action="close">Close</button>` : ''}
             </div>
         `;
+        this.attachEventListeners();
     }
 
     /**
@@ -552,17 +557,18 @@ export class HandReplay {
             <div class="replay-container replay-empty">
                 <h3>No Turns Recorded</h3>
                 <p>This hand has no turn data available.</p>
-                ${this.options.onClose ? `<button class="replay-btn" onclick="handReplay.close()">Close</button>` : ''}
+                ${this.options.onClose ? `<button class="replay-btn" data-action="close">Close</button>` : ''}
             </div>
         `;
+        this.attachEventListeners();
     }
 
     /**
      * Attach event listeners for controls and turn list
      */
     attachEventListeners() {
-        // Navigation buttons
-        this.container.querySelectorAll('.replay-btn[data-action]').forEach(btn => {
+        // Navigation and close buttons
+        this.container.querySelectorAll('[data-action]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const action = btn.dataset.action;
                 switch (action) {
@@ -570,6 +576,7 @@ export class HandReplay {
                     case 'prev': this.prevTurn(); break;
                     case 'next': this.nextTurn(); break;
                     case 'last': this.lastTurn(); break;
+                    case 'close': this.close(); break;
                 }
             });
         });
@@ -589,9 +596,6 @@ export class HandReplay {
                 this.goToTurn(index);
             });
         });
-
-        // Keyboard navigation
-        document.addEventListener('keydown', this.handleKeydown.bind(this));
     }
 
     /**
@@ -631,7 +635,7 @@ export class HandReplay {
      */
     close() {
         if (this.options.onClose) {
-            document.removeEventListener('keydown', this.handleKeydown.bind(this));
+            document.removeEventListener('keydown', this._onKeydown);
             this.options.onClose();
         }
     }
