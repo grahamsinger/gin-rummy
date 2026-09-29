@@ -105,7 +105,16 @@
 >
 > **Related, same area (§4):** the MC turn and scenario routes are `async def` but do seconds of CPU work, so they block every user for 2–4 s. Run them in a threadpool with a per-session lock. With a shared pool, that thread mostly waits on worker futures.
 >
-> ### B. Round runner (§2.1): design decided
+> ### B. ~~Round runner (§2.1): design decided~~ Done (2026-09-28)
+>
+> Commits, in order: `7b4f715` safety net; `3e3542a` opponent-tracking alignment (behaviour, see below); `c386d82` the runner; `8776d09` `other_ai` dropped from `execute_ai_turn`.
+>
+> - **`gin_rummy/round_runner.py`:** `run_round(game, seats, stop_when=)` plays a dealt round: the non-dealer seat's opening discard, turns until a knock or the deck runs out, every opponent action relayed to the other seat. `Seat` decides (a prompt or an AI); `AISeat` is the plain AI seat with optional turn callbacks. Callers: simulator (`_TimedSeat`), scenario quiz (`stop_when` freezes the hand at the human seat), trainer (`_LearnerSeat` collects experiences), CLI (`CLIHumanSeat`, `CLIAISeat`). The web session stays request-driven.
+> - **`3e3542a` is the one behaviour change**, made before the runner so the runner could be uniform without per-caller flags: the scenario seat AIs learn the opening discard; the trainer's learner starts every game with a fresh opponent model and evaluation rounds track the opening discard; the CLI and web AIs now observe the human's opening discard, pickups and discards, and the CLI AI is reset each round. Only the learning fingerprint moved (`7427fe2bda5dd730` → `d14855bd28ce8d14`); CLI/web/scenario goldens are unchanged.
+> - **Safety net now in `scripts/fingerprint.py`:** four lines. `primary 49ebb018605bbae6`, `secondary 56c04fee7ecf6e24`, `scenario 458764989f15a853` (20 seeded positions + panel draw advice), `learning d14855bd28ce8d14` (4-episode seeded run, float-sensitive, `--no-learning` to skip). `tests/golden/scenarios_seed7.json` pins five positions; `TrainingConfig.seed` / `gin-train --seed` seed random, numpy and torch.
+> - **Next:** §3 file splits (the large modules), then the frontend, then docs/TODO cleanup.
+>
+> Original design notes:
 >
 > - **Approach (b):** a blocking round runner for the four loop-style callers (CLI vs AI, CLI PvP, simulator, scenario quiz), plus the trainer's round loop. The **web session stays request-driven**; it already shares the turn-level pieces (`execute_ai_turn`, `TurnRecorder`, `end_hand_from_result`). Seats provide the decisions (human prompt, AI).
 > - **Safety net before starting:**
@@ -217,6 +226,8 @@ _Original text kept for the rebuild notes._ `network/` hadn't kept up with the e
 ## 2. Code that should be combined
 
 ### 2.1 One round runner instead of four game loops
+_Done (`c386d82`): `gin_rummy/round_runner.py` with `Seat`/`AISeat`/`run_round`; the CLI, simulator, scenario quiz and trainer loops are seats over it. See "Next up" B above._
+
 Game loops are implemented in `cli.py:704-795`, `cli.py:798-870`, `simulator.py:353-416` and `scenario_quiz.py:113-150`. Partial copies live in `web/game_session.py` and `learning/trainer.py:355-517`.
 
 **Target:** `gin_rummy/engine/round_runner.py` with a `Seat` interface (human prompt, AI, remote/web client) that returns a `RoundResult`. `game_runner.execute_ai_turn` is already shared by CLI and web; extend that pattern.
