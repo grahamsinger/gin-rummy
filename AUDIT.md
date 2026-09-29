@@ -1,5 +1,9 @@
 # Codebase Audit
 
+> **Status: closed 2026-09-29.** The suggested order of work (steps 1–10) is complete and every review round below ended in "verified". Done over 2026-09-28/29: the section-0 bugs, CI and pre-commit, the core consolidation (card codec, AI protocol and factory, shared recorder, reasoning twins), the worker-pool lifecycle, the round runner, explicit game context on every decision, all the §3 file splits (Python and frontend), and the docs/TODO cleanup. Behaviour was held fixed throughout by `scripts/fingerprint.py` (six lines, see `docs/fingerprinting.md`) and the golden files.
+>
+> Not done, by choice, and left for later: the unstruck items in §5 (merging the event-named test files, a simulator smoke test, tests for `analyze_hand.py` and `learning/experiment.py`) and §6 (pyproject metadata, `experiments/` rename, which statistical-AI JSON is canonical, the ty diagnostics). Open product work is in `TODO.md`. The review blocks below are kept as the record of how each batch was verified.
+
 > ## Latest review: step 10, docs and TODO (`c20c3dc`…`12bd9dd`), 2026-09-29
 >
 > **Verdict: verified. The suggested order of work is complete.** The docs are accurate where they were rewritten: links resolve, commands run, and names match the code. The TODO trim lost no open item. Four small doc nits, one of which (nit 1) points at a real subclassing pitfall worth a sentence.
