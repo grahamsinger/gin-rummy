@@ -153,6 +153,10 @@ class GameContext:
     # Knock threshold in effect (dynamic under Oklahoma Gin rules)
     knock_threshold: int = 10
 
+    # The card the player drew this turn (None before drawing, or for the
+    # player not on turn); set for the discard and knock decisions
+    drawn_card: Card | None = None
+
     # Current hand analysis (set by AI after construction)
     my_outs: OutsAnalysis | None = None
 

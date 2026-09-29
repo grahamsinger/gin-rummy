@@ -210,6 +210,7 @@ class Game:
             my_pickups=self._discard_pickups.get(player.name, []).copy(),
             target_score=target_score,
             knock_threshold=self.knock_threshold,
+            drawn_card=self._card_drawn_this_turn if player_idx == self.current_player_idx else None,
         )
 
     @property

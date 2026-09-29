@@ -96,5 +96,20 @@ class TestDiscardGetsTheContext:
         for capture in (False, True):
             game, ai = self._dealt()
             game.discard_to_start(game.current_player.hand[0])
-            execute_ai_turn(game, ai, capture_reasoning=capture)
+            _, actions, _ = execute_ai_turn(game, ai, capture_reasoning=capture)
             assert ai.discard_contexts and all(c is not None for c in ai.discard_contexts)
+            assert actions is not None
+            # the real discard decision (the last call; earlier ones are the draw
+            # evaluation's hypothetical discards) sees the post-draw state
+            final = ai.discard_contexts[-1]
+            assert final.drawn_card == actions.drawn_card
+            assert final.deck_remaining == len(game.deck)
+
+    def test_context_carries_the_drawn_card_only_for_the_player_on_turn(self):
+        game, _ = self._dealt()
+        game.discard_to_start(game.current_player.hand[0])
+        idx = game.current_player_idx
+        assert game.get_game_context(idx).drawn_card is None
+        card = game.draw_from_deck()
+        assert game.get_game_context(idx).drawn_card == card
+        assert game.get_game_context(1 - idx).drawn_card is None

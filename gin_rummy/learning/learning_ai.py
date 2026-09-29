@@ -184,8 +184,9 @@ class LearningAI(BasicAI):
             logger.debug("Discard decision: %s (exploration)", choice)
             return choice, f"Discarded {choice}: random exploration", ["Exploration"], []
 
-        # Note: _drawn_card should be set by make_turn_decision before this is called
-        drawn_card = self._drawn_card
+        # The context carries the drawn card on the runner path; the legacy
+        # make_turn_decision sets _drawn_card instead
+        drawn_card = (context.drawn_card if context else None) or self._drawn_card
         if drawn_card is None:
             # This happens for the initial discard (before first draw):
             # fall back to BasicAI logic for this case

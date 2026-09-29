@@ -179,7 +179,7 @@ def execute_ai_turn(
     # Capture state before turn
     deadwood_before = current.hand.deadwood_total
 
-    # Build context for AIs that use it
+    # Build context for AIs that use it (pre-draw, for the draw decision)
     context = get_ai_context(game, ai, current_idx)
 
     # AI decides where to draw (with optional reasoning capture)
@@ -202,6 +202,10 @@ def execute_ai_turn(
 
     # Callback: draw complete
     callbacks.on_draw(current, draw_choice, card)
+
+    # Fresh context for the discard and knock decisions: one fewer card in
+    # the deck, and the drawn card (LearningAI's discard state needs it)
+    context = get_ai_context(game, ai, current_idx)
 
     # AI decides what to discard (with optional reasoning capture)
     discard_reasoning: DiscardReasoning | None = None

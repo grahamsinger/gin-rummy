@@ -450,3 +450,21 @@ class TestTrainerSeed:
         from gin_rummy.learning.trainer import TrainingConfig
 
         assert TrainingConfig().seed is None
+
+
+class TestLearnerDiscardsWithItsNetwork:
+    def test_runner_path_uses_discard_net_not_the_basic_fallback(self):
+        """DiscardNet needs the drawn card; on the runner path it comes from the context."""
+        from gin_rummy.game import Game
+        from gin_rummy.game_runner import execute_ai_turn
+        from gin_rummy.learning.learning_ai import LearningAI
+
+        random.seed(4)
+        game = Game("Learner", "Other")
+        game.deal()
+        game.discard_to_start(game.current_player.hand[0])
+        ai = LearningAI()
+        _, actions, _ = execute_ai_turn(game, ai, capture_reasoning=True)
+        assert actions is not None and actions.reasoning is not None
+        assert "BasicAI fallback" not in actions.reasoning.discard.reasoning
+        assert "DiscardNet" in actions.reasoning.discard.reasoning

@@ -33,6 +33,7 @@ import hashlib
 import json
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 if os.environ.get("PYTHONHASHSEED") != "0":
@@ -130,6 +131,7 @@ def learning_greedy_fingerprint(positions: list[Position], seed: int) -> str | N
         assert top is not None
         draw = ai.decide_draw(hand, top, ctx)
         hand11 = Hand([*hand, top])
+        ctx = replace(ctx, drawn_card=top)  # as the runner's post-draw context would say
         discard = ai.decide_discard(hand11, ctx)
         post = Hand([c for c in hand11 if c != discard])
         can_knock = post.deadwood_total <= ctx.knock_threshold
