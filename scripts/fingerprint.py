@@ -19,6 +19,10 @@ the global generator, so a mismatch there may only mean a random call moved.
 Two more lines cover the other loop-style callers:
 - scenario: the frozen positions the scenario quiz generates (20 seeds) plus
   the panel's draw advice, so opponent tracking fed by callbacks is included.
+- monte_carlo: a sequential MonteCarloAI (one worker, 40 simulations) on
+  the same positions: its choices plus the expected-value numbers behind
+  them, so a change in sampling or rollout order shows up. Worker pools
+  reseed per process and are not reproducible, hence one worker.
 - learning: a short seeded training run with exploration off (episode
   rewards, evaluation and a checksum of the trained weights), and the
   greedy choices of a seeded, untrained LearningAI on the scenario
@@ -32,6 +36,7 @@ import argparse
 import hashlib
 import json
 import os
+import random
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -42,7 +47,7 @@ if os.environ.get("PYTHONHASHSEED") != "0":
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from gin_rummy.ai import BasicAI, ContextAwareAI, StatisticalAI  # noqa: E402
+from gin_rummy.ai import BasicAI, ContextAwareAI, MonteCarloAI, StatisticalAI  # noqa: E402
 from gin_rummy.config import Config  # noqa: E402
 from gin_rummy.game import Game  # noqa: E402
 from gin_rummy.models import Hand  # noqa: E402
@@ -102,6 +107,44 @@ def scenario_fingerprint(positions: list[Position]) -> tuple[str, int]:
     """Hash the described positions."""
     described = [d for _, d in positions]
     return _digest(described), sum(d is not None for d in described)
+
+
+def monte_carlo_fingerprint(positions: list[Position], seed: int, sims: int = 40) -> str:
+    """Hash a sequential MonteCarloAI's decisions and expected values on each position."""
+    cfg = Config()
+    mc = replace(
+        cfg.monte_carlo_ai, draw_simulations=sims, discard_simulations=sims, knock_simulations=sims, max_workers=1
+    )
+    ai = MonteCarloAI(replace(cfg, monte_carlo_ai=mc))
+    rows = []
+    for i, (game, _) in enumerate(positions):
+        if game is None:
+            rows.append(None)
+            continue
+        random.seed(seed + i)
+        ai.reset_for_new_hand()
+        ctx = game.get_game_context(HUMAN_SEAT)
+        hand = game.players[HUMAN_SEAT].hand
+        top = game.top_of_discard
+        assert top is not None
+        draw = ai.decide_draw(hand, top, ctx)
+        hand11 = Hand([*hand, top])
+        ctx = replace(ctx, drawn_card=top)
+        discard = ai.decide_discard(hand11, ctx)
+        post = Hand([c for c in hand11 if c != discard])
+        can_knock = post.deadwood_total <= ctx.knock_threshold
+        knock = ai.should_knock(post, ctx, pending_discard=discard) if can_knock else None
+        thinking = ai.last_mc_thinking or {}
+        d, c, k = thinking.get("draw") or {}, thinking.get("discard") or {}, thinking.get("knock") or {}
+        rows.append(
+            {
+                "draw": (draw.name, d.get("deck_avg_points"), d.get("discard_avg_points")),
+                "discard": (discard.code, [(x["card"], x["avg_points"]) for x in c.get("candidates", [])]),
+                "knock": (knock, k.get("knock_avg_points"), k.get("continue_avg_points"), k.get("reason")),
+            }
+        )
+    ai.shutdown()
+    return _digest(rows)
 
 
 def learning_greedy_fingerprint(positions: list[Position], seed: int) -> str | None:
@@ -195,6 +238,9 @@ def main() -> None:
     print(
         f"scenario  quiz positions        seeds={args.scenarios} seed={args.seed}  generated={generated}  hash={digest}"
     )
+
+    digest = monte_carlo_fingerprint(positions, args.seed)
+    print(f"monte_carlo sequential decisions  seeds={args.scenarios} seed={args.seed} sims=40  hash={digest}")
 
     if not args.no_learning:
         result = learning_fingerprint(args.seed)
