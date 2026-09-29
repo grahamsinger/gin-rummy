@@ -51,7 +51,7 @@ def get_or_create_scenario_session(request: Request, response: Response) -> Scen
             # mc_workers matches the shared pool, so when there is no shared
             # pool (max_workers = 1) the panel runs inline instead of starting
             # its own processes.
-            scenario = ScenarioSession(mc_workers=worker_count(), pool=get_worker_pool())
+            scenario = ScenarioSession(mc_workers=worker_count(), pool=get_worker_pool(), background=True)
             scenario.owner_lock = session.lock
             session.scenario_session = scenario
         return session.scenario_session
