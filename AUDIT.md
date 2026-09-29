@@ -386,7 +386,7 @@ Items marked ✅ were spot-checked by hand. The rest come from reviewer reads. T
 |---|---|---|---|
 | B1 ✅ | **`network/` cannot be imported.** It imports `gin_rummy.card`/`gin_rummy.melds`, which moved to `gin_rummy/models/`. The `gin-server`/`gin-client` entry points crash. See §1. | `network/server.py:15`, `client.py:13`, `protocol.py:15` | **Fixed** by deleting `network/` (see §1) |
 | B2 ✅ | **CLI records wrong round results to the DB.** `p*_score_before` is read *after* scoring, so `points` is always 0. The winner comes from cumulative score, gin is "anyone has 0 deadwood", and the knocker is assumed to be `1 - current_player_idx`, but `knock()` doesn't switch players. PvP hard-codes `+25`. | `cli.py:759-790`, `cli.py:838-865` | **Fixed.** Both CLI loops and the web session now record via `GameTracker.end_hand_from_result()`. Tests: `test_cli.py`, `test_database.py` |
-| B3 ✅ | **SQL correlation bug.** In `EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = id)`, the unqualified `id` resolves to `t.id`, so resume can choose the wrong dealer. Use `hands.id`. | `database.py:813` | **Fixed.** Test: `test_database.py::TestResumableGame` |
+| B3 ✅ | **SQL correlation bug.** In `EXISTS (SELECT 1 FROM turns t WHERE t.hand_id = id)`, the unqualified `id` resolves to `t.id`, so resume can choose the wrong dealer. Use `hands.id`. | `db/queries.py` (`get_resumable_game`) | **Fixed.** Test: `test_database.py::TestResumableGame` |
 | B4 ✅ | **LearningAI never sees opponent actions.** `record_opponent_pickup/discard` only forward to `ContextAwareAI` instances, so ~34 opponent-model state features stay empty during training. | `game_runner.py:144,155` | **Fixed.** Forwarders now duck-type on the method. Tests: `test_game_runner.py`, `test_learning.py` |
 | B5 ✅ | **`--resume` trains the wrong network.** It replaces `trainer.learning_ai`, but the optimizers still hold the old network's parameters. Curriculum and exploration state are not restored either. | `learning/trainer.py:737-742` vs `:152-163` | **Fixed.** `Trainer.load_checkpoint()` loads into the existing networks and restores exploration/curriculum/episode. Test: `test_learning.py::TestTrainerResume` |
 | B6 ✅ | **Stored XSS via player names.** Names from the DB go into `innerHTML` unescaped. `escapeHtml` exists only as a private `HandReplay` method. | `game.js:404-409, 621, 1606, 1701-1716, 1753`; `history.js:~236-265` | **Fixed.** Shared `CardUtils.escapeHtml` used at every name interpolation in `game.js`, `history.js`, `replay.js` |
@@ -451,15 +451,15 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 
 | Duplicate | Locations | Target |
 |---|---|---|
-| Card ↔ `"7H"` string | `database.py:22-77`, `game_session.py:18-60`, `analyze_hand.py:23-54`, `scripts/stress_test_db.py:19-21` | `Card.code` / `Card.parse()` in `models/card.py` |
+| ~~Card ↔ `"7H"` string~~ | ~~`database.py:22-77`, `game_session.py:18-60`, `analyze_hand.py:23-54`, `scripts/stress_test_db.py:19-21`~~ | Done (§2.5): `Card.code` / `Card.parse()` in `models/card.py` |
 | Card → 0..51 index | `statistical.py:19-23`, `learning/state.py:28-32` (both O(n) `.index`) | `Card.index` |
 | "Try each discard → deadwood" loop | `basic.py:150-156, 292-298`, `statistical.py:179-182`, `context_aware.py:157-159, 603-605`, `monte_carlo.py:141-145, 854-866`, `game_runner.py:160-171`, `cli.py:488-490`, `game_session.py:750-753` | `rank_discards()` / `Hand.deadwood_without(card)` in `models/` |
 | Knock scoring | `monte_carlo.py:45-82` re-implements `game.py:454-493` | Pure `scoring.py` used by both |
-| Known/unknown cards | `monte_carlo.py:660-684` vs `KnownCards` (`context.py:90-128`) | `KnownCards.unknown_cards` |
-| Group by rank/suit | `melds.py:44-46, 73-75`, `context.py:477-505` | Helpers in `melds.py` |
+| Known/unknown cards | `ai/mc/ai.py` (`_get_known_and_unknown`) vs `KnownCards` (`models/game_context.py`) | `KnownCards.unknown_cards` |
+| Group by rank/suit | `melds.py:44-46, 73-75`, `ai/opponent_model.py` (`_update_inferred_melds`) | Helpers in `melds.py` |
 | Game-over / target check | `simulator.py:330-343`, `game_session.py:978-1014` (the CLI never checks) | `Game.game_winner(target)` |
 | Meld/hand JSON serialization | `game_session.py:521-526, 941-945`, `scenario_session.py:204-210`, `app.py:341-383` | `web/serializers.py` |
-| Score SQL | `database.py:794-807`, `888-897` | `_hand_scores(conn, game_id)` |
+| Score SQL | `db/queries.py` (`get_resumable_game`, `cleanup_empty_games`) | `_hand_scores(conn, game_id)` |
 
 ### 2.6 Learning module internals
 - Three identical MLP builders (`learning/models.py:20-124`): replace with one `MLPQNet(state_size, n_out, hidden)`. Also persist `hidden_sizes` in checkpoints (`models.py:177-183`).
@@ -482,7 +482,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 ### 2.9 FastAPI routes (`app.py`)
 - The `'error' in result → 400` block appears six times (`171-224`); `_scenario_result` (`552-555`) already does this. Use it everywhere, or raise `HTTPException` from the session.
 - Cookie setting is duplicated (`41-47` vs `52-58`).
-- Raw SQL sits in route handlers (`292-299, 443-494`), and the two history queries differ only in the WHERE clause. There are N+1 queries at `412` and `484-494`, plus `database.py:886-906`. Move it all into `database.py`.
+- Raw SQL sits in route handlers (`292-299, 443-494`), and the two history queries differ only in the WHERE clause. There are N+1 queries at `412` and `484-494`, plus `db/queries.py` (`cleanup_empty_games`). Move it all into `db/queries.py`.
 
 ---
 
@@ -564,7 +564,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 - Dead knock-confirm flow: `pendingDiscardCard` is never set, so ~~`knock()` (`game.js:707`)~~ (removed in `3b8bfb5`, along with the unused `getState()`), the modal, `style.css:764-808`, `/api/game/knock` (`app.py:187-194`) and `GameSession.knock` are all unused.
 
 ### Database
-- Every write opens a new connection (`database.py:283, 383, 411`), and `end_hand` + `update_player_stats` run in separate transactions (`:348-365`).
+- Every write opens a new connection (`db/tracker.py`, each `with get_connection(self.db_path)`), and `end_hand` + `update_player_stats` run in separate transactions.
 - `PRAGMA foreign_keys` is off, so `delete_game` cascades by hand (`:716-764`). Migrations swallow `OperationalError` (`:222-233`).
 - `'Computer'` is hard-coded in SQL (`:656-673`) and in the web layer (`game_session.py:985`).
 - The DB path is relative to the working directory, and there is already a stray `gin_rummy/game_history.db`. Resolve it against the project root or a user data directory.
@@ -572,7 +572,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 ### Performance
 - The MC heuristic fallback calls `BasicAI._card_helps_hand`, which calls `self.decide_discard`, which is the *full MC discard* (`basic.py:107`). `decide_discard` also runs `super().decide_discard` every time just for a tie check (`monte_carlo.py:971`).
 - `BasicAI.decide_discard` (used in rollouts, millions of calls) builds debug log strings eagerly (`basic.py:57-61, 160-163`). Guard them with `logger.isEnabledFor`.
-- `find_all_melds(hand)` is recomputed inside a 52×melds loop (`context.py:274`).
+- `find_all_melds(hand)` is recomputed inside a 52×melds loop (`ai/outs.py`, `_find_partial_outs`).
 - The trainer reloads the opponent checkpoint from disk every self-play episode (`trainer.py:208, 222`). `ReplayBuffer.sample` copies the whole deque on every call (`replay.py:89`).
 
 ### Logging
@@ -586,7 +586,7 @@ _Card codec and index done (`f6aeb6b`, `37ec056`): `Card.code` / `Card.parse` / 
 - `DynamicThresholdCalculator` (built at `context_aware.py:55`, never used)
 - `learning/state.py`: `index_to_card_tuple`, `get_card_indices`
 - `learning/rewards.py`: `normalize_reward`
-- Legacy `GameContext` fields (`context.py:146-149`)
+- Legacy `GameContext` fields (`models/game_context.py`, `discard_history`/`opponent_pickups`/`my_pickups`)
 - The knock-confirm flow above (JS entry point already gone; modal, CSS, route and `GameSession.knock` remain)
 - ~~`network/` (§1)~~ done
 
