@@ -3,7 +3,7 @@ export default [
         files: ["gin_rummy/web/static/**/*.js"],
         languageOptions: {
             ecmaVersion: 2022,
-            sourceType: "script",
+            sourceType: "module",
             globals: {
                 // Browser globals
                 document: "readonly",
@@ -17,11 +17,14 @@ export default [
                 clearInterval: "readonly",
                 HTMLElement: "readonly",
                 MutationObserver: "readonly",
-                Chart: "readonly",
+                localStorage: "readonly",
+                requestAnimationFrame: "readonly",
+                URLSearchParams: "readonly",
             },
         },
         rules: {
             "no-unused-vars": ["warn", { vars: "all", args: "none", varsIgnorePattern: "^_" }],
+            "no-undef": "error",
             "no-unreachable": "error",
             "no-self-assign": "error",
             "no-constant-condition": "warn",

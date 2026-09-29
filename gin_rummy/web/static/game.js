@@ -1,6 +1,9 @@
 
 // Escape user-controlled strings (player names, etc.) before innerHTML.
-const esc = window.CardUtils.escapeHtml;
+import { SUIT_SYMBOLS_BY_NAME, escapeHtml } from './card-utils.js';
+import { HandReplay } from './replay.js';
+
+const esc = escapeHtml;
 // Gin Rummy Web UI
 
 const API_BASE = '/api/game';
@@ -119,7 +122,7 @@ const elements = {
 };
 
 // Suit symbols - shared definitions from card-utils.js
-const SUIT_SYMBOLS = window.CardUtils.SUIT_SYMBOLS_BY_NAME;
+const SUIT_SYMBOLS = SUIT_SYMBOLS_BY_NAME;
 
 // Suit order for sorting
 const SUIT_ORDER = {

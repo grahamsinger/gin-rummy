@@ -1,8 +1,10 @@
 // Card Memory Game
 
+import { SUIT_SYMBOLS_BY_NAME } from './card-utils.js';
+
 const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'];
 const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-const SUIT_SYMBOLS = window.CardUtils.SUIT_SYMBOLS_BY_NAME;  // shared from card-utils.js
+const SUIT_SYMBOLS = SUIT_SYMBOLS_BY_NAME;  // shared from card-utils.js
 
 // Progression table
 const ROUNDS = [

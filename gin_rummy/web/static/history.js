@@ -3,8 +3,11 @@
  * Browse and replay past games and hands.
  */
 
+import { escapeHtml } from './card-utils.js';
+import { HandReplay } from './replay.js';
+
 // Escape user-controlled strings (player names, etc.) before innerHTML.
-const esc = window.CardUtils.escapeHtml;
+const esc = escapeHtml;
 
 // State
 let currentPage = 0;
