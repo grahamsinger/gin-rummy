@@ -1,6 +1,52 @@
 # Codebase Audit
 
-> ## Latest review: pool nits + round runner (`b5e7bd7`…`566663c`), 2026-09-29
+> ## Latest review: discard context, "Next up" C (`a3e2191`…`c4f594f`), 2026-09-29
+>
+> **Verdict: verified.** Every fingerprint and win-rate claim reproduces exactly. The fix is correct, and the implementing agent found the bigger bug that my finding missed (LearningAI never used DiscardNet). Nothing blocking. Four small nits.
+>
+> **Checks at `c4f594f`:** 361 tests pass. `ruff check` and `ruff format --check` are clean, eslint shows 0 warnings, and `ty` reports 43.
+>
+> **Fingerprints at every commit** (scratchpad worktrees, now removed):
+>
+> | Commit | primary | secondary | scenario | learning | greedy |
+> |---|---|---|---|---|---|
+> | `566663c` code + `a3e2191` script | `49ebb018605bbae6` 62-88 | `56c04fee7ecf6e24` 134-16 | `458764989f15a853` | `4c76138a8b77a7b2` (buffer 128) | `4505a31a2f1b36d4` |
+> | `a3e2191` | same | same | same | same | same |
+> | `1ee409e` | same | same | same | same | same |
+> | `2825803` | `1dac7619151ab161` 72-78 | `e871d8e2b56ac099` 132-18 | same | `5727b2291609a143` (buffer 86) | `9c27f019e9aee7f5` |
+> | `3c7ddd0`, `52926fe` | same as `2825803` | same | same | same | same |
+>
+> What that shows:
+> - **`a3e2191` is script-only.** Its script gives identical output on the previous round's code.
+> - **`1ee409e` and `3c7ddd0` leave every tracked AI's behaviour unchanged**, as their messages claim.
+> - **`2825803` is the one behaviour change.**
+>
+> **Is the win-rate change noise?** I re-ran the 400-game numbers from `2825803`'s message at `1ee409e` and at `2825803`. All eight match exactly:
+>
+> | Matchup | Seed 42 | Seed 7 |
+> |---|---|---|
+> | Basic vs Context (Context wins) | 223 → 213 | 209 → 223 |
+> | Context vs Statistical (Context wins) | 364 → 355 | 363 → 362 |
+>
+> Basic vs Context combined is 432/800 → 436/800. The standard deviation over 800 games is about ±14, so "noise" is fair.
+>
+> | Commit | Verified |
+> |---|---|
+> | `a3e2191` stronger fingerprint | ✅ The training run now has exploration off, and there's a greedy line over the 20 scenario positions. Last round's nit 2 is resolved |
+> | `1ee409e` context to every discard | ✅ Covers `execute_ai_turn` (both calls), the three opening-discard sites, the hypothetical discard in `_card_helps_hand` (through `_evaluate_draw` and StatisticalAI's draw core), MC's two heuristic fallbacks, and `make_turn_decision`. The claim that ContextAwareAI's discard is unaffected is **confirmed**: `dead_cards`/`deck_position` are only used in the `live_outs_discard_weight > 0` branch (`context_aware.py:295`), and the default is `0.0` (`config.py:107`) |
+> | `2825803` post-draw context + `drawn_card` | ✅ **No information leak:** `game.py:213` sets `drawn_card` only for `current_player_idx`, and `_card_drawn_this_turn` is cleared on discard (`:373`), knock (`:410`) and `new_round` (`:513`). So the next player's pre-draw context can't carry the previous player's deck draw. The web never serialises a `GameContext`. `TestLearnerDiscardsWithItsNetwork` asserts that the reasoning says DiscardNet rather than the fallback |
+> | `3c7ddd0` drop `update_context` | ✅ Mechanical. `grep` finds no `update_context` or `_current_context` left. The scenario panel passes `ctx` explicitly (`scenario_quiz.py` draw/discard/knock) |
+> | `52926fe` knock gate | ✅ `hand.deadwood_total <= game.knock_threshold`. Last round's nit 1 is resolved |
+>
+> **Correction to my previous review:** its "Effect" bullets for ContextAwareAI and the trainer were wrong. I measured that the argument was `None`, not that play changed. They're struck through and corrected in place below; only the Monte Carlo effect held.
+>
+> **Nits (optional):**
+> 1. **`make_turn_decision` is now dead code.** It has no callers outside `tests/test_ai.py` (4 calls). It has 3 implementations (basic, context_aware, learning), plus `LearningAI._drawn_card` and the `or self._drawn_card` fallback (`learning_ai.py:189`). Removing it leaves one decision path, and a stale `_drawn_card` can no longer leak into a later discard.
+> 2. **Two comments are stale after `3c7ddd0`:** `context_aware.py:212` ("Use provided context or stored context") and `:406` ("Use stored context if not provided"). The `ctx = context` aliases there could go too.
+> 3. **The web opening-discard site** (`game_session.py:370`) has no test in `TestDiscardGetsTheContext`, which covers the seat and the CLI.
+> 4. **`AUDIT.md` has two "### C." headings.** The original "Pass the game context… do before §3" entry still sits above the "Done" one. Delete the first.
+
+> ## Earlier review: pool nits + round runner (`b5e7bd7`…`566663c`), 2026-09-29
 >
 > **Verdict: verified. The round runner is a faithful refactor and the pool nits are fixed.** One real finding. It's a long-standing bug rather than a regression of this round, but `c386d82` spread it to the trainer without saying so. See **Finding** below; I recommend fixing it next, before the §3 file splits.
 >
@@ -43,10 +89,10 @@
 >   | Simulator: ContextAwareAI | 0/16 | 0/16 |
 >   | Monte Carlo via `execute_ai_turn` (web "hard" path) | none | none |
 >
-> - **Effect:**
->   - **ContextAwareAI** discards ignore dead cards and deck position. This is web "medium", the CLI AI, and every simulator game.
+> - **Effect** (*corrected 2026-09-29: only the Monte Carlo bullet held; see the next review up*):
+>   - ~~**ContextAwareAI** discards ignore dead cards and deck position.~~ **Wrong under the default config.** Its discard reads the context only in the live-outs branch, and `live_outs_discard_weight` defaults to `0.0`.
 >   - **MonteCarloAI** (web "hard") samples opponent hands from cards that are visibly in the discard pile (`_get_known_and_unknown`) and uses its own knock threshold instead of the table's.
->   - **In the trainer,** the learner now plays with `ctx=None` discard states, but the experiences it stores are encoded *with* the context (`_LearnerSeat`). The network is therefore trained on inputs it never sees at play time.
+>   - ~~**In the trainer,** the learner now plays with `ctx=None` discard states…~~ **Wrong mechanism.** The learner's discard never reached DiscardNet on the runner path, because it lacked the drawn card, so it was always the BasicAI fallback. The implementing agent found and fixed that (`2825803`).
 >   - The commit message says "execute_ai_turn already passes the context explicitly". That's true for draw and knock, but not for discard.
 > - **Why no fingerprint caught it:** primary, secondary and scenario had the bug in their baselines too. The learning line didn't move, most likely because 4 short episodes are almost all ε-exploration. That reason is a guess I haven't checked.
 > - **Recommended fix** (a behaviour change, so do it as its own commit and accept the new fingerprints):
