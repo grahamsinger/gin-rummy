@@ -208,6 +208,7 @@ denial_probability_threshold = 0.8
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `near_meld_patience` | `int` | `2` | Draws a pair or two-card run is given to fill before it is thrown as deadwood (0 = lowest deadwood only). Measured against BasicAI over 2000 games: 0 wins 53%, 2 wins 65%, 6 wins 54% |
 | `track_opponent_patterns` | `bool` | `true` | Whether to track opponent discard/pickup patterns |
 
 **Tuning:**

@@ -104,7 +104,16 @@ class ContextAwareAIConfig:
     # Applied to weighted_value (not just count), so strategic importance matters
     # Pairs worth 4.0, run extensions 5.0, meld completions 10.0
     # NOTE: Disabled by default - similar to danger penalties, this can cause suboptimal discards
+    # (measured at 0.2: 50% against BasicAI, below the 53% with it off). near_meld_patience replaced it.
     live_outs_discard_weight: float = 0.0  # Multiplier for weighted outs value (disabled)
+
+    # Near melds when discarding: the number of future draws a pair or a
+    # two-card run is given to fill before its cards are thrown as deadwood.
+    # Each unseen card that would complete a meld counts for the deadwood it
+    # would save, times the chance of it arriving within that many draws.
+    # 0 = discard for the lowest deadwood only. Against BasicAI over 2000
+    # games: 0 wins 53%, 1 wins 61%, 2 wins 65%, 3 wins 63%, 6 wins 54%.
+    near_meld_patience: int = 2
 
     # Opponent modeling
     track_opponent_patterns: bool = True

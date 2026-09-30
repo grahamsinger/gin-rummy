@@ -102,7 +102,10 @@ def generate_scenario(
     # AIs that actually play out the position (independent of the panel).
     # Only the opponent's actions are fed to the panel.
     callbacks = _PanelFeedCallbacks(panel, opponent_name="Opponent")
-    seats = [AISeat(ContextAwareAI(), callbacks=None if i == HUMAN_SEAT else callbacks) for i in range(2)]
+    # Their play is pinned, so a seed keeps giving the position it gave when its answers were saved
+    cfg = get_config()
+    pinned = replace(cfg, context_aware_ai=replace(cfg.context_aware_ai, near_meld_patience=0))
+    seats = [AISeat(ContextAwareAI(pinned), callbacks=None if i == HUMAN_SEAT else callbacks) for i in range(2)]
 
     def frozen(game: Game, turns: int) -> bool:
         return (turns >= target_turns and game.current_player_idx == HUMAN_SEAT) or turns > max_total_turns

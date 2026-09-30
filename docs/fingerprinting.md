@@ -17,16 +17,21 @@ has to say what and why.
 uv run python scripts/fingerprint.py
 ```
 
-Output as of `8bfc84d` (2026-09-29):
+Output once ContextAwareAI holds near melds when discarding
+(`near_meld_patience = 2`, 2026-09-29):
 
 ```
-primary   basic vs context       games=150 seed=42  wins=72-78  hash=1dac7619151ab161
-secondary context vs statistical  games=150 seed=42  wins=132-18  hash=e871d8e2b56ac099
-scenario  quiz positions        seeds=20 seed=42  generated=20  hash=458764989f15a853
+primary   basic vs context       games=150 seed=42  wins=50-100  hash=18346b32256b00c2
+secondary context vs statistical  games=150 seed=42  wins=141-9  hash=9b0632201b67faa0
+scenario  quiz positions        seeds=20 seed=42  generated=20  hash=90ff27eefde7924b
 monte_carlo sequential decisions  seeds=20 seed=42 sims=40  hash=00812a7579abd075
-learning  seeded training run   episodes=4 seed=42  buffer=86  hash=5727b2291609a143
+learning  seeded training run   episodes=4 seed=42  buffer=84  hash=492cfbb403c19a72
 learning  greedy on positions   seeds=20 seed=42  hash=9c27f019e9aee7f5
 ```
+
+The scenario line changed because the panel's advice did; the positions
+themselves are the same, since scenario generation pins the play that
+produces them.
 
 The whole run takes about 45 seconds. `-n` and `-s` change the game count
 and seed, `--scenarios` the number of quiz positions, and `--no-learning`

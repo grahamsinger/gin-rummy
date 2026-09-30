@@ -14,6 +14,7 @@ from gin_rummy.ai.types import (
     DrawReasoning,
     KnockReasoning,
 )
+from gin_rummy.analysis.style import potential
 from gin_rummy.config import Config, get_config
 from gin_rummy.models import Card, Hand, analyze_hand
 
@@ -250,6 +251,17 @@ class ContextAwareAI(BasicAI):
                 score -= live_outs_bonus
                 if outs_analysis.live_out_count > 0:
                     flags.append(f"outs={outs_analysis.live_out_count}")
+
+            # Allow for the near melds the remaining hand keeps open
+            if self.context_config.near_meld_patience > 0:
+                seen = set(dead_cards)
+                if context and context.known_cards and context.known_cards.discard_top:
+                    seen.add(context.known_cards.discard_top)
+                seen.add(card)
+                keeps = potential(remaining, seen - set(remaining), self.context_config.near_meld_patience)
+                if keeps > 0:
+                    score -= keeps
+                    flags.append(f"near_melds={keeps:.1f}")
 
             # Apply safety scoring
             if self.opponent_model.is_rank_safe(card.rank):

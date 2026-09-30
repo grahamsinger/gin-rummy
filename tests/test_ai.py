@@ -733,3 +733,32 @@ class TestKnockThresholdFromContext:
         assert ai.should_knock(ten, make_context(ten)) is True
         oklahoma = replace(make_context(ten), knock_threshold=5)
         assert ai.should_knock(ten, oklahoma) is False
+
+
+class TestContextAwareKeepsNearMelds:
+    """ContextAwareAI's discard allows for the melds the rest of the hand could still make."""
+
+    HAND = "7S 7C 9D 2H 3S AC 4D KH KD KC JS"
+
+    def discard(self, patience: int) -> str:
+        from dataclasses import replace
+
+        from gin_rummy.ai import ContextAwareAI
+        from gin_rummy.config import get_config
+        from gin_rummy.models import Card, Hand
+
+        cfg = get_config()
+        cfg = replace(cfg, context_aware_ai=replace(cfg.context_aware_ai, near_meld_patience=patience))
+        hand = Hand([Card.parse(code) for code in self.HAND.split()])
+        return ContextAwareAI(cfg).decide_discard(hand).code
+
+    def test_lowest_deadwood_only_throws_the_highest_loose_card(self):
+        assert self.discard(0) == "JS"
+
+    def test_a_lone_high_card_goes_before_a_pair(self):
+        assert self.discard(2) == "JS"
+
+    def test_a_pair_is_kept_over_a_lone_card_worth_more(self):
+        self.HAND = "7S 7C 6H 2H 3S AC 4D KH KD KC AH"
+        assert self.discard(0) in {"7S", "7C"}
+        assert self.discard(2) == "6H"
