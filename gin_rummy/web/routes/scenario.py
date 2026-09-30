@@ -27,6 +27,10 @@ class ScenarioKnockRequest(BaseModel):
     knock: bool
 
 
+class DeepAnalysisRequest(BaseModel):
+    decision: Literal["draw", "discard", "knock"]
+
+
 @router.post("/api/scenario/new")
 def scenario_new(req: NewScenarioRequest, scenario: ScenarioDep):
     """Generate a fresh scenario position."""
@@ -60,3 +64,10 @@ def scenario_knock(req: ScenarioKnockRequest, scenario: ScenarioDep):
     """Answer the knock decision; returns the panel reveal."""
     with scenario.owner_lock:
         return ok(scenario.answer_knock(req.knock))
+
+
+@router.post("/api/scenario/deep")
+def scenario_deep(req: DeepAnalysisRequest, scenario: ScenarioDep):
+    """Start a deep analysis of an answered decision; progress and result arrive with the state."""
+    with scenario.owner_lock:
+        return ok(scenario.start_deep_analysis(req.decision))

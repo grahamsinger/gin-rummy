@@ -162,24 +162,51 @@ function analysisPending() {
 // complete, check back until it has finished.
 let pollTimer = null;
 
+function deepRunning() {
+    return Object.values((state && state.deep) || {}).some(
+        (d) => d.status === 'queued' || d.status === 'running'
+    );
+}
+
 function pollForAnalysis() {
     clearTimeout(pollTimer);
-    if (!state || state.phase !== 'done' || !analysisPending()) return;
+    if (!state || state.phase !== 'done' || !(analysisPending() || deepRunning())) return;
     const seed = state.seed;
-    pollTimer = setTimeout(async () => {
-        if (!busy) {
-            const latest = await api('/state');
-            // Ignore the answer if the player has moved on to another scenario meanwhile
-            if (latest && !busy && state.seed === seed && latest.seed === seed) {
-                const landed = !(latest.pending && latest.pending.length);
-                state = latest;
-                render();
-                if (landed) announceVerdict();
-                return;
+    const judging = analysisPending();
+    pollTimer = setTimeout(
+        async () => {
+            if (!busy) {
+                const latest = await api('/state');
+                // Ignore the answer if the player has moved on to another scenario meanwhile
+                if (latest && !busy && state.seed === seed && latest.seed === seed) {
+                    const landed = judging && !(latest.pending && latest.pending.length);
+                    const finished = deepFinished(state.deep, latest.deep);
+                    state = latest;
+                    render();
+                    if (landed) announceVerdict();
+                    if (finished) announceDeep();
+                    return;
+                }
             }
-        }
-        pollForAnalysis();
-    }, 500);
+            pollForAnalysis();
+        },
+        judging ? 500 : 1500
+    );
+}
+
+// Whether a deep analysis that was running has just produced its result
+function deepFinished(before, after) {
+    return Object.keys(after || {}).some(
+        (k) => after[k].status === 'done' && before && before[k] && before[k].status !== 'done'
+    );
+}
+
+function announceDeep() {
+    const panel = el('deepPanel');
+    panel.classList.remove('just-landed');
+    void panel.offsetWidth; // restart the animation
+    panel.classList.add('just-landed');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // The moment the analysis arrives: flash the panels it filled in and bring
@@ -260,6 +287,7 @@ function render() {
     renderPiles();
     renderDecision();
     renderReveals();
+    renderDeep();
     renderScoreboard();
 }
 
@@ -385,6 +413,210 @@ function renderReveals() {
         sections.push(`<div class="reveal-section"><h3>${labels[key]}</h3>${body}</div>`);
     }
     content.innerHTML = sections.join('');
+}
+
+// ------------------------------------------------------------------
+// Deep analysis
+// ------------------------------------------------------------------
+
+const DEEP_LABELS = { draw: 'Draw decision', discard: 'Discard decision', knock: 'Knock decision' };
+const OPTION_WORDS = {
+    deck: 'draw from deck',
+    pile: 'take from pile',
+    knock: 'knock',
+    continue: 'keep playing',
+};
+const ENDING_WORDS = {
+    my_gin: 'you gin',
+    my_knock: 'you knock and win',
+    my_knock_undercut: 'you knock and are undercut',
+    opp_gin: 'opponent gins',
+    opp_knock: 'opponent knocks and wins',
+    opp_knock_undercut: 'you undercut the opponent',
+    deck_out: 'deck runs out',
+};
+
+const optionLabel = (option) => OPTION_WORDS[option] || cardChip(option, 'small');
+const signed = (n, digits = 1) => `${n >= 0 ? '+' : ''}${n.toFixed(digits)}`;
+const range95 = (se) => (1.96 * se).toFixed(1);
+
+// Who chose each option: the player and the panel AIs
+function deepChoosers(decision, yours) {
+    const choosers = { [yours]: ['you'] };
+    for (const row of (state.reveals && state.reveals[decision]) || []) {
+        let option = row.choice_id || row.choice;
+        if (decision === 'draw' && option === 'discard') option = 'pile';
+        (choosers[option] = choosers[option] || []).push(row.name);
+    }
+    return choosers;
+}
+
+function deepStanding(row) {
+    if (row.behind_leader === 0) return 'best';
+    if (row.behind_leader_se === 0 || row.behind_leader / row.behind_leader_se >= 2) return 'behind';
+    return 'level';
+}
+
+function deepSummary(result, choosers, yours) {
+    const main = result.styles[0];
+    const lines = [];
+    let best = `Best play: ${optionLabel(result.best)}`;
+    if (result.level_with && result.level_with.length) {
+        best += ` — too close to separate from ${result.level_with.map(optionLabel).join(' ')}`;
+    }
+    lines.push(best);
+
+    const describe = (option, who) => {
+        const row = main.options.find((r) => r.option === option);
+        if (!row) return;
+        const standing = deepStanding(row);
+        const gap = `${row.behind_leader.toFixed(1)} points a hand (±${range95(row.behind_leader_se)})`;
+        if (standing === 'best') {
+            lines.push(`${who} ${optionLabel(option)}: <span class="good">the best play</span>`);
+        } else if (standing === 'level') {
+            lines.push(
+                `${who} ${optionLabel(option)}: <span class="level">as good as the best</span> — ${gap} behind, within the noise`
+            );
+        } else {
+            lines.push(`${who} ${optionLabel(option)}: <span class="bad">worse by ${gap}</span>`);
+        }
+    };
+    describe(yours, 'Your');
+    for (const [option, names] of Object.entries(choosers)) {
+        const ais = names.filter((n) => n !== 'you');
+        if (option !== yours && ais.length) describe(option, `${ais.join(', ')} chose`);
+    }
+
+    for (const style of result.styles.slice(1)) {
+        const word =
+            style.main_best === 'best'
+                ? 'still best'
+                : style.main_best === 'level'
+                  ? `level with ${optionLabel(style.best)}`
+                  : `<span class="bad">behind ${optionLabel(style.best)}</span>`;
+        lines.push(`If the hand is then played “${style.style}”: ${optionLabel(result.best)} is ${word}`);
+    }
+    return `<div class="deep-summary">${lines.map((l) => `<span class="line">${l}</span>`).join('')}</div>`;
+}
+
+function deepTable(result, style, choosers, withNotes) {
+    const notes = result.option_notes || {};
+    const hasOuts = withNotes && Object.keys(notes).length > 0;
+    const actual = style.actual_deal || {};
+    const rows = style.options
+        .map((row) => {
+            const tags = (choosers[row.option] || [])
+                .map((n) => `<span class="deep-tag ${n === 'you' ? 'you' : ''}">${n}</span>`)
+                .join('');
+            const gap =
+                row.behind_leader === 0
+                    ? 'best'
+                    : `${signed(-row.behind_leader)} <span class="range">±${range95(row.behind_leader_se)}</span>`;
+            const note = notes[row.option];
+            const outs = hasOuts
+                ? `<td class="outs">${note ? chipList(note.outs.map((o) => o.card)) : ''}</td>`
+                : '';
+            const real = actual[row.option];
+            const realText = real
+                ? `<span title="${ENDING_WORDS[real.ending] || real.ending}">${signed(real.points, 0)}</span>`
+                : '';
+            return `<tr class="${(choosers[row.option] || []).includes('you') ? 'yours' : ''}">
+                <td>${optionLabel(row.option)}${tags}</td>
+                <td class="num">${signed(row.points)}</td>
+                <td class="num">${gap}</td>
+                <td class="num">${Math.round(100 * row.win_rate)}%</td>
+                ${hasOuts ? `<td class="num">${note ? note.deadwood_after : ''}</td>` : ''}
+                ${outs}
+                <td class="num">${realText}</td>
+            </tr>`;
+        })
+        .join('');
+    return `<div class="deep-scroll"><table class="deep-table">
+        <tr>
+            <th>Option</th>
+            <th class="num">Avg points</th>
+            <th class="num">vs best</th>
+            <th class="num">You win</th>
+            ${hasOuts ? '<th class="num">Deadwood</th><th>Cards that would meld</th>' : ''}
+            <th class="num" title="The same play-out against the cards that were really hidden">Real deal</th>
+        </tr>${rows}</table></div>`;
+}
+
+const styleWords = (style) =>
+    `${style.patience ? `holds near melds for ${style.patience} draws` : 'always throws for the lowest deadwood'}, ` +
+    `${style.knock_at ? `knocks at ${style.knock_at} or less` : 'only goes out with gin'}`;
+
+function deepResult(decision, entry) {
+    const result = entry.result;
+    const choosers = deepChoosers(decision, entry.your_choice);
+    const main = result.styles[0];
+    const others = result.styles
+        .slice(1)
+        .map(
+            (style) =>
+                `<h4>Played on “${style.style}” (${styleWords(style)})</h4>${deepTable(result, style, choosers, false)}`
+        )
+        .join('');
+    return `
+        ${deepSummary(result, choosers, entry.your_choice)}
+        ${deepTable(result, main, choosers, true)}
+        <div class="deep-notes">
+            ${result.samples.toLocaleString()} deals of the hidden cards. Both players then play “${main.style}”
+            (${styleWords(main)}). <b>vs best</b> compares on the same deals, with its 95% range.
+            <b>Real deal</b> is one game against the cards that were actually hidden, so it is mostly luck.
+        </div>
+        <details class="deep-styles">
+            <summary>Other ways of playing the hand out</summary>
+            ${others}
+        </details>`;
+}
+
+function renderDeep() {
+    const panel = el('deepPanel');
+    const content = el('deepContent');
+    const deep = state.deep || {};
+    const keys = ['draw', 'discard', 'knock'].filter((k) => deep[k]);
+    if (state.phase !== 'done' || analysisPending() || !keys.length) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = '';
+
+    // A finished result stays as it is, so an opened section is not closed by a refresh
+    const signature = JSON.stringify(
+        keys.map((k) => [k, deep[k].status, deep[k].progress, deep[k].result && deep[k].result.samples])
+    );
+    if (content.dataset.signature === `${state.seed}:${signature}`) return;
+    content.dataset.signature = `${state.seed}:${signature}`;
+
+    content.innerHTML = keys
+        .map((key) => {
+            const entry = deep[key];
+            let body;
+            if (entry.status === 'done' && entry.result) {
+                body = deepResult(key, entry);
+            } else if (entry.status === 'queued' || entry.status === 'running') {
+                body = `<span class="thinking">Analysing… ${entry.progress || ''}</span>`;
+            } else {
+                const failed = entry.status === 'failed' ? '<span class="none">The last run did not finish. </span>' : '';
+                body = `${failed}<button class="quiz-btn primary deep-run" data-decision="${key}">Run deep analysis</button>`;
+            }
+            return `<div class="deep-section"><h3>${DEEP_LABELS[key]}</h3>${body}</div>`;
+        })
+        .join('');
+
+    content.querySelectorAll('.deep-run').forEach((button) => {
+        button.addEventListener('click', () => runDeep(button.dataset.decision));
+    });
+}
+
+async function runDeep(decision) {
+    if (busy) return;
+    const latest = await api('/deep', { decision });
+    if (latest) {
+        state = latest;
+        render();
+    }
 }
 
 function renderScoreboard() {

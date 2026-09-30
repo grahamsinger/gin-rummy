@@ -244,3 +244,60 @@ class TestBackgroundAnalysis:
         assert s.get_state()["pending"] == []
         assert s.reveals["draw"] == [] and s.decisions["draw"] == 0
         s.shutdown()
+
+
+class TestDeepAnalysis:
+    """A deep analysis is run on request for a finished scenario and saved."""
+
+    def finished(self, **kwargs) -> ScenarioSession:
+        from concurrent.futures import ThreadPoolExecutor
+
+        session = ScenarioSession(mc_sims=5, mc_workers=1, pool=ThreadPoolExecutor(max_workers=1), **kwargs)
+        session.deep_samples = 20
+        session.deep_batch = 20
+        session.new_scenario(seed=20587)
+        session.answer_draw("deck")
+        state = session.answer_discard("5S")
+        assert state["phase"] == "done"
+        return session
+
+    def test_nothing_offered_before_the_scenario_is_done(self):
+        session = ScenarioSession(mc_sims=5, mc_workers=1)
+        state = session.new_scenario(seed=20587)
+        assert state["deep"] == {}
+        assert "error" in session.start_deep_analysis("draw")
+
+    def test_answered_decisions_can_be_analysed(self):
+        session = self.finished()
+        state = session.get_state()
+        assert set(state["deep"]) == {"draw", "discard"}
+        assert state["deep"]["discard"] == {"status": "none", "progress": "", "result": None, "your_choice": "5S"}
+        assert "error" in session.start_deep_analysis("knock")
+
+    def test_result_is_returned_and_saved(self):
+        from gin_rummy.db.deep_analyses import list_deep_analyses
+
+        session = self.finished()
+        deep = session.start_deep_analysis("discard")["deep"]["discard"]
+        assert deep["status"] == "done"
+        assert deep["result"]["position"]["seed"] == 20587
+        assert [row["decision"] for row in list_deep_analyses()] == ["discard"]
+
+    def test_saved_result_is_shown_the_next_time(self):
+        self.finished().start_deep_analysis("discard")
+        again = self.finished().get_state()["deep"]
+        assert again["discard"]["status"] == "done"
+        assert again["draw"]["status"] == "none"
+
+    def test_background_run_reports_progress_then_finishes(self):
+        session = self.finished(background=True)
+        try:
+            state = session.start_deep_analysis("draw")
+            assert state["deep"]["draw"]["status"] in ("queued", "running", "done")
+            thread = session._deep_thread
+            assert thread is not None
+            thread.shutdown(wait=True)
+            session._deep_thread = None
+            assert session.get_state()["deep"]["draw"]["status"] == "done"
+        finally:
+            session.shutdown()

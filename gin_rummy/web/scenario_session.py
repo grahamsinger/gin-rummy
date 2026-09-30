@@ -12,6 +12,8 @@ from concurrent.futures import Executor, Future, ThreadPoolExecutor, wait
 from typing import Any
 
 from gin_rummy.ai import DrawChoice
+from gin_rummy.analysis.deep import Position, analyse, position_from_game
+from gin_rummy.db.deep_analyses import find_deep_analysis, save_deep_analysis
 from gin_rummy.db.scenario_stats import get_scenario_totals, record_scenario_answers
 from gin_rummy.game import Game
 from gin_rummy.game_runner import calculate_post_discard_deadwood
@@ -34,6 +36,10 @@ logger = logging.getLogger(__name__)
 WEB_MC_SIMS = 500
 WEB_MC_WORKERS = 8
 
+# Deep analysis on request: the most deals to try, and how many per round
+DEEP_SAMPLES = 40000
+DEEP_BATCH = 4000
+
 # Cards in the deck once both hands and the first face-up card are dealt
 DECK_AFTER_DEAL = 31
 
@@ -49,6 +55,11 @@ class ScenarioSession:
 
     With `background=True` the analysis runs on a worker thread, so neither
     a new scenario nor an answer waits for the AIs.
+
+    A deep analysis of a decision (gin_rummy.analysis.deep) is run on
+    request once the scenario is complete. It takes minutes, runs on its
+    own thread and is saved to the database, so it is there the next time
+    the same position comes up.
     """
 
     def __init__(
@@ -82,6 +93,14 @@ class ScenarioSession:
         self.reveals: dict[str, Any] = {}
         self.tallies: dict[str, dict[str, int]] = {}
         self.decisions: dict[str, int] = {"draw": 0, "discard": 0, "knock": 0}
+        self.deep_samples = DEEP_SAMPLES
+        self.deep_batch = DEEP_BATCH
+        self._deep_thread: ThreadPoolExecutor | None = None
+        self._deep_stop = threading.Event()
+        self._deep_lock = threading.Lock()  # guards _deep_jobs
+        self._deep_jobs: dict[str, dict[str, Any]] = {}  # by position key: status, progress, result
+        self._positions: dict[str, Position] = {}  # this scenario's decisions as the player met them
+        self._choices: dict[str, str] = {}  # the player's answers, as deep-analysis options
 
     def _ensure_panel(self) -> list[PanelMember]:
         if self.panel is None:
@@ -162,6 +181,7 @@ class ScenarioSession:
         assert self.game is not None
         panel = self._ensure_panel()
         position = copy.deepcopy(self.game)  # the player's draw will change the game
+        self._positions["draw"] = position_from_game(position, HUMAN_SEAT, "draw", self.seed)
 
         def evaluate() -> list[dict[str, Any]]:
             return [
@@ -180,6 +200,7 @@ class ScenarioSession:
         assert self.game is not None
         panel = self._ensure_panel()
         position = copy.deepcopy(self.game)
+        self._positions["discard"] = position_from_game(position, HUMAN_SEAT, "discard", self.seed)
 
         def evaluate() -> list[dict[str, Any]]:
             rows = []
@@ -207,6 +228,9 @@ class ScenarioSession:
         position = copy.deepcopy(self.game)
         pending_discard = self.user_discard
         post_hand = Hand([c for c in position.players[HUMAN_SEAT].hand if c != pending_discard])
+        self._positions["knock"] = position_from_game(
+            position, HUMAN_SEAT, "knock", self.seed, pending_discard=pending_discard
+        )
 
         def evaluate() -> list[dict[str, Any]]:
             return [
@@ -222,6 +246,9 @@ class ScenarioSession:
         self._prepare("knock", evaluate)
 
     def shutdown(self) -> None:
+        self._deep_stop.set()
+        if self._deep_thread is not None:
+            self._deep_thread.shutdown(wait=True)
         if self._analysis_thread is not None:
             self._analysis_thread.shutdown(wait=True)
         for member in self.panel or []:
@@ -253,6 +280,8 @@ class ScenarioSession:
         self.drawn_card = None
         self.user_discard = None
         self.post_discard_deadwood = None
+        self._positions = {}
+        self._choices = {}
         with self._results_lock:
             self.reveals = {}
             self._prepared = {}
@@ -266,6 +295,7 @@ class ScenarioSession:
         user_choice = DrawChoice.DISCARD if source == "discard" else DrawChoice.DECK
 
         self._judge("draw", source, user_choice)
+        self._choices["draw"] = "pile" if user_choice == DrawChoice.DISCARD else "deck"
 
         if user_choice == DrawChoice.DISCARD:
             self.drawn_card = self.game.draw_from_discard()
@@ -291,6 +321,7 @@ class ScenarioSession:
             return {"error": f"Cannot discard {card} - you just took it from the pile"}
 
         self._judge("discard", card.code, card)
+        self._choices["discard"] = card.code
 
         self.user_discard = card
         self.post_discard_deadwood = calculate_post_discard_deadwood(human.hand, card)
@@ -306,7 +337,57 @@ class ScenarioSession:
             return {"error": "Not expecting a knock decision"}
 
         self._judge("knock", "knock" if knock else "continue", knock)
+        self._choices["knock"] = "knock" if knock else "continue"
         self.phase = "done"
+        return self.get_state()
+
+    def start_deep_analysis(self, decision: str) -> dict[str, Any]:
+        """Queue a deep analysis of one of this scenario's answered decisions."""
+        position = self._positions.get(decision)
+        if self.phase != "done" or position is None or decision not in self._choices:
+            return {"error": f"No answered {decision} decision to analyse"}
+
+        key = position.key
+        with self._deep_lock:
+            job = self._deep_jobs.get(key)
+            if job is not None and job["status"] in ("queued", "running"):
+                return self.get_state()
+            self._deep_jobs[key] = {"status": "queued", "progress": "Waiting to start", "result": None}
+
+        def update(**changes: Any) -> None:
+            with self._deep_lock:
+                self._deep_jobs[key].update(changes)
+
+        def job_body() -> None:
+            update(status="running", progress="Dealing the hidden cards")
+            try:
+                result = analyse(
+                    position,
+                    max_samples=self.deep_samples,
+                    batch=self.deep_batch,
+                    workers=self.mc_workers,
+                    pool=self.pool,
+                    progress=lambda message: update(progress=message),
+                    should_stop=self._deep_stop.is_set,
+                )
+            except Exception:
+                logger.exception("Deep analysis failed for the %s decision", decision)
+                update(status="failed", progress="The analysis failed")
+                return
+            if self._deep_stop.is_set():
+                update(status="failed", progress="Stopped")
+                return
+            try:
+                save_deep_analysis(result)
+            except sqlite3.Error:
+                logger.warning("Could not save the deep analysis", exc_info=True)
+            update(status="done", progress="", result=result)
+
+        if self._deep_thread is None:
+            self._deep_thread = ThreadPoolExecutor(max_workers=1, thread_name_prefix="scenario-deep")
+        future = self._deep_thread.submit(job_body)
+        if not self.background:
+            future.result()
         return self.get_state()
 
     # ------------------------------------------------------------------
@@ -319,6 +400,29 @@ class ScenarioSession:
         except sqlite3.Error:
             logger.warning("Could not read scenario totals", exc_info=True)
             return None
+
+    def _deep(self) -> dict[str, Any]:
+        """Deep analyses of this scenario's answered decisions: running, finished now, or saved earlier."""
+        if self.phase != "done":
+            return {}
+        deep = {}
+        for decision, choice in self._choices.items():
+            position = self._positions.get(decision)
+            if position is None:
+                continue
+            with self._deep_lock:
+                job = dict(self._deep_jobs.get(position.key) or {})
+            if not job or job["status"] == "failed":
+                try:
+                    saved = find_deep_analysis(position.key)
+                except sqlite3.Error:
+                    saved = None
+                if saved is not None:
+                    job = {"status": "done", "progress": "", "result": saved}
+            if not job:
+                job = {"status": "none", "progress": "", "result": None}
+            deep[decision] = {**job, "your_choice": choice}
+        return deep
 
     def _results(self) -> dict[str, Any]:
         """The analysis side of the state. Reveals are held back until the scenario is complete."""
@@ -380,5 +484,6 @@ class ScenarioSession:
             "user_discard": self.user_discard.code if self.user_discard else None,
             "post_discard_deadwood": self.post_discard_deadwood,
             **self._results(),
+            "deep": self._deep(),
             "lifetime": self._lifetime(),
         }

@@ -60,7 +60,7 @@
 /* In the decision panel it sits on the right, under the playing area */
 .decision-buttons .quiz-btn.next { margin: 0.5rem 0 0 auto; }
 
-.position-panel, .decision-panel, .reveal-panel, .scoreboard-panel {
+.position-panel, .decision-panel, .reveal-panel, .deep-panel, .scoreboard-panel {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
@@ -259,7 +259,7 @@ button.pile:disabled { opacity: 0.5; cursor: default; }
 .quiz-meld.run { background: rgba(33, 150, 243, 0.25); }
 .quiz-meld.set { background: rgba(156, 39, 176, 0.25); }
 
-.decision-panel h2, .reveal-panel h2, .scoreboard-panel h2 {
+.decision-panel h2, .reveal-panel h2, .deep-panel h2, .scoreboard-panel h2 {
     margin: 0 0 0.75rem;
     color: #fff;
     font-size: 1.1rem;
@@ -357,3 +357,58 @@ button.pile:disabled { opacity: 0.5; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
     .just-landed { animation: none; }
 }
+
+/* Deep analysis of a finished scenario */
+.deep-intro { color: var(--quiz-label); font-size: 0.88rem; margin: 0 0 0.9rem; }
+
+.deep-section { margin-bottom: 1.25rem; }
+.deep-section:last-child { margin-bottom: 0; }
+.deep-section h3 {
+    color: var(--muted);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 0.5rem;
+}
+
+.deep-summary { color: #fff; margin: 0 0 0.6rem; line-height: 1.7; }
+.deep-summary .line { display: block; }
+.deep-summary .good { color: #81c784; font-weight: 600; }
+.deep-summary .level { color: #fdd835; font-weight: 600; }
+.deep-summary .bad { color: #ef9a9a; font-weight: 600; }
+
+.deep-scroll { overflow-x: auto; }
+.deep-table { width: 100%; border-collapse: collapse; color: #fff; font-size: 0.9rem; }
+.deep-table th, .deep-table td {
+    text-align: left;
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+}
+.deep-table th { color: var(--quiz-label); font-weight: 500; }
+.deep-table td.num, .deep-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.deep-table td.outs { white-space: nowrap; }
+.deep-table td.outs .quiz-card { font-size: 0.78rem; padding: 0.1rem 0.25rem; margin-right: 0.15rem; }
+.deep-table tr.yours { background: rgba(253, 216, 53, 0.12); }
+.deep-table .range { color: var(--quiz-label); font-size: 0.85em; }
+
+.deep-tag {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    vertical-align: middle;
+}
+.deep-tag.you { background: #fdd835; color: #1b1b1b; font-weight: 600; }
+
+.deep-styles { margin-top: 0.6rem; color: var(--quiz-label); font-size: 0.88rem; }
+.deep-styles summary { cursor: pointer; color: #fff; }
+.deep-styles h4 { color: #fff; font-size: 0.88rem; margin: 0.8rem 0 0.3rem; font-weight: 600; }
+.deep-notes { color: var(--quiz-label); font-size: 0.82rem; margin-top: 0.5rem; line-height: 1.5; }
+
+/* The names of who chose an option may drop to a second line, so the table fits the panel */
+.deep-table td:first-child { white-space: normal; max-width: 11rem; }
+.deep-table td:first-child .deep-tag { margin: 0.15rem 0.2rem 0 0; }
