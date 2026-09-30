@@ -52,7 +52,23 @@ Each browser gets its own session (cookie), and games are recorded to `game_hist
 ```bash
 uv run gin-rummy      # human vs AI, or player vs player
 uv run gin-scenario   # scenario quiz in the terminal (--count N --seed S)
+uv run gin-analyze --seed 20587   # deep analysis of a quiz decision, saved to the database
 ```
+
+### Deep analysis
+
+`gin-analyze` (and the "Run deep analysis" button on a finished quiz scenario) answers
+"what was the best play here?" as objectively as the program can:
+
+- every option is played to the end of the hand, not a few turns ahead
+- over thousands of ways the hidden cards could lie, the same deals for every option
+- using only what the player could know; the real hidden cards are reported separately
+- under three ways of playing on (patient, greedy, gin hunter), so a verdict that
+  depends on the style of play shows up as such
+- until the options can be told apart, or 40,000 deals have been tried
+
+Results are saved in the `deep_analyses` table, so a position is only analysed once
+(`--force` to repeat, `--list` and `--show ID` to look back).
 
 ## Game Rules
 

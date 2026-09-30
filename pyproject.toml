@@ -15,6 +15,7 @@ gin-simulate = "gin_rummy.simulator:main"
 gin-train = "gin_rummy.learning.train_cli:main"
 gin-experiment = "gin_rummy.learning.experiment:main"
 gin-scenario = "gin_rummy.scenario.cli:main"
+gin-analyze = "gin_rummy.analysis.cli:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -30,6 +30,10 @@ MIGRATIONS: list[tuple[int, list[str]]] = [
         5,  # scenario_answers table; init_db has already created it from SCHEMA
         [],
     ),
+    (
+        6,  # deep_analyses table; init_db has already created it from SCHEMA
+        [],
+    ),
 ]
 
 

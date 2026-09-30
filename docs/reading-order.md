@@ -47,6 +47,8 @@ Recommended order for understanding this codebase (paths are under `gin_rummy/`)
 
 14. **`scenario/`** - The scenario quiz: `core.py` freezes real AI-vs-AI positions and grades your draw, discard and knock against each AI (with Monte Carlo EVs); `cli.py` is `gin-scenario`, and the web `/scenario` page drives the same core.
 
+    **`analysis/`** - Deep analysis of one decision: `style.py` (how a hand is played on, on card bitmasks), `playout.py` (play a dealt position to the end), `deep.py` (sampling, rounds, statistics), `report.py`, and `cli.py`, which is `gin-analyze`. ContextAwareAI's discard uses `style.potential` to value near melds.
+
 15. **`learning/`** - The Deep Q-Learning AI: `learning_ai.py` (the player), `models.py` (DrawNet/DiscardNet/KnockNet), `state.py` (features), `rewards.py`, `replay.py` (experience buffer), `trainer.py`; `train_cli.py` is `gin-train` and `experiment.py` is `gin-experiment`.
 
 16. **`db/`** - SQLite game history: `schema.py`, `migrations.py`, `connection.py`, `tracker.py` (`GameTracker` records games as they are played), `queries.py` (the read side). `tracking.py` turns a turn's actions into the rows the tracker stores.
